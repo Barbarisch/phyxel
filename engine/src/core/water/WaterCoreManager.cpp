@@ -3252,7 +3252,10 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
     {   // 54.4: the record's tiles draw the river ripple layer (the shader reads 0 outside its window); a change of slot re-meshes them
         const int want = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;
         for (auto& [key, t] : m_recordTiles)
-            if (t.wet && t.field.rippleLayer != want) { t.field.rippleLayer = want; t.field.version = ++m_recordBuilds; }
+            if (t.wet && t.field.rippleLayer != want) {   // 58.3: a drawing change only - the columns (colsVersion) stand
+                if (t.field.colsVersion == 0) t.field.colsVersion = t.field.version;
+                t.field.rippleLayer = want; t.field.version = ++m_recordBuilds; ++m_recordStats.rippleBumps;
+            }
     }
     for (auto& [key, t] : m_recordTiles) if (t.wet) m_fields.push_back(&t.field);
     return m_fields;
@@ -3416,6 +3419,13 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     const int T = kRecordTile, per = kMicroPerVoxel;   // the record is drawn at the 1/9 m lattice (the pond's)
     const int vy = static_cast<int>(std::floor(m_view.y));
     const glm::ivec3 lo(tx * T, vy - kRecordBandVoxels, tz * T), hi(tx * T + T - 1, vy + kRecordBandVoxels, tz * T + T - 1);
+    // 58.3: the tops before this build (takeMotion's reference for a record tile - its rise is found here, see the end)
+    std::vector<float> oldTops; glm::ivec3 oldOrigin(0); int oldNx = 0, oldNz = 0;
+    if (t.wet && t.field.cols.size() == static_cast<size_t>(t.field.nx) * t.field.nz && !s_recordMotionScanForTest) {
+        oldOrigin = t.field.origin; oldNx = t.field.nx; oldNz = t.field.nz;
+        oldTops.assign(t.field.cols.size(), std::numeric_limits<float>::quiet_NaN());
+        for (size_t i = 0; i < t.field.cols.size(); ++i) { const int r = static_cast<int>(t.field.cols[i].runs + 0.5f); if (r > 0) oldTops[i] = t.field.cols[i].top[std::min(r, kSurfaceMaxRuns) - 1]; }
+    }
     auto tb = std::chrono::steady_clock::now();   // 27.19 measurement
     auto bpart = [&](int k) { const auto n = std::chrono::steady_clock::now(); s_tilePhases.build[k] = std::chrono::duration<double, std::milli>(n - tb).count(); tb = n; };
     std::vector<ColumnRuns> runs;
@@ -3543,6 +3553,24 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     bpart(3);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;
+    t.field.colsVersion = t.field.version;   // 58.3: built - the columns are new
+    ++m_recordStats.tileBuilds;
+    // 58.3: takeMotion's rule, here: a column whose top moved by more than kRecordMotionMoveM since the last build rose (a column dry
+    // before or now has no reference - as the scan); the box waits for takeMotion (pending, unioned with one not yet emitted)
+    if (!oldTops.empty() && oldOrigin == t.field.origin && oldNx == t.field.nx && oldNz == t.field.nz) {
+        for (int z = 0; z < t.field.nz; ++z) for (int x = 0; x < t.field.nx; ++x) {
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(t.field.nx) * z;
+            const SurfaceColumn& c = t.field.cols[i];
+            const int runs = static_cast<int>(c.runs + 0.5f);
+            if (runs <= 0 || std::isnan(oldTops[i])) continue;
+            const float top = c.top[std::min(runs, kSurfaceMaxRuns) - 1];
+            if (std::abs(top - oldTops[i]) <= kRecordMotionMoveM) continue;
+            const glm::vec2 wc((t.field.origin.x + x + 0.5f) * t.field.h, (t.field.origin.z + z + 0.5f) * t.field.h);
+            if (!t.risePending) { t.risePending = true; t.riseCols = 0; t.riseLo = t.riseHi = wc; t.riseYLo = t.riseYHi = top; }
+            t.riseLo = glm::min(t.riseLo, wc); t.riseHi = glm::max(t.riseHi, wc); t.riseYLo = std::min(t.riseYLo, top); t.riseYHi = std::max(t.riseYHi, top);
+            ++t.riseCols;
+        }
+    }
     t.field.rippleLayer = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;   // 54.4: the river ripple layer
     t.field.look = packLook(lookAt(tx * T + T / 2, tz * T + T / 2));
 }
@@ -3553,8 +3581,18 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
     std::vector<std::pair<glm::vec3, float>> out;
     m_motionStats = MotionStats{};
     if (m_motionPrevTops.size() != m_fields.size()) { m_motionPrevTops.assign(m_fields.size(), {}); m_motionSeen.assign(m_fields.size(), {}); }
+    // 58.3: a record tile's rise was found when it was built (buildRecordTile) - emitted here, never scanned
+    if (!s_recordMotionScanForTest)
+        for (auto& [key, t] : m_recordTiles) {
+            if (!t.risePending) continue;
+            const glm::vec3 c(0.5f * (t.riseLo.x + t.riseHi.x), 0.5f * (t.riseYLo + t.riseYHi), 0.5f * (t.riseLo.y + t.riseHi.y));
+            const float r = 0.5f * glm::length(glm::vec3(t.riseHi.x - t.riseLo.x, t.riseYHi - t.riseYLo, t.riseHi.y - t.riseLo.y)) + t.field.h;
+            out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r; m_motionStats.riseCols += t.riseCols;
+            t.risePending = false; t.riseCols = 0;
+        }
     for (size_t fi = 0; fi < m_fields.size(); ++fi) {
         const WaterSurfaceField& f = *m_fields[fi];
+        if ((f.source & kRecordDrawSourceBit) && !s_recordMotionScanForTest) continue;   // 58.3: above
         if (f.gpuDrawn && m_gpu) {   // 29 S2: the device scanned it in the water's call (the covered columns; a frozen column cannot move)
             Av* av = nullptr;
             for (auto& a : m_avs) if (a->id == f.source) av = a.get();
@@ -3576,7 +3614,8 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
         // 26.30 step 3: the same field as the last scan (source + version): no column moved since, so nothing rose; its flow
         // figures stand (the scan cost 0.24 ms a frame on a sleeping 20 x 20 m pond)
         MotionSeen& seen = m_motionSeen[fi];
-        if (f.version != 0 && seen.source == f.source && seen.version == f.version) {
+        const uint64_t colsKey = f.colsVersion != 0 ? f.colsVersion : f.version;   // 58.3: the columns' own version (a ripple slot bump is not motion)
+        if (colsKey != 0 && seen.source == f.source && seen.version == colsKey) {
             m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, seen.maxFlow); m_motionStats.flowCols += seen.flowCols;
             continue;
         }
@@ -3610,7 +3649,7 @@ std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float move
             lo = glm::min(lo, wc); hi = glm::max(hi, wc); yLo = std::min(yLo, top); yHi = std::max(yHi, top); any = true;
         }
         prev.swap(cur);
-        seen = MotionSeen{f.source, f.version, m_motionStats.maxFlow, m_motionStats.flowCols - flowColsBefore};
+        seen = MotionSeen{f.source, colsKey, m_motionStats.maxFlow, m_motionStats.flowCols - flowColsBefore};
         m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, maxFlowBefore);
         if (!any) continue;
         const glm::vec3 c(0.5f * (lo.x + hi.x), 0.5f * (yLo + yHi), 0.5f * (lo.y + hi.y));

@@ -13969,7 +13969,8 @@ void Application::registerWaterCommands() {
              {"revision", waterCore->recordRevision()}, {"handover_tiles_per_frame", M::s_recordDraw.handoverTilesPerFrame},
              {"retiring", s.retiring}, {"handover_frames_last", s.handoverFramesLast}, {"handover_tiles_max_per_frame", s.handoverTilesMaxPerFrame},
              {"handovers", s.handovers}, {"sleep_tiles_built", s.sleepTilesBuilt},
-             {"occ_staled_by_place", s.occStaledByPlace}, {"occ_all_stale", s.occAllStale}};   // 58.3
+             {"occ_staled_by_place", s.occStaledByPlace}, {"occ_all_stale", s.occAllStale},
+             {"tile_builds", s.tileBuilds}, {"ripple_bumps", s.rippleBumps}};   // 58.3
     });
     // 51.4 S3: the far skin - recorded water beyond the record tiles (draw_m) drawn as coarse fields on clipmap rings. Omitted =
     // unchanged. on (default ON - owner 2026-11-11, 51.4g); far_m its reach (m) - by default it FOLLOWS the far terrain's reach

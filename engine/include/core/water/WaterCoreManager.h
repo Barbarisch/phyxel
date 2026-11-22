@@ -613,7 +613,8 @@ public:
     static bool isRecordDrawField(const WaterSurfaceField& f) { return f.source >= 0 && (f.source & kRecordDrawSourceBit) != 0; }
     struct RecordDrawStats { int tiles = 0, wetTiles = 0, builtLastCall = 0, pending = 0; double buildMsLastCall = 0.0, buildMsMax = 0.0, buildMsOnSleepLast = 0.0;
                              int retiring = 0, handoverFramesLast = 0, handoverTilesMaxPerFrame = 0; long sleepTilesBuilt = 0, handovers = 0;   // 57.8
-                             long occStaledByPlace = 0, occAllStale = 0; };   ///< 58.3: tiles an occupancy change staled where it happened; revisions with no change list (every tile stale)
+                             long occStaledByPlace = 0, occAllStale = 0;
+                             long tileBuilds = 0, rippleBumps = 0; };   ///< 58.3: record tile fields built / version bumps for the ripple slot only   ///< 58.3: tiles an occupancy change staled where it happened; revisions with no change list (every tile stale)
     /// 58.3 item 1: TEST ONLY - every record tile stale at any occupancy revision (the rule before; 52.5's periodic freeze)
     static inline bool s_recordOccAllStaleForTest = false;
     const RecordDrawStats& recordDrawStats() const { return m_recordStats; }
@@ -796,6 +797,10 @@ public:
     static inline bool s_tileWakeWithoutCallForTest = false;
     /// 58.3: TEST ONLY - a sleeping volume with host surface writes queued keeps the asleep branch (no step, no surface-only call)
     static inline bool s_surfQueuedStaysAsleepForTest = false;
+    /// 58.3: a record tile's rise is found when it is BUILT (against its field before), not by takeMotion scanning every record field
+    /// (the first live frame after a lake's tiles were built scanned ~560k columns, ~4 ms). TEST ONLY: takeMotion scans them as before
+    static inline bool s_recordMotionScanForTest = false;
+    static constexpr float kRecordMotionMoveM = 0.015f;   ///< takeMotion's default threshold (a record tile is not passed one)
     /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
     static constexpr double kKeptFreeMsPerFrame = 1.0;
     /// L3 (41): the release rule run now (also run by update) - orphans, beyond memoryM, over the cap; then the paced free
@@ -1346,7 +1351,9 @@ private:
     double m_tickAccum = 0.0;   ///< 27.26: frame time not yet stepped (s)
     long m_ticksDropped = 0;   ///< 27.26: ticks a frame's backlog dropped (over kMaxTicksPerFrame)
     std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field); then the record tiles (§27 W1a)
-    struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false; };
+    struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false;
+                        // 58.3: a rebuild's rise against the field before it (takeMotion's rule at build time): pending until takeMotion emits it
+                        bool risePending = false; int riseCols = 0; glm::vec2 riseLo{0.0f}, riseHi{0.0f}; float riseYLo = 0.0f, riseYHi = 0.0f; };
     std::map<std::pair<int, int>, RecordTile> m_recordTiles;   // §27 W1a, by tile (x, z) index
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_recordBoxes;
     uint64_t m_recordRevision = 0, m_recordBuilds = 0;

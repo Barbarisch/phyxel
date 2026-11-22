@@ -101,7 +101,8 @@ def one(api, k, handover=None, windows=False):
                          # 58: each phase's total in the window (many small calls) and the worst water block's split
                          "totals_ms": {n: round(v.get("ms_per_frame", 0.0) * fr, 1) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},
                          "calls": {n: round(v.get("calls_per_frame", 0.0) * fr) for n, v in sorted(hpr.get("phases", {}).items()) if v.get("ms_per_frame", 0.0) * fr >= 5.0},
-                         "frames": fr, "worst_water_block": hpr.get("app_water_cpu_ms_worst_frame"), "motion_scan_max": hpr.get("motion_scan_max")})
+                         "frames": fr, "worst_water_block": hpr.get("app_water_cpu_ms_worst_frame"), "motion_scan_max": hpr.get("motion_scan_max"),
+                         "record_counts": {k2: v for k2, v in api.debug("water_av_record_draw", {}).items() if k2 in ("tile_builds", "ripple_bumps", "occ_staled_by_place", "occ_all_stale", "pending")}})
             api.debug("water_av_host_phases", {"reset": True})
         if slept_at is not None and time.time() - t0 > slept_at + 3: break
         time.sleep(0.5)
@@ -130,8 +131,9 @@ def main():
     ap.add_argument("--spare", type=int, default=None, help="58 item 1: water_locality patch_spare (1 on, 0 off; omitted = unchanged)")
     ap.add_argument("--patch-pace", type=int, default=None, help="58.3: water_coupling patch_pace (1 a patch built over frames, 0 at once; omitted = unchanged)")
     ap.add_argument("--out", default=str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4" / "s57_patch_sleep_split.json"))
+    ap.add_argument("--allow-foreign", action="store_true", help="58.3: run beside another checkout's engine (recorded per run, the numbers marked)")
     a = ap.parse_args()
-    if P.foreign(): raise SystemExit(f"other phyxel processes share the GPU: {P.foreign()}")
+    if P.foreign() and not a.allow_foreign: raise SystemExit(f"other phyxel processes share the GPU: {P.foreign()}")
     api = Api(a.url); api.wait_status(300)
     if "error" in P.ps(api):
         api.post("/api/entity/spawn", {"type": "animated", "position": {"x": 2.0, "y": P.TOP + 1.2, "z": 0.0}, "id": "player"})

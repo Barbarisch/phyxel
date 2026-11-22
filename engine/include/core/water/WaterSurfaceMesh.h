@@ -79,6 +79,7 @@ struct WaterSurfaceField {
     int rippleLayer = -1;              ///< 22: the ripple layer drawn on this field (an index the renderer's atlas uses); -1 = none
     int source = 0;                    ///< 26.30: who made it (a volume's id; 0 = unknown) - the tiler's key for its tiles
     uint64_t version = 0;              ///< 26.30: the producer's step counter; same source + version = same columns (0 = unknown: compared)
+    uint64_t colsVersion = 0;          ///< 58.3: the COLUMNS' own version where `version` also moves for drawing only (a record tile's ripple slot) - 0 = version
     bool gpuDrawn = false;             ///< 29 S1: the device draws this field (WaterCoreManager::gpuSurfaceDraws) - the host's tiler skips it
     /// 51.4 S3: each column's pad1 / pad2 carry the part of the cell its top quad covers, in x and in z (skinInsetEncode): the far
     /// skin's coarse cells drawn over their wet columns' extent only, so a straight shore stays on the shore at any cell size

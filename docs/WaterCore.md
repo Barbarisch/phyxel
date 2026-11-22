@@ -15322,6 +15322,17 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   volume with host surface writes queued takes the stepping branch (`WaterCoreGpu::step` then submits the surface-only call). After:
   1 of 10 (the frame before the first tick), both runs; RED (surface-only call off) 10 of 10. TEST ONLY
   `s_surfQueuedStaysAsleepForTest`, `s_tileWakeWithoutCallForTest`.
+- **The host motion scan (`motion.1`, 3.7-4.1 ms in a patch's first live frame) cut, a fix.** Measured with the new counter
+  (`motion_scan_max`, `s58_windows_motion.json`): 108-110 fields, ~560-695k columns in one call - every RECORD tile built since the
+  last live volume (`takeMotion` runs only while a volume holds cells, so a lake's tiles built before the splash were all scanned at
+  its first live frame; in the rig the tool re-records the lake each run). My first guess (the river ripple slot bumping every tile's
+  version) was wrong - `ripple_bumps` read 0; kept anyway as `WaterSurfaceField::colsVersion` (a drawing-only bump is not motion).
+  **Now:** `buildRecordTile` compares the new tops with the field before it (takeMotion's rule, `kRecordMotionMoveM` = 0.015 m, a
+  column dry before or now has no reference - as the scan) and keeps the rise box pending; `takeMotion` emits the pending boxes and
+  scans no record field. Record tiles' current no longer counts in `water_motion`'s flow stats (debug only). TEST ONLY
+  `s_recordMotionScanForTest`. **Test** `ARecordTilesRiseIsFoundWhenItIsBuilt` (CPU, a 32 m recorded lake, one tile raised 0.5 m):
+  one sphere at (12.00, 2.50, 12.00), none before or again, record columns scanned 0; the old scan (reference): the same sphere,
+  165,888 columns scanned. Live: not yet re-measured.
 - P8 restated a fourth time: with another checkout's engine on the GPU the two immediate runs at 120 fps read 20.05 / 23.15 ms - its
   +2 ms bound sat inside the measured noise; the tolerance is now + 2 ms + the spread of the two immediate runs at that frame rate.
   P7's red control read 0 in a loaded full-suite run and 8 alone (it depends on how many stages a frame's wall-time budget fits).

@@ -536,6 +536,50 @@ TEST_F(WaterRecordTilesTest, ASleepingPatchsWokenTileIsDrawnByTheNextCall) {
     EXPECT_GE(uRed, 9) << "RED: without the surface-only call the tile must stay undrawn";
 }
 
+// 58.3 item 1 - a record tile's motion found when it is built, not scanned. Live (Creek) the first frame after a patch went live
+// scanned every record tile built since the last live volume (takeMotion runs only while a volume holds cells): 108-110 fields, ~560k
+// columns, 3.7-4.1 ms. Now buildRecordTile compares the new tops with the field before it (takeMotion's rule, kRecordMotionMoveM) and
+// takeMotion emits the pending boxes. CPU: a 32 m lake 2 m deep in the record, 16 tiles; built; then tile (1, 1) raised 0.5 m and every
+// tile rebuilt (a span revision). Predictions: takeMotion after the first build - no sphere; after the raise - ONE sphere, its centre
+// in tile (1, 1); a second takeMotion - none; record columns the host scanned: 0. REFERENCE (s_recordMotionScanForTest, the scan as
+// before): the same one sphere (centre within 0.5 m), with every record column scanned.
+TEST_F(WaterRecordTilesTest, ARecordTilesRiseIsFoundWhenItIsBuilt) {
+    using M = WaterCoreManager;
+    struct Res { size_t first = 9, after = 9, again = 9; glm::vec3 c{0.0f}; long scanned = 0; };
+    auto run = [&](bool scan) {
+        Res o;
+        struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_recordMotionScanForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+        M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_recordMotionScanForTest = scan;
+        uint64_t srev = 1;
+        M mgr([](const glm::ivec3& m) { return m.y < 0 ? 1 : 0; });
+        mgr.setSpanRevisionQuery([&]() { return srev; });
+        FakeRecord record; record.install(mgr);
+        const int W = 32;
+        for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        mgr.setViewPoint(glm::vec3(16.0f, 6.0f, 16.0f));
+        auto settle = [&]() { for (int k = 0; k < 400; ++k) { mgr.surfaceFields(); if (k > 0 && mgr.recordDrawStats().pending == 0) break; } };
+        settle();
+        o.first = mgr.takeMotion().size(); o.scanned += mgr.motionStats().hostCols;
+        for (int z = 8; z < 16; ++z) for (int x = 8; x < 16; ++x) { auto& v = record.cols[{x, z}]; v[0].topY = 2.5f; v[0].mass = 2.5; }
+        ++srev;
+        settle();
+        const auto m = mgr.takeMotion(); o.after = m.size(); o.scanned += mgr.motionStats().hostCols;
+        if (!m.empty()) o.c = m[0].first;
+        o.again = mgr.takeMotion().size(); o.scanned += mgr.motionStats().hostCols;
+        return o;
+    };
+    const Res now = run(false), ref = run(true);
+    for (const Res* r : {&now, &ref})
+        std::printf("  %-26s spheres: after the first build %zu, after the raise %zu (centre %.2f %.2f %.2f), again %zu | record columns scanned %ld\n",
+                    r == &now ? "found at build" : "REFERENCE: scanned", r->first, r->after, r->c.x, r->c.y, r->c.z, r->again, r->scanned);
+    EXPECT_EQ(now.first, 0u); EXPECT_EQ(now.after, 1u); EXPECT_EQ(now.again, 0u);
+    EXPECT_GE(now.c.x, 8.0f); EXPECT_LE(now.c.x, 16.0f); EXPECT_GE(now.c.z, 8.0f); EXPECT_LE(now.c.z, 16.0f);
+    EXPECT_EQ(now.scanned, 0) << "takeMotion still scanned record columns";
+    EXPECT_EQ(ref.after, 1u) << "REFERENCE: the scan as before finds the raise";
+    EXPECT_GT(ref.scanned, 0);
+    EXPECT_LT(glm::length(now.c - ref.c), 0.5f) << "the sphere differs from the scan's";
+}
+
 // 58.3 item 1 - 52.5's periodic freeze: "at 80 s and 120 s, the camera still, the frame rate fell to ~0.6 fps (> 1 s) as
 // record_pending jumped to 131". Reproduced (2026-11-22, RiverCarve, tools/water_freeze_probe.py): pending 127 of 135 again every
 // 20-40 s, 5 s of 50-60 ms water frames each time - a record tile stored the WORLD's occupancy revision, so any chunk change anywhere
