@@ -894,3 +894,17 @@ the ENGINE's SettlementBuildService / StructureForge.
 CONCLUSION: the old-grid writers (StructureGenerator::place / removeVoxels, the settlement's clears) now write the
 switched world, today's world untouched; centre sampling converts thirds / ninths exactly by partition. Owed: a
 street-laying settlement mode exercised live, undo for edits over 16 M voxels, the canopy sweep's 37 s.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.14 PREDICTION -- tree-matter reads on the switched world (2026-11-22, before any code).
+CONTROL: DamageSystem::isTreeMatterCell (the settlement's orphaned-canopy sweep, structure vegetation gates, tree
+felling) scans TODAY's chunks (scanCellTree) even while switched: the sweep tests the hidden world's trees against the
+region's solidity. Live (F7.13): the canopy pass is a 37 s frame. Re-run first: a floating Leaf cube placed in the
+switched region over the village's street (8166, 45, 98) survives the settlement (not seen as tree matter).
+THE CHANGE: ChunkManager gets a tree-cell hook (set while switched): a cube is tree matter when its 8^3 block in the
+region holds a Leaf* or Log* voxel (uniform blocks answered from the block directory); isTreeMatterCell asks it first.
+  Y1: the floating Leaf cube is found and cleared by the orphaned-canopy pass (region voxel there air afterwards);
+      the sweep's count >= 1.
+  Y2: the canopy unit's frame <= 2 s (37 s).
+  Y3: today's world still untouched by the settlement (0 / 315 sampled cubes).
+RED: tree_stub (the hook not set) -> the control (the Leaf cube survives).
