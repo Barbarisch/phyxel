@@ -3163,6 +3163,13 @@ every house: a 2 x 2 village's four houses land in the region (exact, standable,
 response with an empty "error" key made the settlement re-roll every lot. Not yet: the settlement's own ground works
 (clearing, streets, paving, fences, wells, pads) still write today's chunks.
 
+**F7.13, the old-grid writers through a hook (2026-11-22).** `ChunkManager::setVoxFoundWrite` / `setVoxFoundClearBoxes`
+(set while switched): `StructureGenerator::place` / `removeVoxels` and `ChunkManager::clearChunkCellsBulk` (the
+settlement's five clear loops) write the region; thirds / ninths become 1/8 m voxels by centre sampling
+(`VoxFound::placementVoxels`, an exact partition). Live: today's world untouched by the village (0 / 315 vs 50). Found:
+this settlement mode lays no streets; the clearing exceeds the 16 M undo limit; the clearing cost 35 s -> 2 s as one
+masked edit; the orphaned-canopy sweep is a 37 s frame on the switched world (next lever).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

@@ -351,6 +351,8 @@ private:
     bool voxFoundTemplateStub = false;   // F7.10 (tests): spawn_template not routed
     bool voxFoundStructStub = false;     // F7.11 (tests): build_structure not routed
     nlohmann::json voxFoundCanvasLog = nlohmann::json::array();   // F7.12: every new-store placement's result
+    bool voxFoundWriterStub = false;                             // F7.13 (tests): the old-grid writers not routed
+    std::map<std::string, std::pair<size_t, size_t>> voxFoundWriterLog;   // F7.13: label -> (calls, voxels changed)
     std::set<std::tuple<int, int, int>> voxFoundLastCanvasCells;   // F7.11: the last shell's cells (struct_check)
     nlohmann::json voxFoundPlaceCanvas(const Core::MicroCanvas& canvas, int floorTopCell, int originX, int originZ);
     /// F7.10: one undoable edit of listed cells (world voxels, palette ids) on the region -- what placers write through

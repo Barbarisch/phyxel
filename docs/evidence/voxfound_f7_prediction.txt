@@ -867,3 +867,30 @@ The hook = voxFoundPaintCells (each call one undo entry). Every StructureGenerat
   X3 (L4): a character dropped on a street point rests on the region's street surface (its top solid voxel + 1).
   X4: undoing every entry restores all 32 store hashes.
 RED: writer_stub (the hook not set) -> F7.12's behaviour (today's chunks get the ground works).
+
+F7.13 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); flora_window open,
+load_saved false; F7.12's village. Evidence: voxfound_f713_live.jsonl, voxfound_f713_village_top.png;
+tools/voxfound_f713_live.py; tests/core/PlacementToVoxelsTest.cpp. Every artifact: WorldGenerator Perlin s7 + flora +
+the ENGINE's SettlementBuildService / StructureForge.
+  CONTROL (the F7.12 editor, before the code): 50 of 315 sampled cubes of today's hidden world changed by the
+     settlement's ground works; the region got only the houses.
+  RED as predicted (writer_stub): the same 50 / 315.
+  X1 PASS (unit, 2/2): centre sampling partitions a cube at every level -- its 27 subcubes and its 729 microcubes each
+     give each of the 512 voxels to exactly one placement (3 cubes, negatives included); a lone subcube 2-3 per axis.
+  X2 PASS: with the hook, 0 of 315 sampled cubes of today's world changed; the region took the ground works through
+     the hook: the parcel clearing (4,012,750 voxels) and the orphaned-canopy pass (0 found). FOUND: this settlement
+     mode (legacy params) lays no streets -- the plan reports 6, no street unit runs (none in the red's log either):
+     paving, the street band and the sweep were not exercised here (their code moved onto the same hook, untested live).
+  X3 PASS as far as it goes: a character dropped at the street point (8166.5, 98.5) rests at 25.875 m = the region's
+     top there -- cleared ground, not paving (no streets, above).
+  X4 MISSED: 4 undos then nothing -> 24 / 32 hashes: the clearing's box (~40 M voxels) is over EditHistory's 16 M
+     limit, so it is not recorded (as designed, but the prediction expected every write undoable).
+  COST (found and partly fixed, time-boxed): the clearing first ran through applyCells, ~35 s in ONE job unit (one
+     frame); as ~1,900 column applyBox calls 45 s for the job (each paid a rebuild); as ONE masked edit over the
+     boxes' bound (RegionEdit::apply): ~2 s (a 1.98 s frame). Remaining: the orphaned-canopy sweep is a 37 s frame on
+     the switched world (its per-cell tree-matter test over a big box; the control's whole job was 16 s) -- the next
+     lever. The repeated ~1.9 s frames after the job were MY instrumentation (store_hash densifies 32 chunks on the
+     main thread; the undo loop), not the runtime.
+CONCLUSION: the old-grid writers (StructureGenerator::place / removeVoxels, the settlement's clears) now write the
+switched world, today's world untouched; centre sampling converts thirds / ninths exactly by partition. Owed: a
+street-laying settlement mode exercised live, undo for edits over 16 M voxels, the canopy sweep's 37 s.

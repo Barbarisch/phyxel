@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include "Types.h"
 #include "core/StreamingFocus.h"
 #include "IChunkManager.h"
@@ -397,6 +398,21 @@ public:
     /// consumers are unchanged. nullptr = the old chunks (the default). Not owned; must outlive its use.
     void setVoxFoundReads(const Core::VoxFound::WorldReads* reads) { m_voxFoundReads = reads; }
     const Core::VoxFound::WorldReads* voxFoundReads() const { return m_voxFoundReads; }
+    /// docs/VoxelFoundationPlan.md F7.13: when set, the old-grid writers (StructureGenerator::place / removeVoxels,
+    /// clearChunkCellsBulk) write the new store instead -- (world 1/8 m voxel, material name; "" = air) cells and a
+    /// label; returns the voxels changed. Empty = the old chunks (the default).
+    using VoxFoundWriteFn =
+        std::function<size_t(const std::vector<std::pair<glm::ivec3, std::string>>& voxels, const std::string& label)>;
+    void setVoxFoundWrite(VoxFoundWriteFn fn) { m_voxFoundWrite = std::move(fn); }
+    /// F7.13: whole-cube clears as boxes (world 1/8 m voxels, inclusive) -- far cheaper than listed cells. Optional:
+    /// without it clearChunkCellsBulk lists the cells through the write hook.
+    using VoxFoundClearBoxesFn =
+        std::function<size_t(const std::vector<std::pair<glm::ivec3, glm::ivec3>>& boxes, const std::string& label)>;
+    void setVoxFoundClearBoxes(VoxFoundClearBoxesFn fn) { m_voxFoundClearBoxes = std::move(fn); }
+    const VoxFoundWriteFn& voxFoundWrite() const { return m_voxFoundWrite; }
+    /// F7.13: clear whole cubes grouped by chunk (chunk-local cells) -- the old loop (clearCellsBulk + markChunkDirty),
+    /// or, with the write hook, air over each cube's 8^3 voxels. Returns the cells cleared (old) / voxels changed (new).
+    int clearChunkCellsBulk(const std::map<Chunk*, std::vector<glm::ivec3>>& byChunk, const std::string& label);
 
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)
     void performOcclusionCulling();
@@ -459,7 +475,9 @@ public:
     std::shared_mutex& chunkAccessMutex() const { return m_chunkAccessMutex; }
     
 private:
-    const Core::VoxFound::WorldReads* m_voxFoundReads = nullptr;   // F7.1
+    const Core::VoxFound::WorldReads* m_voxFoundReads = nullptr;
+    VoxFoundWriteFn m_voxFoundWrite;   // F7.13
+    VoxFoundClearBoxesFn m_voxFoundClearBoxes;   // F7.1
     size_t m_borderRippleCount = 0;   // see borderRippleCount()
 
     // Memory management helper

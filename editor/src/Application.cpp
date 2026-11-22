@@ -13599,6 +13599,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("writer_stub")) {   // F7.13 (tests): the old-grid writers not routed (the red)
+            voxFoundWriterStub = cmd.params["writer_stub"].get<bool>();
+            response = {{"writer_stub", voxFoundWriterStub}};
+            return;
+        }
+        if (cmd.params.value("writer_log", false)) {   // F7.13: the hook's writes by label
+            nlohmann::json byLabel = nlohmann::json::object();
+            for (const auto& [label, e] : voxFoundWriterLog) byLabel[label] = {{"calls", e.first}, {"voxels", e.second}};
+            response = {{"by_label", byLabel}};
+            return;
+        }
         if (cmd.params.value("struct_log", false)) {   // F7.12: the new-store placements so far ({"log_clear":true} empties)
             response = {{"placements", voxFoundCanvasLog}};
             if (cmd.params.value("log_clear", false)) voxFoundCanvasLog = nlohmann::json::array();
@@ -13802,6 +13813,76 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
+            if (chunkManager) {       // F7.13: the old-grid writers write the switched world
+                if (on && !voxFoundWriterStub)
+                    chunkManager->setVoxFoundWrite([this](const std::vector<std::pair<glm::ivec3, std::string>>& vox,
+                                                          const std::string& label) -> size_t {
+                        std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+                        cells.reserve(vox.size());
+                        std::map<std::string, uint8_t> ids;
+                        for (const auto& [p, name] : vox) {
+                            auto it = ids.find(name);
+                            if (it == ids.end()) {
+                                std::string merr;
+                                const int m = voxFoundMaterial(name, &merr);
+                                it = ids.emplace(name, uint8_t(m < 0 ? 0 : m)).first;   // unknown material: air (logged)
+                                if (m < 0) LOG_WARN("VoxFound", "writer: unknown material '" + name + "' written as air");
+                            }
+                            cells.push_back({p, it->second});
+                        }
+                        const nlohmann::json r = voxFoundPaintCells(label, cells);
+                        const size_t changed = r.value("voxels_changed", size_t(0));
+                        auto& e = voxFoundWriterLog[label];
+                        ++e.first;
+                        e.second += changed;
+                        return changed;
+                    });
+                else
+                    chunkManager->setVoxFoundWrite(nullptr);
+                if (on && !voxFoundWriterStub)   // F7.13: whole-cube clears as boxes (RegionEdit::applyBox), one assemble
+                    chunkManager->setVoxFoundClearBoxes([this](const std::vector<std::pair<glm::ivec3, glm::ivec3>>& boxes,
+                                                               const std::string& label) -> size_t {
+                        using namespace Core::VoxFound;
+                        if (boxes.empty()) return 0;
+                        glm::ivec3 lo(std::numeric_limits<int>::max()), hi(std::numeric_limits<int>::min());
+                        for (const auto& [a, b] : boxes) lo = glm::min(lo, a), hi = glm::max(hi, b);
+                        const auto read = [this](glm::ivec3 p) { return voxFoundEdit.voxelAt(p); };
+                        const bool pending = voxFoundHistory.begin(label, lo, hi, read);   // over 16 M voxels: not recorded
+                        std::set<size_t> rebuilt, changed;
+                        size_t voxels = 0;
+                        RegionEdit::Stats all;
+                        {   // ONE masked edit over the boxes' bound: a single incremental rebuild (per-box applyBox
+                            // calls each paid a rebuild: ~1,900 of them for a village's clearing)
+                            std::set<std::tuple<int, int, int>> cubes;
+                            for (const auto& [a, b] : boxes)
+                                for (int y = a.y >> 3; y <= b.y >> 3; ++y) cubes.insert({a.x >> 3, y, a.z >> 3});
+                            const auto inside = [&cubes](glm::ivec3 p) {
+                                return cubes.count({p.x >> 3, p.y >> 3, p.z >> 3}) != 0;
+                            };
+                            std::string err;
+                            const RegionEdit::Stats st = voxFoundEdit.apply(lo, hi, inside, 0, nullptr, &err);
+                            voxels += st.voxelsChanged;
+                            rebuilt.insert(st.rebuilt.begin(), st.rebuilt.end());
+                            changed.insert(st.changed.begin(), st.changed.end());
+                            all.boxLo = st.boxLo;
+                            all.boxHi = st.boxHi;
+                        }
+                        all.rebuilt.assign(rebuilt.begin(), rebuilt.end());
+                        all.changed.assign(changed.begin(), changed.end());
+                        voxFoundOccBump(all.rebuilt);
+                        voxFoundLodMark(all);
+                        if (pending) voxFoundHistory.commit(read);
+                        if (voxFoundBuilder)
+                            for (size_t i : all.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+                        voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &all.changed);
+                        auto& e = voxFoundWriterLog[label];
+                        ++e.first;
+                        e.second += voxels;
+                        return voxels;
+                    });
+                else
+                    chunkManager->setVoxFoundClearBoxes(nullptr);
+            }
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
                 if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());

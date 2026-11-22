@@ -1,3 +1,4 @@
+#include "core/voxfound/PlacementToVoxels.h"
 #include "core/StructureGenerator.h"
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
@@ -798,6 +799,18 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         result.failed = static_cast<int>(structure.voxels.size());
         return result;
     }
+    if (chunkManager->voxFoundWrite()) {   // docs/VoxelFoundationPlan.md F7.13: the new store, centre-sampled 1/8 m
+        std::vector<std::pair<glm::ivec3, std::string>> voxels;
+        std::vector<glm::ivec3> cells;
+        for (const auto& v : structure.voxels) {
+            cells.clear();
+            Core::VoxFound::placementVoxels(v.position, static_cast<int>(v.level), v.subcubePos, v.microcubePos, cells);
+            for (const auto& c : cells) voxels.push_back({c, v.material});
+        }
+        chunkManager->voxFoundWrite()(voxels, "structure_place");
+        result.placed = static_cast<int>(structure.voxels.size());
+        return result;
+    }
 
     // Build the structure up in bounded steps instead of all-or-nothing. A large
     // structure (e.g. a multi-story tower) legitimately runs to hundreds of thousands
@@ -883,6 +896,12 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
 
 int StructureGenerator::removeVoxels(ChunkManager* chunkManager, const std::vector<glm::ivec3>& positions) {
     if (!chunkManager) return 0;
+    if (chunkManager->voxFoundWrite()) {   // F7.13: air over each cube in the new store
+        std::vector<std::pair<glm::ivec3, std::string>> voxels;
+        for (const auto& p : positions)
+            for (int k = 0; k < 512; ++k) voxels.push_back({p * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), std::string()});
+        return static_cast<int>(chunkManager->voxFoundWrite()(voxels, "structure_remove"));
+    }
 
     // [no-frozen-engine] bulk-defer per-voxel collision exactly like place(): the naive loop
     // paid collision work per removed cell (measured: excav=1042 ms for one building's cells).

@@ -1153,3 +1153,50 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
 }
 
 } // namespace Phyxel
+
+namespace Phyxel {
+int ChunkManager::clearChunkCellsBulk(const std::map<Chunk*, std::vector<glm::ivec3>>& byChunk, const std::string& label) {
+    if (m_voxFoundWrite && m_voxFoundClearBoxes) {   // F7.13: the cubes as column runs -> boxes
+        std::map<std::pair<int, int>, std::vector<int>> cols;
+        for (const auto& [ch, cells] : byChunk) {
+            if (!ch) continue;
+            for (const glm::ivec3& c : cells) {
+                const glm::ivec3 cube = ch->getWorldOrigin() + c;
+                cols[{cube.x, cube.z}].push_back(cube.y);
+            }
+        }
+        std::vector<std::pair<glm::ivec3, glm::ivec3>> boxes;
+        for (auto& [xz, ys] : cols) {
+            std::sort(ys.begin(), ys.end());
+            ys.erase(std::unique(ys.begin(), ys.end()), ys.end());
+            for (size_t i = 0; i < ys.size();) {
+                size_t j = i;
+                while (j + 1 < ys.size() && ys[j + 1] == ys[j] + 1) ++j;
+                boxes.push_back({glm::ivec3(xz.first, ys[i], xz.second) * 8,
+                                 glm::ivec3(xz.first, ys[j], xz.second) * 8 + glm::ivec3(7)});
+                i = j + 1;
+            }
+        }
+        return static_cast<int>(m_voxFoundClearBoxes(boxes, label));
+    }
+    if (m_voxFoundWrite) {   // docs/VoxelFoundationPlan.md F7.13: air over each cube's 8^3 voxels in the new store
+        std::vector<std::pair<glm::ivec3, std::string>> voxels;
+        for (const auto& [ch, cells] : byChunk) {
+            if (!ch) continue;
+            for (const glm::ivec3& c : cells) {
+                const glm::ivec3 cube = ch->getWorldOrigin() + c;
+                for (int k = 0; k < 512; ++k)
+                    voxels.push_back({cube * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), std::string()});
+            }
+        }
+        return static_cast<int>(m_voxFoundWrite(voxels, label));
+    }
+    int cleared = 0;
+    for (const auto& [ch, cells] : byChunk) {
+        if (!ch) continue;
+        cleared += ch->clearCellsBulk(cells);
+        markChunkDirty(ch);
+    }
+    return cleared;
+}
+}  // namespace Phyxel

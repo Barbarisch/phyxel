@@ -383,11 +383,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             }
                         }
                 }
-                int cleared = 0;
-                for (auto& [ch, cells] : byChunk) {
-                    cleared += ch->clearCellsBulk(cells);
-                    chunkManager->markChunkDirty(ch);
-                }
+                const int cleared = chunkManager->clearChunkCellsBulk(byChunk, "settlement_clearing");   // F7.13
                 LOG_INFO_FMT("Settlement", "parcel clearing: " << cleared
                              << " cells over " << seen.size() << " columns (margin "
                              << kMargin << ")");
@@ -712,11 +708,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         sharedRoadBand->push_back(glm::ivec3(cbx, y, cbz));
                 }
             }
-            int bandCleared = 0;
-            for (auto& [ch, cells] : bandByChunk) {
-                bandCleared += ch->clearCellsBulk(cells);
-                chunkManager->markChunkDirty(ch);
-            }
+            const int bandCleared = chunkManager->clearChunkCellsBulk(bandByChunk, "settlement_street_band");   // F7.13
             if (!cutCubes.empty()) {
                 std::vector<glm::ivec3> cuts;
                 cuts.reserve(cutCubes.size());
@@ -1082,11 +1074,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             for (const auto& wp : *sharedRoadBand)
                 if (Chunk* ch = chunkManager->getChunkAtFast(wp))
                     byChunk[ch].push_back(wp - ch->getWorldOrigin());
-            int swept = 0;
-            for (auto& [ch, cells] : byChunk) {
-                swept += ch->clearCellsBulk(cells);
-                chunkManager->markChunkDirty(ch);
-            }
+            const int swept = chunkManager->clearChunkCellsBulk(byChunk, "settlement_sweep");   // F7.13
             // The sweep clears WHOLE cells, pavement included — re-stamp the paving
             // from the street unit's recorded per-column stamp (idempotent bulk place).
             long restamped = 0;
@@ -1305,11 +1293,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             for (const auto& wp2 : toClear)
                 if (Chunk* ch = chunkManager->getChunkAtFast(wp2))
                     clearByChunk[ch].push_back(wp2 - ch->getWorldOrigin());
-            int cleared = 0;
-            for (auto& [ch, cells] : clearByChunk) {
-                cleared += ch->clearCellsBulk(cells);
-                chunkManager->markChunkDirty(ch);
-            }
+            const int cleared = chunkManager->clearChunkCellsBulk(clearByChunk, "settlement_wall_line");   // F7.13
             const auto placed = Core::StructureGenerator::place(chunkManager, batch);
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
@@ -1365,11 +1349,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             for (const auto& wp : orphans)
                 if (Chunk* ch = chunkManager->getChunkAtFast(wp))
                     byChunk[ch].push_back(wp - ch->getWorldOrigin());
-            int cleared = 0;
-            for (auto& [ch, cells] : byChunk) {
-                cleared += ch->clearCellsBulk(cells);
-                chunkManager->markChunkDirty(ch);
-            }
+            const int cleared = chunkManager->clearChunkCellsBulk(byChunk, "settlement_canopy");   // F7.13
             LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
                          << " cells found, " << cleared << " cleared");
             (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
