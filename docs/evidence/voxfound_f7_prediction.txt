@@ -554,3 +554,28 @@ build's path, and the refresh's); edits through the voxel API, the preview edit 
 CONCLUSION: the switched world can carry tiers 2/3 -- coarse levels built, kept equal to the store after every edit,
 and the drawn LOD no longer dropped by an edit -- at a ~0.2 s per-chunk refresh cost (recorded; LOD stays default
 off). Next F7.7: deleting the old cube / subcube / microcube paths.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.8 PREDICTION -- the physics occupancy on the switched world (plan section 7 step 1, its owed part: "queryAABB ->
+OccupiedBox"; 2026-11-22; the engine-side code was written before this prediction but nothing was built or run --
+the control runs on the F7.6d editor).
+CONTROL: with the switch on, VoxelDynamicsWorld's static terrain is still today's hidden chunks' VoxelOccupancyGrids:
+the character grounds on today's ground, CPU bodies collide with it. Re-run first: switch on, clear a pit in the region
+(clear_region 3x4x3 cubes down from the surface at (8131..8133, 24..27, 67..69)) and a pillar of new-store Stone where
+today's world is air (fill 1x3x1 cubes at (8136, 28..30, 72)); probes of VoxelDynamicsWorld::overlapsTerrain at 4,000
+points over the pit / pillar / ground vs the region's voxels -> they disagree (the pit reads solid, the pillar air);
+the player dropped above the pit stops at today's surface.
+THE CHANGE: Physics::VoxelOccupancyGrid gets an external query (setExternalQuery) and VoxelDynamicsWorld per-chunk
+overrides (setGridOverride; contacts, overlapsTerrain and anyStaticSolidInAABB consult them first); the world switch
+registers, per region chunk, a grid answering queryAABB from the region's store (VoxFound::storeBoxes: a uniform solid
+block = one 1 m box, a mixed block = z-runs of solid voxels, the old grid's cell rule on 1/8 m voxels; header +
+unit test).
+  P1 (unit): storeBoxes covers every solid voxel the query reaches exactly once, never air (random stores, 240 queries).
+  P2 (L2, through the physics API): overlapsTerrain at the 4,000 probe points (half 0.02 m, voxel centres) = the
+     region's voxel at every point (4,000 / 4,000), after the pit and the pillar.
+  P3 (L3/L4, the character): the player dropped above the pit comes to rest within 0.25 m of the pit floor (24 m);
+     dropped above the pillar, within 0.25 m of its top (31 m); switch off -> back on today's ground (27-28 m).
+  P4: an edit after the switch is seen without re-registering (the grids read the live store): clear the pillar ->
+     the player standing on it falls to the ground.
+RED: phys_stub (the switch sets no overrides) -> P2 / P3 as the control.
+Not here, stated: GPU debris (GpuParticlePhysics) reads today's shared micro pool -- not used by F7.5's world rig.
