@@ -3873,6 +3873,7 @@ void Application::update(float deltaTime) {
     }
 
     stepVoxFoundBodies(deltaTime);   // F5.3 bodies lab (its own run switch; inert without a rig)
+    if (!voxFoundLodDirty.empty()) voxFoundLodRefresh(1);   // F7.6d: one dirty chunk's coarse levels per frame
 
     // Skip simulation when paused (API commands and jobs still process)
     if (gamePaused) return;
@@ -13581,6 +13582,28 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("lod_stub")) {   // F7.6d (tests): edits mark no chunk's coarse levels dirty (the red)
+            voxFoundLodStub = cmd.params["lod_stub"].get<bool>();
+            response = {{"lod_stub", voxFoundLodStub}};
+            return;
+        }
+        if (cmd.params.contains("lod_refresh")) {   // F7.6d: refresh n dirty chunks now (0 = all)
+            response = voxFoundLodRefresh(size_t(std::max(0, cmd.params.value("lod_refresh", 0))));
+            return;
+        }
+        if (cmd.params.value("lod_check", false)) {   // F7.6d: every chunk's coarse levels vs a fresh refresh
+            response = voxFoundLodCheck();
+            return;
+        }
+        if (cmd.params.value("lod_status", false)) {
+            response = {{"levels", voxFoundLodEditLevels}, {"dirty", voxFoundLodDirty.size()},
+                        {"refreshed", voxFoundLodRefreshed}, {"max_chunk_ms", voxFoundLodMaxChunkMs},
+                        {"mean_chunk_ms", voxFoundLodRefreshed ? voxFoundLodSumChunkMs / double(voxFoundLodRefreshed) : 0.0},
+                        {"last_select_ms", voxFoundLodLastSelectMs}, {"draw_level", voxFoundPreview.drawLevel},
+                        {"lod_on", voxFoundPreview.lodOn}, {"lod_selected", !voxFoundPreview.lodFirst.empty()},
+                        {"lod_stub", voxFoundLodStub}};
+            return;
+        }
         if (cmd.params.contains("api_stub")) {   // F7.6c (tests): the voxel API not routed (the red)
             voxFoundApiStub = cmd.params["api_stub"].get<bool>();
             response = {{"api_stub", voxFoundApiStub}};
@@ -14141,6 +14164,7 @@ nlohmann::json Application::loadVoxFoundSaved() {
         const auto t1 = std::chrono::steady_clock::now();
         const RegionEdit::Stats st = voxFoundEdit.loadChunk(i, saved);
         voxFoundOccBump(std::vector<size_t>{i});   // F7.6a: the switched light occupancy repacks a loaded chunk
+        voxFoundLodMark(st);                       // F7.6d
         const auto t2 = std::chrono::steady_clock::now();
         decodeMs += ms(t0, t1);
         writeMs += ms(t1, t2);
@@ -14197,6 +14221,183 @@ size_t Application::voxFoundBrush(const glm::ivec3& voxel, int size, const std::
 }
 
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return std::make_unique<RegionWorldEditor>(app); }
+
+// F7.6d (docs/VoxelFoundationPlan.md section 7 step 6, "LOD tiers 2/3"): the coarse levels of an editable region kept
+// current. An edit marks the chunks whose 1 m-margin area meets its box; each is refreshed from the store (its area =
+// the store + the 1 m margin, beyond the region the nearest region voxel; LodBuilderGpu levels; FaceBuilderGpu meshes
+// each level's cut as the build does) and spliced into Preview::levels[k]; when none are left the drawn selection is
+// re-made.
+void Application::voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st) {
+    if (voxFoundLodEditLevels <= 0 || voxFoundLodStub) return;
+    for (size_t i : voxFoundEdit.chunksNear(st.boxLo, st.boxHi, Core::VoxFound::kVoxelsPerM)) voxFoundLodDirty.insert(i);
+}
+
+bool Application::voxFoundLodChunkFaces(size_t i, std::vector<std::vector<Core::VoxFound::PackedFace>>& perLevel,
+                                        std::string* err) {
+    using namespace Core::VoxFound;
+    const int n = voxFoundLodEditLevels;
+    if (n <= 0 || i >= voxFoundEdit.chunkCount() || !voxFoundBuilder) {
+        if (err) *err = "no coarse levels / builder";
+        return false;
+    }
+    const int M = kVoxelsPerM, N = kChunkM * kVoxelsPerM, A = N + 2 * M;
+    const glm::ivec3 origin = voxFoundEdit.chunk(i).originVoxel;
+    const glm::ivec3 rlo = voxFoundEdit.voxelLo(), rhi = voxFoundEdit.voxelHi();
+    const VoxelGrid inner = voxFoundEdit.dense(i);
+    VoxelGrid area;
+    area.resize(glm::ivec3(A));
+    auto outer = [&](int x, int y, int z) {   // the margin: the region's voxel, clamped into the region
+        return voxFoundEdit.voxelAt(glm::clamp(origin - M + glm::ivec3(x, y, z), rlo, rhi));
+    };
+    for (int x = 0; x < A; ++x)
+        for (int y = 0; y < A; ++y) {
+            const bool rowIn = x >= M && x < M + N && y >= M && y < M + N;
+            uint8_t* row = &area.mat[area.idx(glm::ivec3(x, y, 0))];
+            if (rowIn) {
+                std::copy_n(&inner.mat[inner.idx(glm::ivec3(x - M, y - M, 0))], N, row + M);
+                for (int z = 0; z < M; ++z) row[z] = outer(x, y, z);
+                for (int z = M + N; z < A; ++z) row[z] = outer(x, y, z);
+            } else {
+                for (int z = 0; z < A; ++z) row[z] = outer(x, y, z);
+            }
+        }
+    std::vector<LodGrid> lv;
+    if (voxFoundLodBuilder) {
+        if (!voxFoundLodBuilder->build(area, n, lv, err)) return false;
+    } else {
+        LodGrid l = lodBase(area);
+        for (int k = 1; k <= n; ++k) lv.push_back(l = lodDown(l));
+    }
+    SprigParams noSprigs = voxFoundEdit.sprigParams(i);
+    noSprigs.threshold24 = 0;   // leaves stay cards (no faces), as the build's default variant
+    perLevel.assign(size_t(n) + 1, {});
+    for (int k = 1; k <= n; ++k) {
+        const int sc = 1 << k;
+        const glm::ivec3 off(M / sc), innerDim(N / sc);
+        const VoxelGrid& g = lv[size_t(k - 1)].grid;
+        std::vector<PackedFace> coarse;
+        if (!voxFoundBuilder->build(subGrid(g, off, innerDim), Edges(neighboursOf(g, off, innerDim, Outside::Air)),
+                                    coarse, err, &noSprigs))
+            return false;
+        for (const PackedFace& f : coarse)
+            if (!isSprig(f)) perLevel[size_t(k)].push_back(lodScaleFace(f, k));
+    }
+    return true;
+}
+
+// F7.6d: chunk ci's range of level L replaced by fs (clusters as the build's addLevel: cells + direction groups)
+static void voxFoundSpliceLevel(Core::VoxFound::Preview::Level& L, size_t ci, std::vector<Core::VoxFound::PackedFace> fs,
+                                glm::ivec3 chunk, glm::ivec3 regionLo, int clusterBlocks, bool dirOctant) {
+    using namespace Core::VoxFound;
+    const size_t nc = L.firstFace.size();
+    std::vector<std::vector<PreviewCluster>> cl(nc), cd(nc);
+    for (const PreviewCluster& c : L.clusters) if (c.chunk < nc) cl[c.chunk].push_back(c);
+    for (const PreviewCluster& c : L.clustersDir) if (c.chunk < nc) cd[c.chunk].push_back(c);
+    const std::vector<FaceCluster> cells = clusterFaces(fs, clusterBlocks, dirOctant);   // reorders fs
+    const std::vector<FaceCluster> groups = splitByDirection(fs, cells);
+    Preview::Level out;
+    out.firstFace.resize(nc);
+    out.faceCount.resize(nc);
+    out.leafCount.resize(nc);
+    for (size_t j = 0; j < nc; ++j) {
+        const uint32_t first = uint32_t(out.faces.size());
+        out.firstFace[j] = first;
+        if (j == ci) {
+            out.faces.insert(out.faces.end(), fs.begin(), fs.end());
+            for (int d = 0; d < 2; ++d)
+                for (const FaceCluster& c : d ? groups : cells) {
+                    PreviewCluster pcl;
+                    const glm::vec3 base = glm::vec3((chunk - regionLo) * kChunkM);
+                    pcl.lo = base + glm::vec3(c.lo) / float(kVoxelsPerM);
+                    pcl.hi = base + glm::vec3(c.hi) / float(kVoxelsPerM);
+                    pcl.firstFace = first + c.first;
+                    pcl.count = c.count;
+                    pcl.chunk = uint32_t(ci);
+                    pcl.leafMass = false;
+                    pcl.dir = c.dir;
+                    (d ? out.clustersDir : out.clusters).push_back(pcl);
+                }
+            out.leafCount[j] = 0;
+        } else {
+            const uint32_t f0 = L.firstFace[j];
+            out.faces.insert(out.faces.end(), L.faces.begin() + f0, L.faces.begin() + f0 + L.faceCount[j]);
+            for (int d = 0; d < 2; ++d)
+                for (PreviewCluster c : d ? cd[j] : cl[j]) {
+                    c.firstFace = c.firstFace - f0 + first;
+                    (d ? out.clustersDir : out.clusters).push_back(c);
+                }
+            out.leafCount[j] = j < L.leafCount.size() ? L.leafCount[j] : 0u;
+        }
+        out.faceCount[j] = uint32_t(out.faces.size()) - first;
+    }
+    L = std::move(out);
+}
+
+nlohmann::json Application::voxFoundLodRefresh(size_t maxChunks) {
+    using namespace Core::VoxFound;
+    size_t done = 0;
+    std::string err;
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    double wall = 0.0;
+    while (!voxFoundLodDirty.empty() && (maxChunks == 0 || done < maxChunks)) {
+        const size_t i = *voxFoundLodDirty.begin();
+        voxFoundLodDirty.erase(voxFoundLodDirty.begin());
+        const auto t0 = std::chrono::steady_clock::now();
+        std::vector<std::vector<PackedFace>> perLevel;
+        if (!voxFoundLodChunkFaces(i, perLevel, &err)) break;
+        for (int k = 1; k <= voxFoundLodEditLevels && size_t(k) < voxFoundPreview.levels.size(); ++k)
+            voxFoundSpliceLevel(voxFoundPreview.levels[size_t(k)], i, std::move(perLevel[size_t(k)]),
+                                voxFoundEdit.chunk(i).chunk, voxFoundLodRegionLo, voxFoundLodClusterBlocks,
+                                voxFoundLodDirOctant);
+        const double t = ms(t0, std::chrono::steady_clock::now());
+        voxFoundLodMaxChunkMs = std::max(voxFoundLodMaxChunkMs, t);
+        voxFoundLodSumChunkMs += t;
+        wall += t;
+        ++voxFoundLodRefreshed;
+        ++done;
+    }
+    bool reselected = false;
+    if (done && voxFoundLodDirty.empty()) {   // the drawn copy re-made once the levels are all current
+        const auto t0 = std::chrono::steady_clock::now();
+        if (!voxFoundPreview.lodFirst.empty()) reselected = voxFoundPreview.selectLod();
+        else if (voxFoundPreview.drawLevel > 0) reselected = voxFoundPreview.selectLevel(voxFoundPreview.drawLevel);
+        voxFoundLodLastSelectMs = ms(t0, std::chrono::steady_clock::now());
+    }
+    return {{"refreshed", done}, {"dirty_left", voxFoundLodDirty.size()}, {"wall_ms", wall}, {"error", err},
+            {"reselected", reselected}, {"select_ms", voxFoundLodLastSelectMs}, {"max_chunk_ms", voxFoundLodMaxChunkMs}};
+}
+
+nlohmann::json Application::voxFoundLodCheck() {
+    using namespace Core::VoxFound;
+    auto key = [](const PackedFace& f) { return (uint64_t(f.a) << 32) | f.b; };
+    nlohmann::json chunks = nlohmann::json::array();
+    std::vector<size_t> bad(size_t(voxFoundLodEditLevels) + 1, 0), total(size_t(voxFoundLodEditLevels) + 1, 0);
+    std::string err;
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        std::vector<std::vector<PackedFace>> perLevel;
+        if (!voxFoundLodChunkFaces(i, perLevel, &err)) return {{"error", err}};
+        nlohmann::json row = {{"chunk", {voxFoundEdit.chunk(i).chunk.x, voxFoundEdit.chunk(i).chunk.y,
+                                         voxFoundEdit.chunk(i).chunk.z}}};
+        nlohmann::json lv = nlohmann::json::array();
+        for (int k = 1; k <= voxFoundLodEditLevels && size_t(k) < voxFoundPreview.levels.size(); ++k) {
+            const Preview::Level& L = voxFoundPreview.levels[size_t(k)];
+            std::vector<uint64_t> a, b;
+            for (uint32_t f = L.firstFace[i]; f < L.firstFace[i] + L.faceCount[i]; ++f) a.push_back(key(L.faces[f]));
+            for (const PackedFace& f : perLevel[size_t(k)]) b.push_back(key(f));
+            std::sort(a.begin(), a.end());
+            std::sort(b.begin(), b.end());
+            std::vector<uint64_t> d;
+            std::set_symmetric_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(d));
+            bad[size_t(k)] += d.size();
+            total[size_t(k)] += a.size();
+            lv.push_back({{"level", k}, {"faces", a.size()}, {"fresh", b.size()}, {"mismatched", d.size()}});
+        }
+        row["levels"] = lv;
+        chunks.push_back(row);
+    }
+    return {{"chunks", chunks}, {"mismatched_by_level", bad}, {"faces_by_level", total},
+            {"dirty", voxFoundLodDirty.size()}};
+}
 
 // F7.6c (docs/VoxelFoundationPlan.md section 7 step 6, section 12): the voxel API on the switched world. The JSON keeps
 // its shape: x/y/z are metres (today's cube coordinates) -> a cube is the size-8 brush, a subcube (sx, sy, sz thirds)
@@ -14290,6 +14491,7 @@ bool Application::voxFoundUndoRedo(bool undo, nlohmann::json& r) {
     std::string err;
     if (!cells.empty()) st = voxFoundEdit.applyCells(cells, nullptr, &err);
     voxFoundOccBump(st.rebuilt);
+    voxFoundLodMark(st);   // F7.6d
     if (voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     const auto t1 = std::chrono::steady_clock::now();
@@ -14435,7 +14637,8 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
         st = voxFoundEdit.apply(lo, hi, inside, mat, rowsGpu, &rowsErr);
     else
         st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
-    voxFoundOccBump(st.rebuilt);   // F7.3b: the switched light occupancy repacks these chunks
+    voxFoundOccBump(st.rebuilt);
+    voxFoundLodMark(st);   // F7.6d   // F7.3b: the switched light occupancy repacks these chunks
     const bool recorded = recordedPending && voxFoundHistory.commit(readVoxel);   // F7.6b
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
     // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
@@ -14635,11 +14838,21 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // (RegionEdit, ~17 MB per chunk) so {"edit":...} rebuilds incrementally. Level 0 only: refused with coarse levels,
     // closed casters, seam / exit faces or an alternate level set (each would need its own update: owed).
     const bool editable = cmd.params.value("editable", false);
-    if (editable && (lodLevels > 0 || closedCasters || seamDepth > 0 || exitReach != 0 || nVariants > 1)) {
-        response = {{"error", "editable is level 0 only: no lod_levels, closed_casters, caster_seam_depth, "
-                              "caster_exit_reach or lod alternates"}};
+    // F7.6d: coarse levels 1..3 of the default variant are kept current with edits; the rest stays refused (owed)
+    if (editable && (lodLevels > 3 || closedCasters || seamDepth > 0 || exitReach != 0 || nVariants > 1 ||
+                     (lodLevels > 0 && (splitCards || leafFill > 0.0 || sprigLevel > 0)))) {
+        response = {{"error", "editable: lod_levels up to 3 of the default variant only -- no lod_levels > 3, "
+                              "closed_casters, caster_seam_depth, caster_exit_reach, lod alternates, lod_split_cards, "
+                              "lod_leaf_fill or lod_sprig_level"}};
         return;
     }
+    voxFoundLodEditLevels = editable ? chunkLevels : 0;   // F7.6d
+    voxFoundLodClusterBlocks = clusterBlocks;
+    voxFoundLodDirOctant = dirOctant;
+    voxFoundLodRegionLo = lo;
+    voxFoundLodDirty.clear();
+    voxFoundLodMaxChunkMs = voxFoundLodLastSelectMs = voxFoundLodSumChunkMs = 0.0;
+    voxFoundLodRefreshed = 0;
     voxFoundEdit.clear();
     if (voxFoundBuilder) voxFoundBuilder->dropResident();   // F2.16: resident grids of the old region
     if (editable) voxFoundEdit.begin(lo, hi, clusterBlocks, dirOctant, sprigThreshold24(sprigsPerM2, kVoxelsPerM));

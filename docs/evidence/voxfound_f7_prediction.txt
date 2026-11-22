@@ -524,3 +524,33 @@ level) instead of level 0.
      selection survive the edit.
   D4 (cost): a chunk refresh <= 50 ms (one frame hitch, amortised one chunk per frame), the re-select <= 20 ms.
 RED: lod_stub (edits mark nothing dirty) -> D2 fails (stale chunks mismatch) and D3's fill is missing at level 3.
+
+F7.6d RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); region editable +
+lod_levels 3, load_saved:false. Evidence: voxfound_f76d_live.jsonl, voxfound_f76d_{red,green}_{0_level3_before,
+1_level3_after_fill}.png (pose (8131.5, 36, 56), yaw 90, pitch -30, lod_draw 3); tools/voxfound_f76d_live.py. Every
+artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region); coarse levels by LodBuilderGpu + FaceBuilderGpu (the
+build's path, and the refresh's); edits through the voxel API, the preview edit API and /api/undo.
+  CONTROL (the pre-change editor, before the code): editable + lod_levels 3 -> refused ("editable is level 0 only").
+  RED as predicted (lod_stub): the 64-cube fill (32,768 voxels) is not drawn at level 3 (0.024 % px change); the
+     filled chunks' coarse levels stale (mismatches in (254,0,2) and (254,1,2) on top of the D1 baseline below).
+  D1 PASS: at no edits a fresh refresh = the build's coarse faces exactly for the 8 interior chunks at every level;
+     the 24 side chunks differ by 20 / 12 / 4 faces of 84,594 / 21,146 / 5,928 (0.02 / 0.06 / 0.07 %), all from the
+     1 m margin beyond the region (the build's = the generator's, the refresh's = the nearest region voxel).
+  D2 MISSED as worded, PASS in substance: after the fill, a brush break and an undo every refreshed chunk equals a fresh
+     refresh (0 mismatched); the residual 20 / 12 / 4 are exactly D1's side differences in chunks never refreshed
+     ("0 everywhere" was impossible given D1 -- my wording).
+  D3 PASS: at level 3 the fill appears: 10.35 % of the crop's pixels change; the drawn level stays 3 after the edit.
+     With lod_auto on (lod_px 8) another fill keeps lodOn and the selection (re-select 1.03 ms); coarse levels current.
+  D4 MISSED: a chunk refresh 195-207 ms (with a unit suite running), re-timed QUIET: mean 200 ms, max 220 ms (<= 50
+     predicted): one ~0.2 s hitch per edited chunk while coarse levels exist (amortised one chunk per frame). Not
+     profiled (broad strokes, owner 2026-11-21): the levers are the CPU area assembly (dense 256^3 + a 3.4 M-voxel
+     margin through voxelAt) and the 20 MB area upload -- build the area on the device from the store, or refresh only
+     the edited block columns of each level. Re-select 0.02-1.03 ms.
+  Unit suite (RegionEdit / VoxFoundMesher / EditHistory / WorldEditor filter): run 1 (with the editor running alongside)
+     64/65 -- the failing test's name lost to my output cut; run 2 (also alongside the green) printed no failure; the
+     quiet full suite is owed at F7's exit.
+  Not here, stated: levels 4-7 (the region pyramid), the split / leaf-fill / leaf-mass / alternate variants stay refused
+     with editable; the far tiers (4-8) keep their handoffs unchanged.
+CONCLUSION: the switched world can carry tiers 2/3 -- coarse levels built, kept equal to the store after every edit,
+and the drawn LOD no longer dropped by an edit -- at a ~0.2 s per-chunk refresh cost (recorded; LOD stays default
+off). Next F7.7: deleting the old cube / subcube / microcube paths.

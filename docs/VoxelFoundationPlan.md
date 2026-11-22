@@ -3111,6 +3111,13 @@ from the region (solid voxels of the block, its material). Live: exact voxel cou
 replace:false air count to the voxel), every call one undo entry back to the start hashes. Not routed: the batch place,
 copy / paste / named snapshots.
 
+**F7.6d, LOD tiers 2/3 on the switched world (2026-11-22).** Editable regions now build coarse levels 1..3 (the default
+variant); every edit marks the chunks whose 1 m-margin area it meets, refreshed one per frame and spliced into the
+levels; `assemble` keeps the drawn LOD selection instead of dropping to level 0. Live: refresh = build exactly
+(interior), the edit visible at level 3, refreshed chunks exact after edits and undo, the selection survives. MISSED:
+~200 ms per chunk refresh (levers: build the area on the device, or refresh only the edited block columns); levels
+4-7 and the leaf variants stay refused with editable.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

@@ -50,6 +50,7 @@ public:
         bool onDevice = false;
         std::vector<size_t> rebuilt;   // chunk indices re-planned (faces / sprigs / connectivity recomputed near the edit)
         std::vector<size_t> changed;   // F3.5a: those whose lists actually changed (the ones assemble must rewrite)
+        glm::ivec3 boxLo{2147483647}, boxHi{-2147483647 - 1};   // F7.6d: the edit's box (world voxels, clipped)
     };
 
     void clear() {
@@ -113,6 +114,11 @@ public:
     Stats loadChunk(size_t i, const BlockStore& saved);
     /// F3.2b: the material of world voxel p (air outside the region).
     uint8_t voxelAt(glm::ivec3 p) const;
+    /// F7.6d: the chunks whose voxels lie within `margin` voxels of the box [lo, hi] (none for an empty box)
+    std::vector<size_t> chunksNear(glm::ivec3 lo, glm::ivec3 hi, int margin) const;
+    /// F7.6d: the region's world voxel box
+    glm::ivec3 voxelLo() const;
+    glm::ivec3 voxelHi() const;
     /// F7.3: the store of engine chunk c (its voxel (0,0,0) = world voxel c * 256), nullptr when the region lacks it;
     /// and the region's chunk coordinates -- what VoxFound::WorldReads reads.
     const BlockStore* chunkStore(glm::ivec3 c) const {

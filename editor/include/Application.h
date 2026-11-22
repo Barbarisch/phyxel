@@ -109,6 +109,7 @@
 #include "core/voxfound/Preview.h"
 #include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/EditHistory.h"
+#include <set>
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
 #include "core/voxfound/BodySimGpu.h"   // F5.5b: the GPU solver live in the bodies lab
@@ -327,6 +328,20 @@ private:
     Core::VoxFound::EditHistory voxFoundHistory;                        // F7.6b: undo / redo of switched-world edits
     bool voxFoundUndoStub = false;                                      // F7.6b (tests): /api/undo ignores the history
     bool voxFoundApiStub = false;                                       // F7.6c (tests): the voxel API not routed
+    // F7.6d: coarse levels 1..3 of an editable region kept current with its edits (the default variant only)
+    int voxFoundLodEditLevels = 0;
+    int voxFoundLodClusterBlocks = 4;
+    bool voxFoundLodDirOctant = true;
+    glm::ivec3 voxFoundLodRegionLo{0};
+    std::set<size_t> voxFoundLodDirty;
+    bool voxFoundLodStub = false;                                       // F7.6d (tests): edits mark nothing dirty
+    double voxFoundLodMaxChunkMs = 0.0, voxFoundLodLastSelectMs = 0.0, voxFoundLodSumChunkMs = 0.0;
+    size_t voxFoundLodRefreshed = 0;
+    void voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st);
+    bool voxFoundLodChunkFaces(size_t i, std::vector<std::vector<Core::VoxFound::PackedFace>>& perLevel,
+                               std::string* err);
+    nlohmann::json voxFoundLodRefresh(size_t maxChunks);   // 0 = every dirty chunk now
+    nlohmann::json voxFoundLodCheck();
     /// F7.6c: place_voxel / remove_voxel / place_subcube / fill_region / clear_region on the switched world (false:
     /// not switched -- today's path answers)
     bool voxFoundApiEdit(const std::string& action, const nlohmann::json& params, nlohmann::json& response);

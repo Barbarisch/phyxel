@@ -395,7 +395,8 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
             for (const BakeCell& c : plan.cells) cells.push_back({lab.originVoxel + c.cell, lab.world.mat[lab.world.idx(c.cell)]});
             const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
             for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
-            voxFoundOccBump(es.rebuilt);   // F7.5
+            voxFoundOccBump(es.rebuilt);
+    voxFoundLodMark(es);   // F7.6d   // F7.5
             for (size_t i : es.changed)
                 if (std::find(changed.begin(), changed.end(), i) == changed.end()) changed.push_back(i);
         }
@@ -476,7 +477,8 @@ size_t Application::voxFoundFluidEdit(bool all) {
     }
     const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
     for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
-    voxFoundOccBump(es.rebuilt);   // F7.5
+    voxFoundOccBump(es.rebuilt);
+    voxFoundLodMark(es);   // F7.6d   // F7.5
     voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
     return cells.size();
 }
@@ -803,6 +805,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
             for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
             voxFoundOccBump(es.rebuilt);
+    voxFoundLodMark(es);   // F7.6d
             lab.leafTex = voxFoundLeafTex;
             voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
             lab.fluidDrawn.assign(lab.world.size(), 0);

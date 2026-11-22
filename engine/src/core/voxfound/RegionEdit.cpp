@@ -202,6 +202,8 @@ RegionEdit::Stats RegionEdit::loadChunk(size_t i, const BlockStore& saved) {
                 total.facesAdded += st.facesAdded;
                 total.facesRemoved += st.facesRemoved;
                 total.blocksFilled += st.blocksFilled;
+                total.boxLo = glm::min(total.boxLo, st.boxLo);   // F7.6d
+                total.boxHi = glm::max(total.boxHi, st.boxHi);
                 total.rebuilt.insert(total.rebuilt.end(), st.rebuilt.begin(), st.rebuilt.end());
                 total.changed.insert(total.changed.end(), st.changed.begin(), st.changed.end());
             }
@@ -212,6 +214,20 @@ RegionEdit::Stats RegionEdit::loadChunk(size_t i, const BlockStore& saved) {
     m_chunks[i].edited = true;   // a saved chunk keeps winning over the generator
     return total;
 }
+
+std::vector<size_t> RegionEdit::chunksNear(glm::ivec3 lo, glm::ivec3 hi, int margin) const {   // F7.6d
+    std::vector<size_t> out;
+    if (lo.x > hi.x || lo.y > hi.y || lo.z > hi.z) return out;
+    lo -= margin;
+    hi += margin;
+    for (size_t i = 0; i < m_chunks.size(); ++i) {
+        const glm::ivec3 o = m_chunks[i].originVoxel;
+        if (glm::all(glm::lessThanEqual(lo, o + (kN - 1))) && glm::all(glm::greaterThanEqual(hi, o))) out.push_back(i);
+    }
+    return out;
+}
+glm::ivec3 RegionEdit::voxelLo() const { return m_lo * kN; }
+glm::ivec3 RegionEdit::voxelHi() const { return (m_hi + 1) * kN - 1; }
 
 uint8_t RegionEdit::voxelAt(glm::ivec3 p) const {
     const glm::ivec3 c(floorDiv(p.x, kN), floorDiv(p.y, kN), floorDiv(p.z, kN));
@@ -323,6 +339,8 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
     lo = glm::max(lo, m_lo * kN);
     hi = glm::min(hi, (m_hi + 1) * kN - 1);
     if (lo.x > hi.x || lo.y > hi.y || lo.z > hi.z) return st;
+    st.boxLo = lo;   // F7.6d
+    st.boxHi = hi;
     // per chunk: the box of changed voxels and the box of changed border planes (chunk-local, inclusive)
     const size_t n = m_chunks.size();
     std::vector<glm::ivec3> bLo(n, glm::ivec3(std::numeric_limits<int>::max())),
@@ -632,7 +650,11 @@ void RegionEdit::assemble(Preview& pv, const std::vector<uint16_t>& leafTex, con
     } else {
         const size_t sb = layoutSprigs();
         for (size_t i = 0; i < n; ++i) pv.chunks[i].connect = m_chunks[i].connect;
-        pv.selectLevel(0);   // one revision step
+        // F7.6d: re-select what was drawn -- the LOD selection (level 0 = this image) or a drawn coarse level -- not
+        // level 0 (which silently dropped both after any edit); one revision step either way
+        const bool hadLod = !pv.lodFirst.empty();
+        const int drawn = pv.drawLevel;
+        if (!(hadLod && pv.selectLod()) && !(drawn > 0 && pv.selectLevel(drawn))) pv.selectLevel(0);
         pv.lastCopyBytes += sb;
     }
     pv.pooled = true;
