@@ -971,3 +971,21 @@ is the ENGINE's StructureForge (hall_house [16, 7], 1 story); the reference = th
      seater's steps (PlacedObjectManager lines 553 / 586) still write today's chunks (seat mode only).
 CONCLUSION: generated buildings can be furnished on the switched world -- furniture, clutter, item props, lights, nav --
 by running the whole pipeline with its voxel writes hooked; five cross-world leaks found and closed on the way.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.16 PREDICTION -- the switched world as a boot mode (F7's exit "default switched", first half; 2026-11-22, before
+any code).
+CONTROL: the switched world exists only after debug calls (region build, world_switch, stream). A cold boot of the gate
+project shows today's world; GET /api/world/voxel answers from today's chunks.
+THE CHANGE: game.json world.voxfound = {"enabled":true, "size":[4,2,4], "y_from":0, "load_saved":true,
+"stream":true}: at project load the editor keeps it; ~30 frames after start it builds the editable region around the
+camera (the world's type / seed / flora, flora_window open), switches on (load_saved) and streams -- no API call.
+{"boot_status":true} reports it. The global default stays OFF for other projects (stated: water, MCP voxel units,
+items etc. still assume today's world -- F7.7 / the exit's second half).
+  B1: a cold boot with the config is switched with no API call: reads routed, editor set, 32 physics overrides, stream
+      on; the region contains the camera's chunk.
+  B2 (L4, one cold-booted session + a relaunch): an F7.4 brush break, an F7.5 blast, an F7.11 build_structure, then
+      save_world; relaunch -> the boot loads them back (the edited chunks' hashes by name equal); a 128 m camera walk
+      streams (the camera stays inside the region).
+  B3: the boot's own cost (region build + switch) <= 10 s after the config is read.
+RED: the same project without the config key -> the control (no switch).
