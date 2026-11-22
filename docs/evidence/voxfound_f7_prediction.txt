@@ -159,3 +159,31 @@ CONCLUSION: behind the switch the engine draws the new store -- exactly F2.19's 
 (section 4.3) holds at F2.19's numbers with every residual already attributed to content. Not moved by the switch
 (stated): physics occupancy (the character stands on today's hidden chunks), light occupancy, the other chunkMap
 walkers. Next F7.4: editing.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.4 PREDICTION -- editing on the switched world (plan section 7 step 4; 2026-11-22, before any code).
+CONTROL: the player's edits (VoxelInteractionSystem: B breaks the hovered cube / subcube / microcube, C places) go
+through VoxelManipulationSystem into today's chunks; with F7.3's switch on they edit the HIDDEN old world and the drawn
+region never changes. The region's own edit primitives exist since F3 (RegionEdit::pick -- a voxel position, its entry
+face; RegionEdit::brush -- 1, 2, 4, 8 voxels, rebuilt incrementally). Re-run first: an edit action with the switch on
+changes 0 region voxels (the control = the red's behaviour, today).
+THE CHANGE: Scene::IWorldEditor (pick(origin, dir, max) -> voxel + normal + material; brush(voxel, size, material))
+and VoxelInteractionSystem::setWorldEditor(editor). When set, the hover is the editor's pick (the mouse ray; the
+camera's forward ray when there is no window -- headless / the crosshair), and break / place go to brushes: cube /
+subcube / microcube = 8 / 2 / 1 voxels (the engine's sizes 1 m, 1/3 m, 1/9 m to the nearest brush), placing in the
+cell in front of the hit face, the material from the existing material provider ("Stone" without one); the
+voxel-changed callback fires with the edit's cube. The world switch sets the region's editor (RegionEdit pick + brush
++ the incremental assemble, F2.16 / F3.1); off clears it.
+  E1 (unit, headless, a fake editor): hover = the editor's hit; break cube / subcube / micro -> brush(hit, 8 / 2 / 1,
+      air) once each; place -> brush(hit + normal, 8 / 2 / 1, the provider's material); the callback fires with the
+      edit's cube; no editor set -> the fake is never called (the old path).
+  E2 (live, the gate scene, switch on; an edit-action debug route that runs the same VoxelInteractionSystem calls the
+      keys run, after a hover update on the camera's forward ray): break (cube) aimed straight down at open ground ->
+      the 8^3 brush cell's region voxels all air; ChunkManager::getVoxelTypeAt of that cube EMPTY (the reads follow);
+      place (cube) back -> 512 voxels of the material; {"verify":true} 0 mismatched chunks; screenshots before / after
+      at the stated pose (the hole in frame).
+  E3: subcube and microcube actions change exactly 2^3 = 8 and 1 region voxels.
+  E4: cost: one action (hover pick + brush + incremental rebuild) <= 2 ms on the main thread (F3.1: 0.53 ms median for
+      a 1 m brush).
+RED: the switch on with the editor not set (world_switch_stub-like knob "edit_stub") -> the action edits today's hidden
+chunks: 0 region voxels change.
