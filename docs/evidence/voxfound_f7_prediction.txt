@@ -764,3 +764,22 @@ Perlin s7 + flora (the region); the templates barrel and bed_single from resourc
      (PlacedObjectManager) are not written for region spawns.
 CONCLUSION: static templates land in the switched world from their 1/8 m versions, exact and undoable, through one
 shared placer path (voxFoundPaintCells) the next placers (structures, settlements) can use.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.11 PREDICTION -- structures on the switched world (F7's owed placers, the generator: build_structure v2 through
+StructureForge; 2026-11-22, before any code).
+CONTROL: with the switch on, build_structure (schema v2, hall_house) realizes the shell on the 1/9 m grid and places it
+into today's hidden chunks; the region is unchanged. Re-run first at open ground (8130, 66).
+THE CHANGE: StructureBuildService::Deps gains a canvas sink. When the switch is on the editor sets it: StructureForge
+runs intake .. validate_realized with the shell realized on the 1/8 m grid (StructureGrid::foundation, F7.2 / FC step
+3a), then hands the canvas to the sink instead of place / furnish / emit; the sink seats it on the region's ground (the
+walkable floor surface = the highest solid voxel under the footprint + 1), excavates the footprint above the floor (the
+canvas box's air cells above the floor that are solid in the region), and paints it as ONE voxFoundPaintCells edit.
+Furniture, items, doors, lights, location registration and NPC nav rebuild are not run on this path (stated, owed).
+  W1: the hall house: response success on the new store; voxels painted = the canvas's solid cells + the excavated
+      cells; 0 read-back mismatches; today's chunk at the footprint unchanged; the validate_realized gate (L3, the
+      TraversalProbe flood on the 1/8 m canvas) proceeded.
+  W2 (L4): a character dropped inside the hall, 1 m above its floor, rests on the floor surface (+-0.125 m).
+  W3: no region voxel above the floor inside the footprint box is solid unless the canvas paints it there.
+  W4: one undo restores all 32 store hashes.
+RED: struct_stub (no sink) -> the control.
