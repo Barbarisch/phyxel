@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_craftsmen_houses_xanten_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2009a-d26a-718c-843c-9928012670e9"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/craftsmen_houses_xanten_a.meshy.glb",
+  "input_sha256": "231a767375b88a738049614c2f3f2ffe16d09842d90cd486c49270f0ca78f68e",
+  "input_faces": 30160,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Xanten,_Arch%C3%A4ologischer_Park,_Handwerkerh%C3%A4user,_2018-08_CN-04.jpg | Author: Steffen Schmitz | Licence: CC BY-SA 4.0 | Typology: strip building (row of craftsmen's houses) | What: Craftsmen's houses (Handwerkerhaeuser), Colonia Ulpia Traiana: white-rendered houses with tiled roofs, red dado and an upper balcony | Status: MODERN RECONSTRUCTION, full scale (LVR-Archaeologischer Park Xanten) | Image: saved 1408x755 px from a 4431x2090 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.04,0,0.92,1). Caveats: cropped at the right to remove a small shelter. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier.",
+  "size_m": 28.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier.",
+  "size_axis": "z",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 223955,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      24.0657,
+      8.2783,
+      28.0
+    ],
+    "extent_m_kept": [
+      24.0657,
+      8.2783,
+      28.0
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 14.839421767974699,
+  "extent_m": [
+    24.1111,
+    8.3333,
+    28.0
+  ],
+  "extent_cells": [
+    217,
+    75,
+    252
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 223955,
+    "interior": 0,
+    "total": 223955
+  },
+  "primitives": {
+    "C": 0,
+    "S": 1,
+    "M": 223928,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        114,
+        83,
+        67
+      ],
+      "tint": "#725343",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 18)",
+      "role": "roof",
+      "surface_voxels": 54920,
+      "voxels": 54920
+    },
+    {
+      "id": 1,
+      "rgb": [
+        223,
+        223,
+        223
+      ],
+      "tint": "#dfdfdf",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 46) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 54655,
+      "voxels": 54655
+    },
+    {
+      "id": 2,
+      "rgb": [
+        95,
+        49,
+        35
+      ],
+      "tint": "#5f3123",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 26)",
+      "role": "roof",
+      "surface_voxels": 40565,
+      "voxels": 40565
+    },
+    {
+      "id": 3,
+      "rgb": [
+        137,
+        110,
+        94
+      ],
+      "tint": "#896e5e",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 21)",
+      "role": "roof",
+      "surface_voxels": 38605,
+      "voxels": 38605
+    },
+    {
+      "id": 4,
+      "rgb": [
+        162,
+        144,
+        130
+      ],
+      "tint": "#a29082",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 19616,
+      "voxels": 19616
+    },
+    {
+      "id": 5,
+      "rgb": [
+        198,
+        193,
+        187
+      ],
+      "tint": "#c6c1bb",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 30)",
+      "role": "wall",
+      "surface_voxels": 15594,
+      "voxels": 15594
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Craftsmen Houses Xanten A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 28.0 m along z). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:16:06.053063+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_craftsmen_houses_xanten_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "craftsmen_houses_xanten_a.meshy.reduced.glb",
+    "bytes_before": 5992644,
+    "bytes_after": 1419912,
+    "faces_before": 30160,
+    "faces_after": 30160,
+    "vertices_after": 44423,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 349299
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

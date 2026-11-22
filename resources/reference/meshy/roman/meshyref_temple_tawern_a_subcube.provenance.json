@@ -1,0 +1,170 @@
+{
+  "stem": "meshyref_temple_tawern_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/temple_tawern_cc0_romaine.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2009d-b8b0-76a8-97c4-dd9660e9385e"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/temple_tawern_cc0_romaine.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/temple_tawern_a.meshy.glb",
+  "input_sha256": "60de3fa766162f1c1806a8d2c4f0646b1b7ec834872f5d84011c0bdb5e17cf61",
+  "input_faces": 28885,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Tawern-Romeinse_tempel_(18).jpg | Author: Romaine | Licence: CC0 | Typology: small temple (Romano-Celtic, with ambulatory) | What: Gallo-Roman temple with a surrounding portico, temple precinct of Tawern | Status: MODERN RECONSTRUCTION, full scale | Image: saved 1600x1200 px from a 4000x3000 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 10.5 m is the plan length of the Tempietto repubblicano, Ostia (6.35 x about 10.5 m, roman.md P1, PR + calc), a different building and a different temple type (podium temple).",
+  "size_m": 10.5,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 10.5 m is the plan length of the Tempietto repubblicano, Ostia (6.35 x about 10.5 m, roman.md P1, PR + calc), a different building and a different temple type (podium temple).",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 4279,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      10.5,
+      6.4925,
+      9.7078
+    ],
+    "extent_m_kept": [
+      10.5,
+      6.4925,
+      9.7078
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 5.522086730300999,
+  "extent_m": [
+    10.6667,
+    6.6667,
+    10.0
+  ],
+  "extent_cells": [
+    32,
+    20,
+    30
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 4279,
+    "interior": 0,
+    "total": 4279
+  },
+  "primitives": {
+    "C": 0,
+    "S": 4279,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        44,
+        45,
+        38
+      ],
+      "tint": "#2c2d26",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 37) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 1886,
+      "voxels": 1886
+    },
+    {
+      "id": 1,
+      "rgb": [
+        103,
+        89,
+        85
+      ],
+      "tint": "#675955",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 17)",
+      "role": "wall",
+      "surface_voxels": 1496,
+      "voxels": 1496
+    },
+    {
+      "id": 2,
+      "rgb": [
+        73,
+        69,
+        61
+      ],
+      "tint": "#49453d",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 27)",
+      "role": "wall",
+      "surface_voxels": 584,
+      "voxels": 584
+    },
+    {
+      "id": 3,
+      "rgb": [
+        121,
+        114,
+        107
+      ],
+      "tint": "#79726b",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 4)",
+      "role": "wall",
+      "surface_voxels": 235,
+      "voxels": 235
+    },
+    {
+      "id": 4,
+      "rgb": [
+        153,
+        146,
+        139
+      ],
+      "tint": "#99928b",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 6)",
+      "role": "wall",
+      "surface_voxels": 78,
+      "voxels": 78
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Temple Tawern A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 10.5 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:19:40.180931+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/temple_tawern_cc0_romaine.jpg"
+  }
+}

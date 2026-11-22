@@ -1,0 +1,184 @@
+{
+  "stem": "meshyref_craftsmen_houses_xanten_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2009a-d26a-718c-843c-9928012670e9"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/craftsmen_houses_xanten_a.meshy.glb",
+  "input_sha256": "231a767375b88a738049614c2f3f2ffe16d09842d90cd486c49270f0ca78f68e",
+  "input_faces": 30160,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Xanten,_Arch%C3%A4ologischer_Park,_Handwerkerh%C3%A4user,_2018-08_CN-04.jpg | Author: Steffen Schmitz | Licence: CC BY-SA 4.0 | Typology: strip building (row of craftsmen's houses) | What: Craftsmen's houses (Handwerkerhaeuser), Colonia Ulpia Traiana: white-rendered houses with tiled roofs, red dado and an upper balcony | Status: MODERN RECONSTRUCTION, full scale (LVR-Archaeologischer Park Xanten) | Image: saved 1408x755 px from a 4431x2090 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.04,0,0.92,1). Caveats: cropped at the right to remove a small shelter. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier.",
+  "size_m": 28.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 28 m is inside the strip-building length range of 18-38 m (roman.md 1.4, from m5f_strip_building_grounding.txt); no dimension of the Xanten houses is in the dossier.",
+  "size_axis": "z",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 20107,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      24.0657,
+      8.2783,
+      28.0
+    ],
+    "extent_m_kept": [
+      24.0657,
+      8.2783,
+      28.0
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 14.839421767974699,
+  "extent_m": [
+    24.3333,
+    8.3333,
+    28.0
+  ],
+  "extent_cells": [
+    73,
+    25,
+    84
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 20107,
+    "interior": 0,
+    "total": 20107
+  },
+  "primitives": {
+    "C": 0,
+    "S": 20107,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        221,
+        220,
+        220
+      ],
+      "tint": "#dddcdc",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 44) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 6489,
+      "voxels": 6489
+    },
+    {
+      "id": 1,
+      "rgb": [
+        118,
+        90,
+        73
+      ],
+      "tint": "#765a49",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 18)",
+      "role": "roof",
+      "surface_voxels": 4618,
+      "voxels": 4618
+    },
+    {
+      "id": 2,
+      "rgb": [
+        146,
+        122,
+        107
+      ],
+      "tint": "#927a6b",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 12)",
+      "role": "wall",
+      "surface_voxels": 3472,
+      "voxels": 3472
+    },
+    {
+      "id": 3,
+      "rgb": [
+        85,
+        57,
+        40
+      ],
+      "tint": "#553928",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 25)",
+      "role": "roof",
+      "surface_voxels": 3351,
+      "voxels": 3351
+    },
+    {
+      "id": 4,
+      "rgb": [
+        132,
+        43,
+        34
+      ],
+      "tint": "#842b22",
+      "material": "Bricks",
+      "how": "nearest wall colour (chroma distance 34)",
+      "role": "wall",
+      "surface_voxels": 1333,
+      "voxels": 1333
+    },
+    {
+      "id": 5,
+      "rgb": [
+        181,
+        170,
+        161
+      ],
+      "tint": "#b5aaa1",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 20)",
+      "role": "wall",
+      "surface_voxels": 844,
+      "voxels": 844
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Craftsmen Houses Xanten A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 28.0 m along z). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:16:06.662029+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/craftsmen_houses_xanten_cc-by-sa-4.0_steffen-schmitz.jpg"
+  }
+}

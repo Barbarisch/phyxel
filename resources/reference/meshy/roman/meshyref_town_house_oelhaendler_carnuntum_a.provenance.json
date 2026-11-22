@@ -1,0 +1,203 @@
+{
+  "stem": "meshyref_town_house_oelhaendler_carnuntum_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/town_house_oelhaendler_carnuntum_cc-by-sa-4.0_barnos.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2009c-3789-75cc-af4b-34046b732c33"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/town_house_oelhaendler_carnuntum_cc-by-sa-4.0_barnos.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/town_house_oelhaendler_carnuntum_a.meshy.glb",
+  "input_sha256": "b28913519f97e1541e54046c4024e3ccd0d78a026d798cd8ba76be061e633884",
+  "input_faces": 29832,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Haus_des_%C3%96lh%C3%A4ndlers_Westseite.jpg | Author: Barnos | Licence: CC BY-SA 4.0 | Typology: strip building / town house | What: 'Haus des Oelhaendlers' (oil merchant's house), civil town of Carnuntum, west side | Status: MODERN RECONSTRUCTION, full scale, on excavated footings | Image: saved 911x522 px from a 5184x3888 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.22,0.57,0.655). Caveats: cropped to the left-hand building; the crop is about 900 px wide. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 18 m is the lower end of the strip-building length range (18-38 m, roman.md 1.4); no dimension of this house is in the dossier.",
+  "size_m": 18.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 18 m is the lower end of the strip-building length range (18-38 m, roman.md 1.4); no dimension of this house is in the dossier.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 88303,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      18.0,
+      6.1971,
+      10.5612
+    ],
+    "extent_m_kept": [
+      18.0,
+      6.1971,
+      10.5612
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 9.628392440145262,
+  "extent_m": [
+    18.0,
+    6.2222,
+    10.6667
+  ],
+  "extent_cells": [
+    162,
+    56,
+    96
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 88303,
+    "interior": 0,
+    "total": 88303
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 88303,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        45,
+        42,
+        38
+      ],
+      "tint": "#2d2a26",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 35)",
+      "role": "wall",
+      "surface_voxels": 42531,
+      "voxels": 42531
+    },
+    {
+      "id": 1,
+      "rgb": [
+        149,
+        30,
+        17
+      ],
+      "tint": "#951e11",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 45) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 22965,
+      "voxels": 22965
+    },
+    {
+      "id": 2,
+      "rgb": [
+        171,
+        172,
+        173
+      ],
+      "tint": "#abacad",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 23)",
+      "role": "wall",
+      "surface_voxels": 14349,
+      "voxels": 14349
+    },
+    {
+      "id": 3,
+      "rgb": [
+        136,
+        130,
+        120
+      ],
+      "tint": "#888278",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 5)",
+      "role": "wall",
+      "surface_voxels": 6157,
+      "voxels": 6157
+    },
+    {
+      "id": 4,
+      "rgb": [
+        85,
+        69,
+        59
+      ],
+      "tint": "#55453b",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 2301,
+      "voxels": 2301
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Town House Oelhaendler Carnuntum A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 18.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:17:44.803315+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/town_house_oelhaendler_carnuntum_cc-by-sa-4.0_barnos.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_town_house_oelhaendler_carnuntum_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "town_house_oelhaendler_carnuntum_a.meshy.reduced.glb",
+    "bytes_before": 5349860,
+    "bytes_after": 1409148,
+    "faces_before": 29832,
+    "faces_after": 29832,
+    "vertices_after": 50136,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 226244
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}
