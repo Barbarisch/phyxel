@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_rental_row_abbey_cottages_tewkesbury_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/rental_row_abbey_cottages_tewkesbury_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2008a-f847-7687-823b-0f985c13a5e8"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/rental_row_abbey_cottages_tewkesbury_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/rental_row_abbey_cottages_tewkesbury_a.meshy.glb",
+  "input_sha256": "728cda41c8c3481630de4d5890eb4b71df5f780378a680680487a5d825cf3373",
+  "input_faces": 28765,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Abbey_Lawn_Cottages,_41-48_Church_Street,_Tewkesbury_-_geograph.org.uk_-_3962999.jpg | Author: Jo and Steve Turner | Licence: CC BY-SA 2.0 | Typology: tenement / rental row | What: Abbey Lawn Cottages, 41-48 Church Street, Tewkesbury: 15th-c. jettied rental row with shop fronts, restored (dossier, unverified) | Status: in situ, restored | Image: saved 1600x1063 px from a 2048x1360 px original. Caveats: oblique view; the nearest bay is cut by the right edge; hanging flower baskets. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 39.0 m is the deed length of Lady Row, York (medieval.md D2, PR-P), the measured building of this class - a different building.",
+  "size_m": 39.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 39.0 m is the deed length of Lady Row, York (medieval.md D2, PR-P), the measured building of this class - a different building.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 327230,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      39.0,
+      18.5508,
+      21.997
+    ],
+    "extent_m_kept": [
+      39.0,
+      18.5508,
+      21.997
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 20.509993220191074,
+  "extent_m": [
+    39.0,
+    18.5556,
+    22.0
+  ],
+  "extent_cells": [
+    351,
+    167,
+    198
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 327230,
+    "interior": 0,
+    "total": 327230
+  },
+  "primitives": {
+    "C": 0,
+    "S": 1,
+    "M": 327203,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        88,
+        79,
+        70
+      ],
+      "tint": "#584f46",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 22)",
+      "role": "wall",
+      "surface_voxels": 107573,
+      "voxels": 107573
+    },
+    {
+      "id": 1,
+      "rgb": [
+        68,
+        59,
+        48
+      ],
+      "tint": "#443b30",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 23)",
+      "role": "wall",
+      "surface_voxels": 103408,
+      "voxels": 103408
+    },
+    {
+      "id": 2,
+      "rgb": [
+        44,
+        35,
+        25
+      ],
+      "tint": "#2c2319",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 25)",
+      "role": "wall",
+      "surface_voxels": 47595,
+      "voxels": 47595
+    },
+    {
+      "id": 3,
+      "rgb": [
+        111,
+        106,
+        98
+      ],
+      "tint": "#6f6a62",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 8)",
+      "role": "wall",
+      "surface_voxels": 45243,
+      "voxels": 45243
+    },
+    {
+      "id": 4,
+      "rgb": [
+        231,
+        230,
+        227
+      ],
+      "tint": "#e7e6e3",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 48) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 15472,
+      "voxels": 15472
+    },
+    {
+      "id": 5,
+      "rgb": [
+        179,
+        176,
+        170
+      ],
+      "tint": "#b3b0aa",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 21)",
+      "role": "wall",
+      "surface_voxels": 7939,
+      "voxels": 7939
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Rental Row Abbey Cottages Tewkesbury A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 39.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:59:06.580003+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/rental_row_abbey_cottages_tewkesbury_cc-by-sa-2.0_jo-and-steve-turner.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_rental_row_abbey_cottages_tewkesbury_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "rental_row_abbey_cottages_tewkesbury_a.meshy.reduced.glb",
+    "bytes_before": 6276228,
+    "bytes_after": 1609932,
+    "faces_before": 28765,
+    "faces_after": 28765,
+    "vertices_after": 55364,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 328867
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

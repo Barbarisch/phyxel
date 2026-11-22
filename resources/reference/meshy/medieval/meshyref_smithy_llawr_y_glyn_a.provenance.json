@@ -1,0 +1,205 @@
+{
+  "stem": "meshyref_smithy_llawr_y_glyn_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/smithy_llawr_y_glyn_cc-by-2.0_kacka-a-ondra.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20083-d213-72e0-97a7-82fde5c8e402"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/smithy_llawr_y_glyn_cc-by-2.0_kacka-a-ondra.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/smithy_llawr_y_glyn_a.meshy.glb",
+  "input_sha256": "febf22ff7183d99f4b6669951591d658b724421dfa2942de658307cdcbba2aa6",
+  "input_faces": 29310,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Gefail_Llawr-y-glyn_(2008).jpg | Author: Kacka a Ondra | Licence: CC BY 2.0 | Typology: blacksmith | What: Smithy (gefail) from Llawr-y-glyn, stone with a slate roof; 18th c. - OUT OF PERIOD, form only (dossier) | Status: re-erected (St Fagans) | Image: saved 1440x1071 px from a 3872x2592 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.1,0,1,1). Caveats: cropped at the left to remove a visitor; an old winch stands in front. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 9.6 m is the internal length of the excavated Godmanchester smithy (medieval.md D48, PR-P for Franklin quoting Webster & Cherry), a different building.",
+  "size_m": 9.6,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 9.6 m is the internal length of the excavated Godmanchester smithy (medieval.md D48, PR-P for Franklin quoting Webster & Cherry), a different building.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 2,
+    "largest_component_voxels": 14712,
+    "dropped_components": 1,
+    "dropped_voxels": 121,
+    "dropped_component_voxels": [
+      121
+    ],
+    "dropped_faces": 741,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      9.6,
+      4.6087,
+      4.6889
+    ],
+    "extent_m_kept": [
+      9.6,
+      4.5756,
+      4.5021
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 5.048122703076886,
+  "extent_m": [
+    9.6667,
+    4.6667,
+    4.5556
+  ],
+  "extent_cells": [
+    87,
+    42,
+    41
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 14669,
+    "interior": 0,
+    "total": 14669
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 14669,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        113,
+        116,
+        114
+      ],
+      "tint": "#717472",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 14)",
+      "role": "wall",
+      "surface_voxels": 8663,
+      "voxels": 8663
+    },
+    {
+      "id": 1,
+      "rgb": [
+        88,
+        92,
+        91
+      ],
+      "tint": "#585c5b",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 22)",
+      "role": "wall",
+      "surface_voxels": 2807,
+      "voxels": 2807
+    },
+    {
+      "id": 2,
+      "rgb": [
+        141,
+        141,
+        138
+      ],
+      "tint": "#8d8d8a",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 9)",
+      "role": "wall",
+      "surface_voxels": 2143,
+      "voxels": 2143
+    },
+    {
+      "id": 3,
+      "rgb": [
+        179,
+        177,
+        171
+      ],
+      "tint": "#b3b1ab",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 22)",
+      "role": "wall",
+      "surface_voxels": 649,
+      "voxels": 649
+    },
+    {
+      "id": 4,
+      "rgb": [
+        61,
+        63,
+        62
+      ],
+      "tint": "#3d3f3e",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 32)",
+      "role": "wall",
+      "surface_voxels": 407,
+      "voxels": 407
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Smithy Llawr Y Glyn A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 9.6 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:50:34.809781+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/smithy_llawr_y_glyn_cc-by-2.0_kacka-a-ondra.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_smithy_llawr_y_glyn_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "smithy_llawr_y_glyn_a.meshy.reduced.glb",
+    "bytes_before": 5620344,
+    "bytes_after": 1339560,
+    "faces_before": 29310,
+    "faces_after": 29310,
+    "vertices_after": 43538,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 291747
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

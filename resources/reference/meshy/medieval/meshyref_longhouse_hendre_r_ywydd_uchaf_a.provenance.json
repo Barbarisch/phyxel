@@ -1,0 +1,219 @@
+{
+  "stem": "meshyref_longhouse_hendre_r_ywydd_uchaf_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/longhouse_hendre_r_ywydd_uchaf_cc-by-sa-4.0_sionk.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20081-6ca2-70cc-b00c-1c09aa288a4a"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/longhouse_hendre_r_ywydd_uchaf_cc-by-sa-4.0_sionk.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/longhouse_hendre_r_ywydd_uchaf_a.meshy.glb",
+  "input_sha256": "f356fee88eaeceefe9cf1dd5b8f0d2be718f50ce77d116f847b94d542bab5eaf",
+  "input_faces": 30287,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Hendre%27r-ywydd_Uchaf_Farmhouse_(1).jpg | Author: Sionk | Licence: CC BY-SA 4.0 | Typology: longhouse (cruck hall-house with byre) | What: Hendre'r-ywydd Uchaf, a cruck-framed hall-house with byre under one roof, 1508 (dossier, unverified) | Status: re-erected (St Fagans) | Image: saved 1280x853 px from a 1500x1000 px original. Caveats: vegetable beds in the foreground and one shrub at the right corner. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 19.0 m is the upper end of the dossier's longhouse range ('nearly 19 metres', Hound Tor, medieval.md D23, PR-T), a different building.",
+  "size_m": 19.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 19.0 m is the upper end of the dossier's longhouse range ('nearly 19 metres', Hound Tor, medieval.md D23, PR-T), a different building.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 3,
+    "largest_component_voxels": 68606,
+    "dropped_components": 1,
+    "dropped_voxels": 2569,
+    "dropped_component_voxels": [
+      2569
+    ],
+    "dropped_faces": 4072,
+    "kept_detached_components": 1,
+    "kept_detached_voxels": 5915,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      19.0,
+      6.0415,
+      11.1342
+    ],
+    "extent_m_kept": [
+      19.0,
+      6.0383,
+      11.1342
+    ],
+    "components_after": 2
+  },
+  "uniform_scale_applied": 10.005450331591867,
+  "extent_m": [
+    19.0,
+    6.1111,
+    11.2222
+  ],
+  "extent_cells": [
+    171,
+    55,
+    101
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 74587,
+    "interior": 0,
+    "total": 74587
+  },
+  "primitives": {
+    "C": 0,
+    "S": 2,
+    "M": 74533,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        108,
+        97,
+        82
+      ],
+      "tint": "#6c6152",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 20)",
+      "role": "roof",
+      "surface_voxels": 23034,
+      "voxels": 23034
+    },
+    {
+      "id": 1,
+      "rgb": [
+        127,
+        116,
+        101
+      ],
+      "tint": "#7f7465",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 12)",
+      "role": "wall",
+      "surface_voxels": 21166,
+      "voxels": 21166
+    },
+    {
+      "id": 2,
+      "rgb": [
+        76,
+        64,
+        49
+      ],
+      "tint": "#4c4031",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 34)",
+      "role": "roof",
+      "surface_voxels": 11022,
+      "voxels": 11022
+    },
+    {
+      "id": 3,
+      "rgb": [
+        210,
+        207,
+        198
+      ],
+      "tint": "#d2cfc6",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 36) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 8529,
+      "voxels": 8529
+    },
+    {
+      "id": 4,
+      "rgb": [
+        159,
+        149,
+        132
+      ],
+      "tint": "#9f9584",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 15)",
+      "role": "wall",
+      "surface_voxels": 6806,
+      "voxels": 6806
+    },
+    {
+      "id": 5,
+      "rgb": [
+        72,
+        104,
+        55
+      ],
+      "tint": "#486837",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 50) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 4030,
+      "voxels": 4030
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Longhouse Hendre R Ywydd Uchaf A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 19.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:48:03.421017+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/longhouse_hendre_r_ywydd_uchaf_cc-by-sa-4.0_sionk.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_longhouse_hendre_r_ywydd_uchaf_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "longhouse_hendre_r_ywydd_uchaf_a.meshy.reduced.glb",
+    "bytes_before": 5488512,
+    "bytes_after": 1482616,
+    "faces_before": 30287,
+    "faces_after": 30287,
+    "vertices_after": 52942,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 240857
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

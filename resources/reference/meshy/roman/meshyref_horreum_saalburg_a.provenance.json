@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_horreum_saalburg_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/horreum_saalburg_cc-by-sa-2.0_carole-raddato.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20095-6060-72cd-9b8c-6f65d7df7e15"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/horreum_saalburg_cc-by-sa-2.0_carole-raddato.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/horreum_saalburg_a.meshy.glb",
+  "input_sha256": "8db4578e72ea1112f42fb763f1eaac92b37f9b2bffdc79758c5aecd8ba0d9056",
+  "input_faces": 30688,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:The_reconstructed_horreum_(grain_store_-_granary)_now_houses_the_museum,_Saalburg_Roman_Fort,_Limes_Germanicus,_Germania_(Germany)_(7957251526).jpg | Author: Carole Raddato | Licence: CC BY-SA 2.0 | Typology: horreum (provincial granary) | What: Granary (horreum) of the Saalburg fort, twin gabled stone halls with timber porches | Status: MODERN RECONSTRUCTION (c.1900 rebuild, now the museum) | Image: saved 1600x1200 px from a 4288x3216 px original. Caveats: clipped hedges and a creeper at the porch; right-hand hall cut by the frame edge. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER. The dossier has NO SOURCE for a provincial granary's size (roman.md H6). 24 m is borrowed from I1 (an Ostian block) purely as a scale placeholder.",
+  "size_m": 24.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER. The dossier has NO SOURCE for a provincial granary's size (roman.md H6). 24 m is borrowed from I1 (an Ostian block) purely as a scale placeholder.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 140531,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      24.0,
+      8.7424,
+      16.7994
+    ],
+    "extent_m_kept": [
+      24.0,
+      8.7424,
+      16.7994
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 12.625717126595761,
+  "extent_m": [
+    24.0,
+    8.7778,
+    16.8889
+  ],
+  "extent_cells": [
+    216,
+    79,
+    152
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 140531,
+    "interior": 0,
+    "total": 140531
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 140531,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        52,
+        53,
+        47
+      ],
+      "tint": "#34352f",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 34)",
+      "role": "roof",
+      "surface_voxels": 46816,
+      "voxels": 46816
+    },
+    {
+      "id": 1,
+      "rgb": [
+        116,
+        115,
+        108
+      ],
+      "tint": "#74736c",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 7)",
+      "role": "wall",
+      "surface_voxels": 26991,
+      "voxels": 26991
+    },
+    {
+      "id": 2,
+      "rgb": [
+        23,
+        23,
+        22
+      ],
+      "tint": "#171716",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 43) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 24179,
+      "voxels": 24179
+    },
+    {
+      "id": 3,
+      "rgb": [
+        146,
+        143,
+        135
+      ],
+      "tint": "#928f87",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 6)",
+      "role": "wall",
+      "surface_voxels": 21706,
+      "voxels": 21706
+    },
+    {
+      "id": 4,
+      "rgb": [
+        186,
+        182,
+        172
+      ],
+      "tint": "#bab6ac",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 24)",
+      "role": "wall",
+      "surface_voxels": 12090,
+      "voxels": 12090
+    },
+    {
+      "id": 5,
+      "rgb": [
+        83,
+        84,
+        76
+      ],
+      "tint": "#53544c",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 22)",
+      "role": "wall",
+      "surface_voxels": 8749,
+      "voxels": 8749
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Horreum Saalburg A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 24.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:09:52.115218+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/horreum_saalburg_cc-by-sa-2.0_carole-raddato.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_horreum_saalburg_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "horreum_saalburg_a.meshy.reduced.glb",
+    "bytes_before": 5763812,
+    "bytes_after": 1411740,
+    "faces_before": 30688,
+    "faces_after": 30688,
+    "vertices_after": 46427,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 297878
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

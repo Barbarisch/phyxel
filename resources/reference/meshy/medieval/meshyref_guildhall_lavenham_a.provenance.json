@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_guildhall_lavenham_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/guildhall_lavenham_cc-by-sa-2.0_marathon.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20086-fd29-7775-8367-9730c424196c"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/guildhall_lavenham_cc-by-sa-2.0_marathon.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/guildhall_lavenham_a.meshy.glb",
+  "input_sha256": "db5842f257e61462a086ad32fc87b8cf493225fb395dc29bbc4b915ade2d9291",
+  "input_faces": 29406,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Lavenham_Guildhall_-_geograph.org.uk_-_4134571.jpg | Author: Marathon | Licence: CC BY-SA 2.0 | Typology: town_hall / guildhall | What: Guildhall of Corpus Christi, Lavenham, close-studded and jettied, c.1530 (dossier, unverified) | Status: in situ | Image: saved 1600x1200 px from a 4000x3000 px original. Caveats: corner view; the lower ranges continue to the left edge of the frame. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 21.3 m is the Stratford Guild Hall range length (medieval.md D11, PR-P), a different building.",
+  "size_m": 21.3,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 21.3 m is the Stratford Guild Hall range length (medieval.md D11, PR-P), a different building.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 55432,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      21.3,
+      8.5046,
+      8.1782
+    ],
+    "extent_m_kept": [
+      21.3,
+      8.5046,
+      8.1782
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 11.21226685866944,
+  "extent_m": [
+    21.3333,
+    8.5556,
+    8.2222
+  ],
+  "extent_cells": [
+    192,
+    77,
+    74
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 55432,
+    "interior": 0,
+    "total": 55432
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 55432,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        45,
+        32,
+        22
+      ],
+      "tint": "#2d2016",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 48) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 17011,
+      "voxels": 17011
+    },
+    {
+      "id": 1,
+      "rgb": [
+        148,
+        148,
+        148
+      ],
+      "tint": "#949494",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 13)",
+      "role": "wall",
+      "surface_voxels": 14819,
+      "voxels": 14819
+    },
+    {
+      "id": 2,
+      "rgb": [
+        73,
+        60,
+        50
+      ],
+      "tint": "#493c32",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 20)",
+      "role": "wall",
+      "surface_voxels": 14644,
+      "voxels": 14644
+    },
+    {
+      "id": 3,
+      "rgb": [
+        238,
+        239,
+        239
+      ],
+      "tint": "#eeefef",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 54) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 5345,
+      "voxels": 5345
+    },
+    {
+      "id": 4,
+      "rgb": [
+        172,
+        172,
+        171
+      ],
+      "tint": "#acacab",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 22)",
+      "role": "wall",
+      "surface_voxels": 2188,
+      "voxels": 2188
+    },
+    {
+      "id": 5,
+      "rgb": [
+        115,
+        111,
+        107
+      ],
+      "tint": "#736f6b",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 7)",
+      "role": "wall",
+      "surface_voxels": 1425,
+      "voxels": 1425
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Guildhall Lavenham A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 21.3 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:53:52.391927+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/guildhall_lavenham_cc-by-sa-2.0_marathon.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_guildhall_lavenham_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "guildhall_lavenham_a.meshy.reduced.glb",
+    "bytes_before": 5972924,
+    "bytes_after": 1484640,
+    "faces_before": 29406,
+    "faces_after": 29406,
+    "vertices_after": 48247,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 342067
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

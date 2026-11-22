@@ -1,0 +1,189 @@
+{
+  "stem": "meshyref_barn_great_coxwell_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/barn_great_coxwell_cc-by-sa-3.0_ballista-en.wikipedia.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2008d-b2d2-7258-b8f2-197bcb44e12f"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/barn_great_coxwell_cc-by-sa-3.0_ballista-en.wikipedia.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/barn_great_coxwell_a.meshy.glb",
+  "input_sha256": "309880744fdde3f685f625a764536c3992ee3e1db24b81568af9848177ff9f1a",
+  "input_faces": 29101,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Great_Coxwell_Tithe_Barn_c.jpg | Author: Ballista (en.wikipedia) | Licence: CC BY-SA 3.0 | Typology: barn | What: Great Coxwell Barn, stone monastic barn with stone-slate roof (13th c.; date not in the dossier) | Status: in situ | Image: saved 1600x932 px from a 2437x1419 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 28.0 m is the internal length of a manorial barn at Wharram Percy (medieval.md D26, PR-P), a different building; the dossier's sourced barn range is 24-28 m x 7-7.5 m.",
+  "size_m": 28.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 28.0 m is the internal length of a manorial barn at Wharram Percy (medieval.md D26, PR-P), a different building; the dossier's sourced barn range is 24-28 m x 7-7.5 m.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 124239,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      28.0,
+      8.0937,
+      10.3771
+    ],
+    "extent_m_kept": [
+      28.0,
+      8.0937,
+      10.3771
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 14.708662696384573,
+  "extent_m": [
+    28.0,
+    8.1111,
+    10.4444
+  ],
+  "extent_cells": [
+    252,
+    73,
+    94
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 124239,
+    "interior": 0,
+    "total": 124239
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 124239,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        125,
+        113,
+        98
+      ],
+      "tint": "#7d7162",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 13)",
+      "role": "wall",
+      "surface_voxels": 58378,
+      "voxels": 58378
+    },
+    {
+      "id": 1,
+      "rgb": [
+        102,
+        90,
+        79
+      ],
+      "tint": "#665a4f",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 18)",
+      "role": "wall",
+      "surface_voxels": 42435,
+      "voxels": 42435
+    },
+    {
+      "id": 2,
+      "rgb": [
+        80,
+        67,
+        57
+      ],
+      "tint": "#504339",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 21)",
+      "role": "wall",
+      "surface_voxels": 13051,
+      "voxels": 13051
+    },
+    {
+      "id": 3,
+      "rgb": [
+        142,
+        129,
+        115
+      ],
+      "tint": "#8e8173",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 13)",
+      "role": "wall",
+      "surface_voxels": 10375,
+      "voxels": 10375
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Barn Great Coxwell A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 28.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:01:28.747564+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/barn_great_coxwell_cc-by-sa-3.0_ballista-en.wikipedia.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_barn_great_coxwell_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "barn_great_coxwell_a.meshy.reduced.glb",
+    "bytes_before": 4757324,
+    "bytes_after": 1073356,
+    "faces_before": 29101,
+    "faces_after": 29101,
+    "vertices_after": 34065,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 216254
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

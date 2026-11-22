@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_longhouse_cilewent_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20080-3a30-72db-9287-a81b73abf723"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/longhouse_cilewent_a.meshy.glb",
+  "input_sha256": "c928d92a827b33fae0dc079932ae78474e46565e303d4794aeb734f1a8dc9341",
+  "input_faces": 28524,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Cilewent_farmhouse,_St_Fagans.jpg | Author: Dave Snowden | Licence: CC BY-SA 2.0 | Typology: longhouse | What: Cilewent farmhouse, a Welsh stone longhouse; rebuilt 1734 on a 15th-c. cruck house (dossier, unverified) | Status: re-erected (St Fagans) | Image: saved 1600x1060 px from a 4877x3230 px original. Caveats: low hedge bed in front of the lower wall. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23).",
+  "size_m": 12.2,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23).",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 32970,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      12.2,
+      5.4374,
+      5.8115
+    ],
+    "extent_m_kept": [
+      12.2,
+      5.4374,
+      5.8115
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 6.3612207330969825,
+  "extent_m": [
+    12.2222,
+    5.4444,
+    5.8889
+  ],
+  "extent_cells": [
+    110,
+    49,
+    53
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 32970,
+    "interior": 0,
+    "total": 32970
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 32970,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        109,
+        108,
+        105
+      ],
+      "tint": "#6d6c69",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 11)",
+      "role": "wall",
+      "surface_voxels": 15154,
+      "voxels": 15154
+    },
+    {
+      "id": 1,
+      "rgb": [
+        89,
+        88,
+        86
+      ],
+      "tint": "#595856",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 20)",
+      "role": "roof",
+      "surface_voxels": 4790,
+      "voxels": 4790
+    },
+    {
+      "id": 2,
+      "rgb": [
+        69,
+        68,
+        66
+      ],
+      "tint": "#454442",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 28)",
+      "role": "roof",
+      "surface_voxels": 4487,
+      "voxels": 4487
+    },
+    {
+      "id": 3,
+      "rgb": [
+        227,
+        227,
+        228
+      ],
+      "tint": "#e3e3e4",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 48) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 3644,
+      "voxels": 3644
+    },
+    {
+      "id": 4,
+      "rgb": [
+        140,
+        138,
+        134
+      ],
+      "tint": "#8c8a86",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 6)",
+      "role": "wall",
+      "surface_voxels": 3021,
+      "voxels": 3021
+    },
+    {
+      "id": 5,
+      "rgb": [
+        45,
+        45,
+        43
+      ],
+      "tint": "#2d2d2b",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 33)",
+      "role": "roof",
+      "surface_voxels": 1874,
+      "voxels": 1874
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Longhouse Cilewent A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 12.2 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:46:50.497673+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_longhouse_cilewent_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "longhouse_cilewent_a.meshy.reduced.glb",
+    "bytes_before": 5356120,
+    "bytes_after": 1244612,
+    "faces_before": 28524,
+    "faces_after": 28524,
+    "vertices_after": 38582,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 300635
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "stem": "meshyref_cottage_stang_end_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/cottage_stang_end_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2007f-0871-734a-aed0-53c45455f24c"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/cottage_stang_end_cc-by-sa-2.0_jo-and-steve-turner.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/cottage_stang_end_a.meshy.glb",
+  "input_sha256": "f65d39f48ba867da27c5e73a390b373230811743069b5abaeb66ba5ac707d463",
+  "input_faces": 30810,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Stang_End_Cruck_Cottage,_Ryedale_Folk_Museum,_Main_Street,_Hutton-le-Hole_-_geograph.org.uk_-_7731848.jpg | Author: Jo and Steve Turner | Licence: CC BY-SA 2.0 | Typology: croft / cottage | What: Stang End, a cruck-framed thatched long cottage from Danby; standing fabric largely post-medieval (dossier note), medieval cruck form | Status: re-erected (Ryedale Folk Museum) | Image: saved 1600x1093 px from a 2068x1413 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building; chosen because the photo shows one long single range, not a cot under 9.1 m (D21).",
+  "size_m": 12.2,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building; chosen because the photo shows one long single range, not a cot under 9.1 m (D21).",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 2018,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      12.2,
+      4.7946,
+      4.307
+    ],
+    "extent_m_kept": [
+      12.2,
+      4.7946,
+      4.307
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 6.4140578907153545,
+  "extent_m": [
+    12.3333,
+    5.0,
+    4.3333
+  ],
+  "extent_cells": [
+    37,
+    15,
+    13
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 2018,
+    "interior": 0,
+    "total": 2018
+  },
+  "primitives": {
+    "C": 0,
+    "S": 2018,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        74,
+        69,
+        59
+      ],
+      "tint": "#4a453b",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 29)",
+      "role": "roof",
+      "surface_voxels": 574,
+      "voxels": 574
+    },
+    {
+      "id": 1,
+      "rgb": [
+        124,
+        114,
+        98
+      ],
+      "tint": "#7c7262",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 13)",
+      "role": "wall",
+      "surface_voxels": 456,
+      "voxels": 456
+    },
+    {
+      "id": 2,
+      "rgb": [
+        51,
+        46,
+        37
+      ],
+      "tint": "#332e25",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 40) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 331,
+      "voxels": 331
+    },
+    {
+      "id": 3,
+      "rgb": [
+        97,
+        90,
+        77
+      ],
+      "tint": "#615a4d",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 20)",
+      "role": "roof",
+      "surface_voxels": 317,
+      "voxels": 317
+    },
+    {
+      "id": 4,
+      "rgb": [
+        153,
+        140,
+        122
+      ],
+      "tint": "#998c7a",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 17)",
+      "role": "wall",
+      "surface_voxels": 209,
+      "voxels": 209
+    },
+    {
+      "id": 5,
+      "rgb": [
+        182,
+        169,
+        149
+      ],
+      "tint": "#b6a995",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 25)",
+      "role": "wall",
+      "surface_voxels": 131,
+      "voxels": 131
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Cottage Stang End A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 12.2 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:45:32.273426+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/cottage_stang_end_cc-by-sa-2.0_jo-and-steve-turner.jpg"
+  }
+}

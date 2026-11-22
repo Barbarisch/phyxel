@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_gatehouse_micklegate_bar_york_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/gatehouse_micklegate_bar_york_cc-by-3.0_ianpudsey.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2008c-ab1e-71b8-9ae2-720c17b91b85"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/gatehouse_micklegate_bar_york_cc-by-3.0_ianpudsey.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/gatehouse_micklegate_bar_york_a.meshy.glb",
+  "input_sha256": "a59d14672921fb8ed4a8bda9d2455aac1bcaa6c33435e0fbb6c80d4934bd9393",
+  "input_faces": 30656,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Micklegate_Bar,_York,_UK_-_panoramio_(103).jpg | Author: ianpudsey | Licence: CC BY 3.0 | Typology: gatehouse | What: Micklegate Bar, York, outer face: one of the four main Bars (12th-14th c.; date not in the dossier) | Status: in situ | Image: saved 1200x1600 px from a 2448x3264 px original. Caveats: city wall stubs on both sides; tiny vehicles visible through the arch. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 16 m is an image-derived estimate (roughly +/-20 %): the photograph scaled so the gate passage is 3.35 m wide, the middle of the sourced range for the four main Bars ('passages 10 ft to 12 ft. wide' = 3.0-3.7 m, medieval.md D36, PR-P). The dossier has NO SOURCE for a Bar's height or plan. Check the passage width on the model and rescale.",
+  "size_m": 16.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 16 m is an image-derived estimate (roughly +/-20 %): the photograph scaled so the gate passage is 3.35 m wide, the middle of the sourced range for the four main Bars ('passages 10 ft to 12 ft. wide' = 3.0-3.7 m, medieval.md D36, PR-P). The dossier has NO SOURCE for a Bar's height or plan. Check the passage width on the model and rescale.",
+  "size_axis": "y",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 30753,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      8.0699,
+      16.0,
+      3.0748
+    ],
+    "extent_m_kept": [
+      8.0699,
+      16.0,
+      3.0748
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 8.409001405095118,
+  "extent_m": [
+    8.1111,
+    16.0,
+    3.1111
+  ],
+  "extent_cells": [
+    73,
+    144,
+    28
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 30753,
+    "interior": 0,
+    "total": 30753
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 30753,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        182,
+        171,
+        153
+      ],
+      "tint": "#b6ab99",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 23)",
+      "role": "wall",
+      "surface_voxels": 7874,
+      "voxels": 7874
+    },
+    {
+      "id": 1,
+      "rgb": [
+        79,
+        76,
+        71
+      ],
+      "tint": "#4f4c47",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 24)",
+      "role": "wall",
+      "surface_voxels": 6443,
+      "voxels": 6443
+    },
+    {
+      "id": 2,
+      "rgb": [
+        210,
+        199,
+        180
+      ],
+      "tint": "#d2c7b4",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 35) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 4433,
+      "voxels": 4433
+    },
+    {
+      "id": 3,
+      "rgb": [
+        113,
+        107,
+        98
+      ],
+      "tint": "#716b62",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 8)",
+      "role": "wall",
+      "surface_voxels": 4240,
+      "voxels": 4240
+    },
+    {
+      "id": 4,
+      "rgb": [
+        45,
+        43,
+        40
+      ],
+      "tint": "#2d2b28",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 36) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 4171,
+      "voxels": 4171
+    },
+    {
+      "id": 5,
+      "rgb": [
+        150,
+        141,
+        127
+      ],
+      "tint": "#968d7f",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 11)",
+      "role": "wall",
+      "surface_voxels": 3592,
+      "voxels": 3592
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Gatehouse Micklegate Bar York A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 16.0 m along y). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:00:14.942169+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/gatehouse_micklegate_bar_york_cc-by-3.0_ianpudsey.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_gatehouse_micklegate_bar_york_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "gatehouse_micklegate_bar_york_a.meshy.reduced.glb",
+    "bytes_before": 6197996,
+    "bytes_after": 1419892,
+    "faces_before": 30656,
+    "faces_after": 30656,
+    "vertices_after": 42597,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 382823
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

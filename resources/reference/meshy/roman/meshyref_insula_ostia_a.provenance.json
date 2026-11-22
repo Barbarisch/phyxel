@@ -1,0 +1,175 @@
+{
+  "stem": "meshyref_insula_ostia_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/insula_ostia_cc-by-sa-2.0_dennis-g.-jarvis.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20092-71b1-770e-b008-41553ddcb930"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/insula_ostia_cc-by-sa-2.0_dennis-g.-jarvis.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/insula_ostia_a.meshy.glb",
+  "input_sha256": "56cba062ffa34818e744d05b5cca53a1bbde37a84dcf64f80682902d620ad817",
+  "input_faces": 30173,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Insula_in_Ostia.jpg | Author: Dennis G. Jarvis | Licence: CC BY-SA 2.0 | Typology: insula | What: Brick-faced insula block at Ostia with shop openings and mezzanine windows, standing to the first floor (2nd c. AD by type); the file page calls it only 'Ostian insula' - building not identified | Status: in situ ruin (upper storeys lost) | Image: saved 1600x1063 px from a 4288x2848 px original. Caveats: the block continues past the left edge; no roof, so the stamp is a ruin's massing. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 24 m is the long side of the Caupona del Pavone block ('c. 16 x 24 m', roman.md I1, PR), a different Ostian building.",
+  "size_m": 24.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 24 m is the long side of the Caupona del Pavone block ('c. 16 x 24 m', roman.md I1, PR), a different Ostian building.",
+  "size_axis": "z",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 279153,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      22.6029,
+      8.3737,
+      24.0
+    ],
+    "extent_m_kept": [
+      22.6029,
+      8.3737,
+      24.0
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 12.646509716550819,
+  "extent_m": [
+    22.6667,
+    8.4444,
+    24.0
+  ],
+  "extent_cells": [
+    204,
+    76,
+    216
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 279153,
+    "interior": 0,
+    "total": 279153
+  },
+  "primitives": {
+    "C": 0,
+    "S": 12,
+    "M": 278829,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        123,
+        112,
+        93
+      ],
+      "tint": "#7b705d",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 17)",
+      "role": "wall",
+      "surface_voxels": 199541,
+      "voxels": 199541
+    },
+    {
+      "id": 1,
+      "rgb": [
+        105,
+        95,
+        78
+      ],
+      "tint": "#695f4e",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 52041,
+      "voxels": 52041
+    },
+    {
+      "id": 2,
+      "rgb": [
+        141,
+        127,
+        106
+      ],
+      "tint": "#8d7f6a",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 15)",
+      "role": "wall",
+      "surface_voxels": 27571,
+      "voxels": 27571
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Insula Ostia A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 24.0 m along z). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:07:02.738215+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/insula_ostia_cc-by-sa-2.0_dennis-g.-jarvis.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_insula_ostia_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "insula_ostia_a.meshy.reduced.glb",
+    "bytes_before": 5257252,
+    "bytes_after": 1456060,
+    "faces_before": 30173,
+    "faces_after": 30173,
+    "vertices_after": 55190,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 170030
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

@@ -1,0 +1,203 @@
+{
+  "stem": "meshyref_manor_hall_stokesay_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/manor_hall_stokesay_cc-by-sa-4.0_defacto.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20090-4443-72e8-bd69-5c01bf1c563a"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/manor_hall_stokesay_cc-by-sa-4.0_defacto.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/manor_hall_stokesay_a.meshy.glb",
+  "input_sha256": "a9e8e89ca3d53a0508a535a36bf86d42448edac8f5a59899e5624b813ad7d270",
+  "input_faces": 27792,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Stokesay_Castle_from_the_west.jpg | Author: DeFacto | Licence: CC BY-SA 4.0 | Typology: manor_hall | What: Stokesay Castle from the west: great hall (1280s), solar block and south tower in one range | Status: in situ | Image: saved 1600x1007 px from a 4265x2683 px original. Caveats: a clipped hedge runs across the foot of the range; a thin pole stands in front of the hall. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 46 m is the long dimension of the Stokesay court ('150 feet (46 m) by 125 feet (38 m)', medieval.md D47, PR-T), used as a stand-in for the length of the west range shown; it is not a measured range length. After import the hall block should read about 16.6 x 9.4 m (D47).",
+  "size_m": 46.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 46 m is the long dimension of the Stokesay court ('150 feet (46 m) by 125 feet (38 m)', medieval.md D47, PR-T), used as a stand-in for the length of the west range shown; it is not a measured range length. After import the hall block should read about 16.6 x 9.4 m (D47).",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 550928,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      46.0,
+      20.9899,
+      19.8885
+    ],
+    "extent_m_kept": [
+      46.0,
+      20.9899,
+      19.8885
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 24.18889399219902,
+  "extent_m": [
+    46.0,
+    21.0,
+    19.8889
+  ],
+  "extent_cells": [
+    414,
+    189,
+    179
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 550928,
+    "interior": 0,
+    "total": 550928
+  },
+  "primitives": {
+    "C": 0,
+    "S": 2,
+    "M": 550874,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        97,
+        92,
+        78
+      ],
+      "tint": "#615c4e",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 18)",
+      "role": "wall",
+      "surface_voxels": 284140,
+      "voxels": 284140
+    },
+    {
+      "id": 1,
+      "rgb": [
+        77,
+        73,
+        63
+      ],
+      "tint": "#4d493f",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 25)",
+      "role": "wall",
+      "surface_voxels": 163354,
+      "voxels": 163354
+    },
+    {
+      "id": 2,
+      "rgb": [
+        118,
+        114,
+        100
+      ],
+      "tint": "#767264",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 8)",
+      "role": "wall",
+      "surface_voxels": 56666,
+      "voxels": 56666
+    },
+    {
+      "id": 3,
+      "rgb": [
+        57,
+        53,
+        44
+      ],
+      "tint": "#39352c",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 29)",
+      "role": "wall",
+      "surface_voxels": 39832,
+      "voxels": 39832
+    },
+    {
+      "id": 4,
+      "rgb": [
+        157,
+        158,
+        156
+      ],
+      "tint": "#9d9e9c",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 6936,
+      "voxels": 6936
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Manor Hall Stokesay A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 46.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:04:12.510780+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/manor_hall_stokesay_cc-by-sa-4.0_defacto.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_manor_hall_stokesay_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "manor_hall_stokesay_a.meshy.reduced.glb",
+    "bytes_before": 4711228,
+    "bytes_after": 1283396,
+    "faces_before": 27792,
+    "faces_after": 27792,
+    "vertices_after": 45966,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 196132
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

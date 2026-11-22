@@ -1,0 +1,189 @@
+{
+  "stem": "meshyref_horreum_epagathiana_front_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/horreum_epagathiana_front_cc-by-3.0_sailko.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20093-ed4d-70a0-8c17-ec27be7e8177"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/horreum_epagathiana_front_cc-by-3.0_sailko.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/horreum_epagathiana_front_a.meshy.glb",
+  "input_sha256": "fb2dc4766613ca0005a3dc5969ffccc12094a5db4b15d9b2b981d1337c4d138a",
+  "input_faces": 28750,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Ostia,_horrea_epagathiana_01.JPG | Author: Sailko | Licence: CC BY 3.0 | Typology: horreum (street front) / taberna row | What: Horrea Epagathiana et Epaphroditiana, Ostia: street front with the pedimented brick portal and flanking shop openings (roman.md H5; date not in the dossier) | Status: in situ ruin | Image: saved 1600x1089 px from a 5184x3530 px original. Caveats: front range only, not the whole warehouse. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 16 m is the street front of the Caupona del Pavone ('16 metres of street front', roman.md I1, PR), a different building. The dossier has no dimension for this warehouse (H5: 'no dimensions on the page').",
+  "size_m": 16.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 16 m is the street front of the Caupona del Pavone ('16 metres of street front', roman.md I1, PR), a different building. The dossier has no dimension for this warehouse (H5: 'no dimensions on the page').",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 97943,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      16.0,
+      7.5599,
+      11.7953
+    ],
+    "extent_m_kept": [
+      16.0,
+      7.5599,
+      11.7953
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 8.414152314658264,
+  "extent_m": [
+    16.0,
+    7.6667,
+    11.8889
+  ],
+  "extent_cells": [
+    144,
+    69,
+    107
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 97943,
+    "interior": 0,
+    "total": 97943
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 97943,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        134,
+        113,
+        93
+      ],
+      "tint": "#86715d",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 11)",
+      "role": "wall",
+      "surface_voxels": 68825,
+      "voxels": 68825
+    },
+    {
+      "id": 1,
+      "rgb": [
+        160,
+        133,
+        110
+      ],
+      "tint": "#a0856e",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 4)",
+      "role": "wall",
+      "surface_voxels": 15868,
+      "voxels": 15868
+    },
+    {
+      "id": 2,
+      "rgb": [
+        107,
+        89,
+        72
+      ],
+      "tint": "#6b5948",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 20)",
+      "role": "wall",
+      "surface_voxels": 11440,
+      "voxels": 11440
+    },
+    {
+      "id": 3,
+      "rgb": [
+        191,
+        160,
+        132
+      ],
+      "tint": "#bfa084",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 18)",
+      "role": "wall",
+      "surface_voxels": 1810,
+      "voxels": 1810
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Horreum Epagathiana Front A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 16.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:08:37.875872+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/horreum_epagathiana_front_cc-by-3.0_sailko.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_horreum_epagathiana_front_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "horreum_epagathiana_front_a.meshy.reduced.glb",
+    "bytes_before": 5434068,
+    "bytes_after": 1244256,
+    "faces_before": 28750,
+    "faces_after": 28750,
+    "vertices_after": 41846,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 233643
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

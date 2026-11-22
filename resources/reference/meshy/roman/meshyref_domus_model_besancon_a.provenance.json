@@ -1,0 +1,204 @@
+{
+  "stem": "meshyref_domus_model_besancon_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/domus_model_besancon_cc-by-sa-3.0_arnaud-25.jpg",
+  "meshy": null,
+  "input_file": "resources/reference/meshy/roman/domus_model_besancon_a.meshy.glb",
+  "input_sha256": "ccd11acf7a8fd311fa819c5d5083b42187ee32233ba633f6f430952738f30213",
+  "input_faces": 27830,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Mus%C3%A9e_BeauxArts_Besan%C3%A7on_071.jpg | Author: Arnaud 25 | Licence: CC BY-SA 3.0 | Typology: domus | What: Museum model of a Gallo-Roman domus of Besancon with porticoed court and pedimented entrance | Status: MODERN RECONSTRUCTION - a scale model (maquette), Musee des Beaux-Arts et d'Archeologie de Besancon | Image: saved 1280x739 px from a 1600x1200 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0,0.12,1,0.89). Caveats: indoor museum lighting; the model's grey base slab and part of the black plinth are in frame. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 46 m is the greatest length of the House of the Silver Wedding, Pompeii ('not far from 150 feet', roman.md D5, PR), a different house. | micro tier refused (grid over the 16M-cell cap at 46 m): imported at the subcube tier only.",
+  "size_m": 46.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 46 m is the greatest length of the House of the Silver Wedding, Pompeii ('not far from 150 feet', roman.md D5, PR), a different house.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 142026,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      46.0,
+      32.3966,
+      45.9985
+    ],
+    "extent_m_kept": [
+      46.0,
+      32.3966,
+      45.9985
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 24.175739691199126,
+  "extent_m": [
+    46.0,
+    32.6667,
+    46.0
+  ],
+  "extent_cells": [
+    138,
+    98,
+    138
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 142026,
+    "interior": 0,
+    "total": 142026
+  },
+  "primitives": {
+    "C": 0,
+    "S": 142026,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        88,
+        88,
+        88
+      ],
+      "tint": "#585858",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 20)",
+      "role": "wall",
+      "surface_voxels": 52713,
+      "voxels": 52713
+    },
+    {
+      "id": 1,
+      "rgb": [
+        199,
+        199,
+        200
+      ],
+      "tint": "#c7c7c8",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 39) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 46558,
+      "voxels": 46558
+    },
+    {
+      "id": 2,
+      "rgb": [
+        160,
+        157,
+        155
+      ],
+      "tint": "#a09d9b",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 18)",
+      "role": "roof",
+      "surface_voxels": 17295,
+      "voxels": 17295
+    },
+    {
+      "id": 3,
+      "rgb": [
+        155,
+        112,
+        77
+      ],
+      "tint": "#9b704d",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 17)",
+      "role": "roof",
+      "surface_voxels": 15332,
+      "voxels": 15332
+    },
+    {
+      "id": 4,
+      "rgb": [
+        120,
+        118,
+        117
+      ],
+      "tint": "#787675",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 9)",
+      "role": "wall",
+      "surface_voxels": 8753,
+      "voxels": 8753
+    },
+    {
+      "id": 5,
+      "rgb": [
+        130,
+        47,
+        34
+      ],
+      "tint": "#822f22",
+      "material": "LogRedwood",
+      "how": "nearest wall colour (chroma distance 35)",
+      "role": "wall",
+      "surface_voxels": 1375,
+      "voxels": 1375
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Domus Model Besancon A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 46.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy)",
+    "model": "meshy",
+    "created": "2026-11-22T00:14:13.198574+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/domus_model_besancon_cc-by-sa-3.0_arnaud-25.jpg"
+  },
+  "also_tiers": [],
+  "reduced_copy": {
+    "file": "domus_model_besancon_a.meshy.reduced.glb",
+    "bytes_before": 4929296,
+    "bytes_after": 1366484,
+    "faces_before": 27830,
+    "faces_after": 27830,
+    "vertices_after": 48139,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 235529
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

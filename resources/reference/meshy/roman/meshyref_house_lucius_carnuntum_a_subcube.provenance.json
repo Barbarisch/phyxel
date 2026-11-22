@@ -1,0 +1,184 @@
+{
+  "stem": "meshyref_house_lucius_carnuntum_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/roman/source_images/house_lucius_carnuntum_cc-by-2.5_matthiaskabel.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20096-828b-700f-aaa8-d602c00ddf13"
+    ],
+    "image": "resources/reference/meshy/roman/source_images/house_lucius_carnuntum_cc-by-2.5_matthiaskabel.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/roman/house_lucius_carnuntum_a.meshy.glb",
+  "input_sha256": "813801765250cf7adf6ff3d0812d6dc03735eccd6d4136e05a30e91146ed4ea9",
+  "input_faces": 28764,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "roman",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Carnuntum_Haus_des_Lucius_01.jpg | Author: MatthiasKabel | Licence: CC BY 2.5 | Typology: domus (small provincial town house) | What: 'Haus des Lucius', civil town of Carnuntum: single-storey stone house with a tiled roof | Status: MODERN RECONSTRUCTION, full scale, on excavated footings | Image: saved 1600x1067 px from a 4378x2918 px original. Caveats: two potted cypresses flank the door. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12 m is the upper end of the strip-building frontage range (6-12 m, roman.md 1.4, from m5f_strip_building_grounding.txt), a different building class used as the nearest sourced type.",
+  "size_m": 12.0,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12 m is the upper end of the strip-building frontage range (6-12 m, roman.md 1.4, from m5f_strip_building_grounding.txt), a different building class used as the nearest sourced type.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 3952,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      12.0,
+      5.8585,
+      8.905
+    ],
+    "extent_m_kept": [
+      12.0,
+      5.8585,
+      8.905
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 6.3877663494273,
+  "extent_m": [
+    12.0,
+    6.0,
+    9.0
+  ],
+  "extent_cells": [
+    36,
+    18,
+    27
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 3952,
+    "interior": 0,
+    "total": 3952
+  },
+  "primitives": {
+    "C": 0,
+    "S": 3952,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        177,
+        79,
+        54
+      ],
+      "tint": "#b14f36",
+      "material": "ClayTile",
+      "how": "nearest roof colour (chroma distance 18)",
+      "role": "roof",
+      "surface_voxels": 1262,
+      "voxels": 1262
+    },
+    {
+      "id": 1,
+      "rgb": [
+        175,
+        160,
+        148
+      ],
+      "tint": "#afa094",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 900,
+      "voxels": 900
+    },
+    {
+      "id": 2,
+      "rgb": [
+        160,
+        137,
+        124
+      ],
+      "tint": "#a0897c",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 15)",
+      "role": "wall",
+      "surface_voxels": 657,
+      "voxels": 657
+    },
+    {
+      "id": 3,
+      "rgb": [
+        66,
+        73,
+        41
+      ],
+      "tint": "#424929",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 30)",
+      "role": "wall",
+      "surface_voxels": 609,
+      "voxels": 609
+    },
+    {
+      "id": 4,
+      "rgb": [
+        123,
+        98,
+        79
+      ],
+      "tint": "#7b624f",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 382,
+      "voxels": 382
+    },
+    {
+      "id": 5,
+      "rgb": [
+        202,
+        187,
+        175
+      ],
+      "tint": "#cabbaf",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 30)",
+      "role": "wall",
+      "surface_voxels": 142,
+      "voxels": 142
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref House Lucius Carnuntum A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 12.0 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:12:03.056065+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/roman/source_images/house_lucius_carnuntum_cc-by-2.5_matthiaskabel.jpg"
+  }
+}

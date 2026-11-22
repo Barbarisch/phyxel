@@ -1,0 +1,74 @@
+{
+  "_note": "EVERY NUMBER HERE IS MEASURED FROM THE MODEL'S VOXELS at the --size the importer was given. None of it is a real-world source; a dimension typed into engine data still needs its own citation (grounding-auditor).",
+  "size_m": 14.6,
+  "size_axis": "y",
+  "size_basis": "SOURCED for this building: '14.6 metres (48 ft) high', 11.2 m across (medieval.md D46, PR-T: Wikipedia citing Saunders 1985 / Ayers 1988). Applied to the height.",
+  "islands_dropped": "0 components, 0 voxels",
+  "voxel_pitch_m": 0.33333,
+  "footprint_w_x_m": 10.0,
+  "footprint_d_z_m": 10.0,
+  "footprint_area_m2": 87.111,
+  "footprint_fill_ratio": 0.871,
+  "eaves_height_m": 13.333,
+  "eaves_method": "top of the highest layer (above 30% of the ridge height) whose silhouette extent across the roof-pitch axis is >= 97% of the widest such layer: the height above which the building only narrows. With an overhanging roof this is the roof's lower edge, not the top of the wall. No pitch axis -> equals the ridge.",
+  "eaves_height_95pct_layer_m": 0.333,
+  "eaves_95pct_method": "the earlier rule, kept for comparison: top of the highest layer whose solid cross-section is >= 95% of the largest",
+  "ridge_height_m": 14.333,
+  "ridge_method": "top of the highest layer whose extent along the ridge axis is >= 50% of the building's (so a chimney or finial is not the ridge)",
+  "top_height_m": 14.667,
+  "roof_span_across_pitch_axis_m": 10.0,
+  "roof_pitch_deg_rise_over_run": 11.3,
+  "roof_pitch_deg_mean_gradient": 20.7,
+  "roof_pitch_axis": "x",
+  "roof_pitch_method": "axis = the horizontal axis along which the silhouette narrows in the top 30% of the height (null if neither does); rise/run = (ridge - eaves) / (half the roof span at the eaves), assumes a symmetric roof; mean gradient = atan of the mean column-top step along that axis between eaves and ridge",
+  "long_facades": {
+    "+z": {
+      "opening_rows_m": [
+        [
+          9.333,
+          10.667
+        ],
+        [
+          12.0,
+          13.333
+        ]
+      ],
+      "wall_cluster": 1,
+      "frame_clusters": [
+        0,
+        2
+      ]
+    },
+    "-z": {
+      "opening_rows_m": [
+        [
+          3.0,
+          5.0
+        ],
+        [
+          7.333,
+          9.0
+        ]
+      ],
+      "wall_cluster": 1,
+      "frame_clusters": [
+        0,
+        2
+      ]
+    }
+  },
+  "opening_rows_m": [
+    [
+      9.333,
+      10.667
+    ],
+    [
+      12.0,
+      13.333
+    ]
+  ],
+  "opening_rows_facade": "+z",
+  "storey_count_guess": 2,
+  "storey_method": "on each of the two long facades (first surface seen along the shorter plan axis, below the eaves): drop the dominant wall cluster; per remaining cluster drop horizontal runs longer than a quarter of the facade (rail, band course, plinth, roof edge), connected pieces wider than half the facade (frame network) and pieces 3x taller than wide (posts); what is left, after removing specks under ~0.3 m, is counted per height; a row is a band >= 0.75 m where that count is >= 35% of its peak, dips under ~0.5 m bridged. Guess = rows on the facade with more rows; null = none found. A guess, labelled as one.",
+  "wall_cluster": 1
+}

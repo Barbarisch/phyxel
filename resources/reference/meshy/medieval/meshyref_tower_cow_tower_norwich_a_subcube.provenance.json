@@ -1,0 +1,142 @@
+{
+  "stem": "meshyref_tower_cow_tower_norwich_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/tower_cow_tower_norwich_cc-by-sa-4.0_diego-delso.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20087-dcdf-76e7-ad6d-19385ffa3f6a"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/tower_cow_tower_norwich_cc-by-sa-4.0_diego-delso.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/tower_cow_tower_norwich_a.meshy.glb",
+  "input_sha256": "f83935335bcb92b4e33c7f6ae6a97bca81be998a250adfd0f61d253993bd5f9b",
+  "input_faces": 30270,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Torre_Cow,_Norwich,_Inglaterra,_2022-11-19,_DD_48.jpg | Author: Diego Delso | Licence: CC BY-SA 4.0 | Typology: wall tower / blockhouse | What: Cow Tower, Norwich, free-standing brick-faced artillery tower, 1398-99 | Status: in situ (roofless) | Image: saved 1067x1600 px from a 5048x7572 px original. Caveats: bare branches overlap the upper left of the tower. | SIZE BASIS: SOURCED for this building: '14.6 metres (48 ft) high', 11.2 m across (medieval.md D46, PR-T: Wikipedia citing Saunders 1985 / Ayers 1988). Applied to the height.",
+  "size_m": 14.6,
+  "size_basis": "SOURCED for this building: '14.6 metres (48 ft) high', 11.2 m across (medieval.md D46, PR-T: Wikipedia citing Saunders 1985 / Ayers 1988). Applied to the height.",
+  "size_axis": "y",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 10105,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      9.8387,
+      14.6,
+      9.889
+    ],
+    "extent_m_kept": [
+      9.8387,
+      14.6,
+      9.889
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 7.682455381294306,
+  "extent_m": [
+    10.0,
+    14.6667,
+    10.0
+  ],
+  "extent_cells": [
+    30,
+    44,
+    30
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 10105,
+    "interior": 0,
+    "total": 10105
+  },
+  "primitives": {
+    "C": 0,
+    "S": 10105,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        105,
+        85,
+        71
+      ],
+      "tint": "#695547",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 20)",
+      "role": "wall",
+      "surface_voxels": 5864,
+      "voxels": 5864
+    },
+    {
+      "id": 1,
+      "rgb": [
+        77,
+        63,
+        51
+      ],
+      "tint": "#4d3f33",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 18)",
+      "role": "wall",
+      "surface_voxels": 3336,
+      "voxels": 3336
+    },
+    {
+      "id": 2,
+      "rgb": [
+        132,
+        108,
+        93
+      ],
+      "tint": "#846c5d",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 14)",
+      "role": "wall",
+      "surface_voxels": 905,
+      "voxels": 905
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Tower Cow Tower Norwich A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 14.6 m along y). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:55:44.074055+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/tower_cow_tower_norwich_cc-by-sa-4.0_diego-delso.jpg"
+  }
+}

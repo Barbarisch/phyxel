@@ -1,0 +1,184 @@
+{
+  "stem": "meshyref_longhouse_cilewent_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20080-3a30-72db-9287-a81b73abf723"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/longhouse_cilewent_a.meshy.glb",
+  "input_sha256": "c928d92a827b33fae0dc079932ae78474e46565e303d4794aeb734f1a8dc9341",
+  "input_faces": 28524,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Cilewent_farmhouse,_St_Fagans.jpg | Author: Dave Snowden | Licence: CC BY-SA 2.0 | Typology: longhouse | What: Cilewent farmhouse, a Welsh stone longhouse; rebuilt 1734 on a 15th-c. cruck house (dossier, unverified) | Status: re-erected (St Fagans) | Image: saved 1600x1060 px from a 4877x3230 px original. Caveats: low hedge bed in front of the lower wall. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23).",
+  "size_m": 12.2,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T); the dossier's sourced range for the type is 12.2 m (D20) to 'nearly 19 m' (D23).",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 3310,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      12.2,
+      5.4374,
+      5.8115
+    ],
+    "extent_m_kept": [
+      12.2,
+      5.4374,
+      5.8115
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 6.3612207330969825,
+  "extent_m": [
+    12.3333,
+    5.6667,
+    6.0
+  ],
+  "extent_cells": [
+    37,
+    17,
+    18
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 3310,
+    "interior": 0,
+    "total": 3310
+  },
+  "primitives": {
+    "C": 0,
+    "S": 3310,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        111,
+        110,
+        107
+      ],
+      "tint": "#6f6e6b",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 10)",
+      "role": "wall",
+      "surface_voxels": 1410,
+      "voxels": 1410
+    },
+    {
+      "id": 1,
+      "rgb": [
+        72,
+        71,
+        69
+      ],
+      "tint": "#484745",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 27)",
+      "role": "roof",
+      "surface_voxels": 580,
+      "voxels": 580
+    },
+    {
+      "id": 2,
+      "rgb": [
+        92,
+        91,
+        89
+      ],
+      "tint": "#5c5b59",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 19)",
+      "role": "roof",
+      "surface_voxels": 440,
+      "voxels": 440
+    },
+    {
+      "id": 3,
+      "rgb": [
+        227,
+        227,
+        228
+      ],
+      "tint": "#e3e3e4",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 48) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 359,
+      "voxels": 359
+    },
+    {
+      "id": 4,
+      "rgb": [
+        47,
+        47,
+        45
+      ],
+      "tint": "#2f2f2d",
+      "material": "Slate",
+      "how": "nearest roof colour (chroma distance 33)",
+      "role": "roof",
+      "surface_voxels": 278,
+      "voxels": 278
+    },
+    {
+      "id": 5,
+      "rgb": [
+        141,
+        140,
+        136
+      ],
+      "tint": "#8d8c88",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 8)",
+      "role": "wall",
+      "surface_voxels": 243,
+      "voxels": 243
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Longhouse Cilewent A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 12.2 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:46:50.813732+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/longhouse_cilewent_cc-by-sa-2.0_dave-snowden.jpg"
+  }
+}

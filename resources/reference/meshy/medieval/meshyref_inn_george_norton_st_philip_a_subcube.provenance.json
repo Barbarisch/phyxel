@@ -1,0 +1,184 @@
+{
+  "stem": "meshyref_inn_george_norton_st_philip_a_subcube",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/inn_george_norton_st_philip_cc-by-sa-3.0_rodhullandemu.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20082-8984-7488-90a5-df6a3b27ba59"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/inn_george_norton_st_philip_cc-by-sa-3.0_rodhullandemu.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/inn_george_norton_st_philip_a.meshy.glb",
+  "input_sha256": "6f6738b91d4b104bdc7742e2661e49d72613b01feb59748f3e6e9953c4cb6a4c",
+  "input_faces": 29784,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "subcube",
+  "cells_per_metre": 3,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:NortonStPhilipTheGeorge.jpg | Author: Rodhullandemu | Licence: CC BY-SA 3.0 | Typology: tavern / inn | What: The George Inn, Norton St Philip: stone ground storey, two jettied timber storeys, 14th-15th c. (dossier, unverified) | Status: in situ | Image: saved 1600x1045 px from a 3452x2254 px original. Caveats: inn sign bracket on the front; 1997 scan, slightly soft. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. The dossier has NO SOURCE for any inn dimension (medieval.md 1b tavern/inn). 21.3 m is the Stratford Guild Hall range length (D11, PR-P), a different building of a comparable jettied class, used only to give the stamp a plausible scale.",
+  "size_m": 21.3,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. The dossier has NO SOURCE for any inn dimension (medieval.md 1b tavern/inn). 21.3 m is the Stratford Guild Hall range length (D11, PR-P), a different building of a comparable jettied class, used only to give the stamp a plausible scale.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 9445,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      21.3,
+      11.5202,
+      10.0561
+    ],
+    "extent_m_kept": [
+      21.3,
+      11.5202,
+      10.0561
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 11.189395692281796,
+  "extent_m": [
+    21.3333,
+    11.6667,
+    10.3333
+  ],
+  "extent_cells": [
+    64,
+    35,
+    31
+  ],
+  "fill": "shell",
+  "compact": "none",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 9445,
+    "interior": 0,
+    "total": 9445
+  },
+  "primitives": {
+    "C": 0,
+    "S": 9445,
+    "M": 0,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        91,
+        82,
+        64
+      ],
+      "tint": "#5b5240",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 21)",
+      "role": "wall",
+      "surface_voxels": 3288,
+      "voxels": 3288
+    },
+    {
+      "id": 1,
+      "rgb": [
+        73,
+        65,
+        46
+      ],
+      "tint": "#49412e",
+      "material": "LogSpruce",
+      "how": "nearest wall colour (chroma distance 18)",
+      "role": "wall",
+      "surface_voxels": 2956,
+      "voxels": 2956
+    },
+    {
+      "id": 2,
+      "rgb": [
+        48,
+        40,
+        22
+      ],
+      "tint": "#302816",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 46) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 1494,
+      "voxels": 1494
+    },
+    {
+      "id": 3,
+      "rgb": [
+        245,
+        244,
+        242
+      ],
+      "tint": "#f5f4f2",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 56) WEAK - no close material, use --map",
+      "role": "wall",
+      "surface_voxels": 860,
+      "voxels": 860
+    },
+    {
+      "id": 4,
+      "rgb": [
+        119,
+        110,
+        91
+      ],
+      "tint": "#776e5b",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 814,
+      "voxels": 814
+    },
+    {
+      "id": 5,
+      "rgb": [
+        185,
+        181,
+        174
+      ],
+      "tint": "#b9b5ae",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 23)",
+      "role": "wall",
+      "surface_voxels": 33,
+      "voxels": 33
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Inn George Norton St Philip A Subcube",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (subcube tier, 21.3 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:49:27.827713+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/inn_george_norton_st_philip_cc-by-sa-3.0_rodhullandemu.jpg"
+  }
+}

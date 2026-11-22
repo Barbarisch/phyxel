@@ -1,0 +1,189 @@
+{
+  "stem": "meshyref_well_head_winkhurst_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/well_head_winkhurst_cc-by-sa-2.0_paul-gillett.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20089-8fb2-7740-b9eb-4bfc7586790f"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/well_head_winkhurst_cc-by-sa-2.0_paul-gillett.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/well_head_winkhurst_a.meshy.glb",
+  "input_sha256": "ba622d0a6283b4cff983e304fa489575366f961cb5e0a91181991bb4636a234c",
+  "input_faces": 28868,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Well_near_Winkhurst_Kitchen_-_geograph.org.uk_-_2566021.jpg | Author: Paul Gillett | Licence: CC BY-SA 2.0 | Typology: market well | What: Well-head beside the Winkhurst kitchen: stone drum, timber frame, windlass and small roof. Museum display, date and evidence unknown - NOT evidence for a medieval well (dossier) | Status: museum display (Weald & Downland) | Image: saved 960x1281 px from a 1199x1600 px original. Caveats: street furniture rather than a building; kind 'prop' may suit it better. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.4 m high chosen by eye. The dossier has NO SOURCE for a well-head (medieval.md 1b, market square). Do not read any dimension off this stamp.",
+  "size_m": 2.4,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. PLACEHOLDER 2.4 m high chosen by eye. The dossier has NO SOURCE for a well-head (medieval.md 1b, market square). Do not read any dimension off this stamp.",
+  "size_axis": "y",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 1542,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      2.3201,
+      2.4,
+      1.8283
+    ],
+    "extent_m_kept": [
+      2.3201,
+      2.4,
+      1.8283
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 1.2614880867623748,
+  "extent_m": [
+    2.3333,
+    2.4444,
+    1.8889
+  ],
+  "extent_cells": [
+    21,
+    22,
+    17
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 1542,
+    "interior": 0,
+    "total": 1542
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 1542,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        107,
+        94,
+        81
+      ],
+      "tint": "#6b5e51",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 22)",
+      "role": "roof",
+      "surface_voxels": 989,
+      "voxels": 989
+    },
+    {
+      "id": 1,
+      "rgb": [
+        128,
+        117,
+        101
+      ],
+      "tint": "#807565",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 13)",
+      "role": "wall",
+      "surface_voxels": 382,
+      "voxels": 382
+    },
+    {
+      "id": 2,
+      "rgb": [
+        88,
+        75,
+        63
+      ],
+      "tint": "#584b3f",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 29)",
+      "role": "roof",
+      "surface_voxels": 93,
+      "voxels": 93
+    },
+    {
+      "id": 3,
+      "rgb": [
+        153,
+        140,
+        123
+      ],
+      "tint": "#998c7b",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 78,
+      "voxels": 78
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Well Head Winkhurst A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 2.4 m along y). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:57:16.197650+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/well_head_winkhurst_cc-by-sa-2.0_paul-gillett.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_well_head_winkhurst_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "well_head_winkhurst_a.meshy.reduced.glb",
+    "bytes_before": 4612348,
+    "bytes_after": 1024248,
+    "faces_before": 28868,
+    "faces_after": 28868,
+    "vertices_after": 32625,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 197349
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

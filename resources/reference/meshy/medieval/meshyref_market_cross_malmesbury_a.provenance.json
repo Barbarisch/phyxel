@@ -1,0 +1,203 @@
+{
+  "stem": "meshyref_market_cross_malmesbury_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/market_cross_malmesbury_cc0_poliphilo.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a2008e-d3c7-7425-b3ed-38ef3ef3256b"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/market_cross_malmesbury_cc0_poliphilo.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/market_cross_malmesbury_a.meshy.glb",
+  "input_sha256": "323477aee38ddf011d627c06c02705fea3196f4c8d96815e7663bb83f7113a93",
+  "input_faces": 30443,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Malmesbury_Market_Cross,_June_2026.jpg | Author: Poliphilo | Licence: CC0 | Typology: market cross | What: Malmesbury Market Cross, octagonal vaulted shelter, c.1490 (dossier, unverified) | Status: in situ | Image: saved 972x1600 px from a 3816x5088 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.09,0,0.9,1). Caveats: cropped both sides to remove a pedestrian and parked cars; cars are still visible through the arches and a flower planter stands in front. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 15.2 m is the height of the Chichester Cross ('standing 50 feet tall', medieval.md D52, PR-T), a different building of the same class.",
+  "size_m": 15.2,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 15.2 m is the height of the Chichester Cross ('standing 50 feet tall', medieval.md D52, PR-T), a different building of the same class.",
+  "size_axis": "y",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 72150,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      10.2836,
+      15.2,
+      10.3241
+    ],
+    "extent_m_kept": [
+      10.2836,
+      15.2,
+      10.3241
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 7.995421571882006,
+  "extent_m": [
+    10.3333,
+    15.2222,
+    10.3333
+  ],
+  "extent_cells": [
+    93,
+    137,
+    93
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 72150,
+    "interior": 0,
+    "total": 72150
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 72150,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        142,
+        138,
+        123
+      ],
+      "tint": "#8e8a7b",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 9)",
+      "role": "wall",
+      "surface_voxels": 24343,
+      "voxels": 24343
+    },
+    {
+      "id": 1,
+      "rgb": [
+        97,
+        94,
+        80
+      ],
+      "tint": "#615e50",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 17)",
+      "role": "wall",
+      "surface_voxels": 16817,
+      "voxels": 16817
+    },
+    {
+      "id": 2,
+      "rgb": [
+        117,
+        113,
+        100
+      ],
+      "tint": "#757164",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 8)",
+      "role": "wall",
+      "surface_voxels": 15748,
+      "voxels": 15748
+    },
+    {
+      "id": 3,
+      "rgb": [
+        167,
+        162,
+        146
+      ],
+      "tint": "#a7a292",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 16)",
+      "role": "wall",
+      "surface_voxels": 8961,
+      "voxels": 8961
+    },
+    {
+      "id": 4,
+      "rgb": [
+        75,
+        71,
+        59
+      ],
+      "tint": "#4b473b",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 28)",
+      "role": "roof",
+      "surface_voxels": 6281,
+      "voxels": 6281
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Market Cross Malmesbury A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 15.2 m along y). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:03:03.116502+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/market_cross_malmesbury_cc0_poliphilo.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_market_cross_malmesbury_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "market_cross_malmesbury_a.meshy.reduced.glb",
+    "bytes_before": 6038952,
+    "bytes_after": 1686404,
+    "faces_before": 30443,
+    "faces_after": 30443,
+    "vertices_after": 61231,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 277929
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "stem": "meshyref_market_hall_titchfield_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/market_hall_titchfield_cc-by-sa-2.0_peter-shimmon.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20084-d8df-7225-8a99-76013805156a"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/market_hall_titchfield_cc-by-sa-2.0_peter-shimmon.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/market_hall_titchfield_a.meshy.glb",
+  "input_sha256": "a9d29ab6bf8ccb831180651a15e19b6d2b8139cff401e9dcdb8ab864e6546d5f",
+  "input_faces": 26365,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Titchfield_Market_Hall_(1)_-_geograph.org.uk_-_3120451.jpg | Author: Peter Shimmon | Licence: CC BY-SA 2.0 | Typology: town_hall (market hall over an open arcade) | What: Market hall from Titchfield: council chamber over an open timber arcade; built 1620 - OUT OF PERIOD, the cleanest free-standing example of the form (dossier) | Status: re-erected (Weald & Downland) | Image: saved 1088x829 px from a 1800x1166 px original. Saved copy is CROPPED from the Commons file (fractions x0,y0,x1,y1 = 0.15,0,1,1). Caveats: cropped at the left to remove two distant visitors; 1975 slide, grainy. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 7.3 m = two bays at the dossier's upper York bay length of 3.66 m (medieval.md D1, PR-P); the bay count (2) is read off the photograph. Not a measurement of this building. The only sourced town-hall length (D11, 21.3 m) is a five-bay guildhall and visibly a larger building.",
+  "size_m": 7.3,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 7.3 m = two bays at the dossier's upper York bay length of 3.66 m (medieval.md D1, PR-P); the bay count (2) is read off the photograph. Not a measurement of this building. The only sourced town-hall length (D11, 21.3 m) is a five-bay guildhall and visibly a larger building.",
+  "size_axis": "y",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 37020,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      7.0986,
+      7.3,
+      6.3902
+    ],
+    "extent_m_kept": [
+      7.0986,
+      7.3,
+      6.3902
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 3.838093559864831,
+  "extent_m": [
+    7.1111,
+    7.3333,
+    6.4444
+  ],
+  "extent_cells": [
+    64,
+    66,
+    58
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 37020,
+    "interior": 0,
+    "total": 37020
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 37020,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        90,
+        85,
+        84
+      ],
+      "tint": "#5a5554",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 19)",
+      "role": "wall",
+      "surface_voxels": 11370,
+      "voxels": 11370
+    },
+    {
+      "id": 1,
+      "rgb": [
+        70,
+        55,
+        49
+      ],
+      "tint": "#463731",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 36) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 9270,
+      "voxels": 9270
+    },
+    {
+      "id": 2,
+      "rgb": [
+        111,
+        104,
+        102
+      ],
+      "tint": "#6f6866",
+      "material": "StoneBricks",
+      "how": "nearest wall colour (chroma distance 9)",
+      "role": "wall",
+      "surface_voxels": 8808,
+      "voxels": 8808
+    },
+    {
+      "id": 3,
+      "rgb": [
+        139,
+        131,
+        126
+      ],
+      "tint": "#8b837e",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 1)",
+      "role": "wall",
+      "surface_voxels": 3597,
+      "voxels": 3597
+    },
+    {
+      "id": 4,
+      "rgb": [
+        47,
+        34,
+        28
+      ],
+      "tint": "#2f221c",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 46) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 2766,
+      "voxels": 2766
+    },
+    {
+      "id": 5,
+      "rgb": [
+        189,
+        176,
+        168
+      ],
+      "tint": "#bdb0a8",
+      "material": "Cobblestone",
+      "how": "nearest wall colour (chroma distance 24)",
+      "role": "wall",
+      "surface_voxels": 1209,
+      "voxels": 1209
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Market Hall Titchfield A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 7.3 m along y). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-21T23:52:55.033056+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/market_hall_titchfield_cc-by-sa-2.0_peter-shimmon.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_market_hall_titchfield_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "market_hall_titchfield_a.meshy.reduced.glb",
+    "bytes_before": 6025524,
+    "bytes_after": 1445856,
+    "faces_before": 26365,
+    "faces_after": 26365,
+    "vertices_after": 47238,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 341711
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}

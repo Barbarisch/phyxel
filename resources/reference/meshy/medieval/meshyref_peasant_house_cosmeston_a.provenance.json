@@ -1,0 +1,203 @@
+{
+  "stem": "meshyref_peasant_house_cosmeston_a",
+  "source": "meshy",
+  "prompt": null,
+  "image": "resources/reference/meshy/medieval/source_images/peasant_house_cosmeston_cc-by-sa-4.0_nilfanion.jpg",
+  "meshy": {
+    "mode": "image-to-3d",
+    "task_ids": [
+      "01a20091-560d-7599-92f9-baf6a6d0fd5e"
+    ],
+    "image": "resources/reference/meshy/medieval/source_images/peasant_house_cosmeston_cc-by-sa-4.0_nilfanion.jpg",
+    "ai_model": "latest",
+    "consumed_credits": 30
+  },
+  "input_file": "resources/reference/meshy/medieval/peasant_house_cosmeston_a.meshy.glb",
+  "input_sha256": "6e92b98a69f01eb748b0adf882d5e031d8f7b8d44035b7adcecccae48b8e964d",
+  "input_faces": 30101,
+  "date": "2026-11-21",
+  "kind": "building",
+  "tier": "micro",
+  "cells_per_metre": 9,
+  "era": "medieval",
+  "note": "Source: https://commons.wikimedia.org/wiki/File:Cosmeston_Medieval_Village_(4707).jpg | Author: Nilfanion | Licence: CC BY-SA 4.0 | Typology: croft / peasant house | What: Stone-walled thatched building at Cosmeston Medieval Village (14th-c. village); which building it is was not established from the file page | Status: MODERN RECONSTRUCTION on excavated footings - everything above the wall base is conjecture | Image: saved 1600x1063 px from a 4288x2848 px original. | SIZE BASIS: NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building.",
+  "size_m": 12.2,
+  "size_basis": "NOMINAL - no sourced overall dimension; proportions only. 12.2 m is the Hangleton longhouse length (medieval.md D20, PR-T), a different building.",
+  "size_axis": "x",
+  "islands": {
+    "applied": true,
+    "connectivity": 26,
+    "min_fraction": 0.05,
+    "components": 1,
+    "largest_component_voxels": 37431,
+    "dropped_components": 0,
+    "dropped_voxels": 0,
+    "dropped_component_voxels": [],
+    "dropped_faces": 0,
+    "kept_detached_components": 0,
+    "kept_detached_voxels": 0,
+    "counted_on": "surface voxels of the first pass (before the fill, at the scale that included the stray pieces)",
+    "extent_m_with_islands": [
+      12.2,
+      4.9383,
+      6.9734
+    ],
+    "extent_m_kept": [
+      12.2,
+      4.9383,
+      6.9734
+    ],
+    "components_after": 1
+  },
+  "uniform_scale_applied": 6.414627763178109,
+  "extent_m": [
+    12.2222,
+    5.0,
+    7.0
+  ],
+  "extent_cells": [
+    110,
+    45,
+    63
+  ],
+  "fill": "shell",
+  "compact": "cube",
+  "emit": "tint",
+  "color_table": "tint",
+  "color_metric": "chroma",
+  "candidate_materials": "building (construction materials; roof clusters -> roof family)",
+  "voxels": {
+    "surface": 37431,
+    "interior": 0,
+    "total": 37431
+  },
+  "primitives": {
+    "C": 0,
+    "S": 0,
+    "M": 37431,
+    "V": 0
+  },
+  "clusters": [
+    {
+      "id": 0,
+      "rgb": [
+        47,
+        37,
+        24
+      ],
+      "tint": "#2f2518",
+      "material": "StoneSlab",
+      "how": "nearest roof colour (chroma distance 46) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 12450,
+      "voxels": 12450
+    },
+    {
+      "id": 1,
+      "rgb": [
+        95,
+        78,
+        60
+      ],
+      "tint": "#5f4e3c",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 28)",
+      "role": "roof",
+      "surface_voxels": 12132,
+      "voxels": 12132
+    },
+    {
+      "id": 2,
+      "rgb": [
+        69,
+        55,
+        40
+      ],
+      "tint": "#453728",
+      "material": "WoodShingle",
+      "how": "nearest roof colour (chroma distance 38) WEAK - no close material, use --map",
+      "role": "roof",
+      "surface_voxels": 7952,
+      "voxels": 7952
+    },
+    {
+      "id": 3,
+      "rgb": [
+        123,
+        101,
+        77
+      ],
+      "tint": "#7b654d",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 14)",
+      "role": "wall",
+      "surface_voxels": 3653,
+      "voxels": 3653
+    },
+    {
+      "id": 4,
+      "rgb": [
+        159,
+        137,
+        110
+      ],
+      "tint": "#9f896e",
+      "material": "Stone",
+      "how": "nearest wall colour (chroma distance 5)",
+      "role": "wall",
+      "surface_voxels": 1244,
+      "voxels": 1244
+    }
+  ],
+  "tool": "tools/meshy_import.py",
+  "verified_in_engine": false,
+  "catalog_intent": {
+    "display_name": "Meshyref Peasant House Cosmeston A",
+    "description": "Voxelized from a Meshy AI mesh by tools/meshy_import.py (micro tier, 12.2 m along x). REFERENCE ONLY - never placed as generator output.",
+    "tags": [
+      "meshy",
+      "generated",
+      "building",
+      "reference",
+      "do-not-place"
+    ],
+    "method": "tools/meshy_import.py (source: meshy, image-to-3d)",
+    "model": "latest",
+    "created": "2026-11-22T00:05:25.823752+00:00",
+    "version": 1,
+    "prompt": "image: resources/reference/meshy/medieval/source_images/peasant_house_cosmeston_cc-by-sa-4.0_nilfanion.jpg"
+  },
+  "also_tiers": [
+    {
+      "tier": "subcube",
+      "stem": "meshyref_peasant_house_cosmeston_a_subcube"
+    }
+  ],
+  "reduced_copy": {
+    "file": "peasant_house_cosmeston_a.meshy.reduced.glb",
+    "bytes_before": 5408816,
+    "bytes_after": 1261260,
+    "faces_before": 30101,
+    "faces_after": 30101,
+    "vertices_after": 41900,
+    "max_texture": 1024,
+    "max_faces": 50000,
+    "textures": [
+      {
+        "slot": "baseColorTexture",
+        "from": [
+          2048,
+          2048
+        ],
+        "to": [
+          1024,
+          1024
+        ],
+        "mime": "image/jpeg",
+        "bytes": 241460
+      }
+    ],
+    "decimation": "none (already within the face budget)",
+    "normals": "dropped"
+  }
+}
