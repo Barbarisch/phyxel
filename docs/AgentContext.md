@@ -678,6 +678,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       units:voxel); exact counts, each call undoable. Not routed: batch place, copy/paste/named snapshots.
       F7.6d done: editable regions build coarse levels 1..3, kept current by edits (dirty chunks refreshed one per
       frame), assemble keeps the drawn LOD. MISSED ~200 ms per chunk refresh (recorded lever). Levels 4-7 owed.
+      F7.8 done: physics occupancy from the switched region (storeBoxes + grid overrides): characters / CPU bodies
+      collide with what is drawn (4,000/4,000 probes; pit, pillar, live edits).
       NEXT: F7.7 (delete the old cube / subcube / microcube paths), then F7's exit (the default switch, the suite).
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload

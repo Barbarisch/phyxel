@@ -66,6 +66,12 @@ public:
     void registerGrid(VoxelOccupancyGrid* grid);
     // Call when a chunk is unloaded.
     void unregisterGrid(VoxelOccupancyGrid* grid);
+    /// docs/VoxelFoundationPlan.md F7.8: chunk `chunkCoord`'s static terrain is `grid` instead of whatever is
+    /// registered there (null removes the override) -- the switched world's chunks over today's. Every terrain query
+    /// (contacts, overlapsTerrain, anyStaticSolidInAABB) consults the overrides first.
+    void setGridOverride(const glm::ivec3& chunkCoord, VoxelOccupancyGrid* grid);
+    void clearGridOverrides() { m_gridOverride.clear(); }
+    size_t gridOverrideCount() const { return m_gridOverride.size(); }
     // Number of registered terrain occupancy grids. Zero while chunks exist means
     // static-terrain collision is invisible to this world (characters fall through).
     size_t gridCount() const { return m_grids.size(); }
@@ -233,6 +239,7 @@ private:
     // touches only the handful of chunks its AABB overlaps. Both are maintained together;
     // the vector remains the ownership/iteration list, the map is the spatial accelerator.
     std::unordered_map<uint64_t, VoxelOccupancyGrid*> m_gridByChunk;
+    std::unordered_map<uint64_t, VoxelOccupancyGrid*> m_gridOverride;   // F7.8
 
     // Pack a signed chunk coordinate (worldOrigin/32) into a map key (21 bits/axis).
     static uint64_t chunkKey(int cx, int cy, int cz) {

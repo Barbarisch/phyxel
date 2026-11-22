@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bitset>
+#include <functional>
 #include <vector>
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -64,6 +65,11 @@ public:
     // Does NOT clear results — caller may pre-populate or aggregate across chunks.
     void queryAABB(const glm::vec3& aabbMin, const glm::vec3& aabbMax,
                    std::vector<OccupiedBox>& results) const;
+    /// docs/VoxelFoundationPlan.md F7.8: an external source answers queryAABB instead of the bit levels (the new
+    /// store's chunk, VoxFound::storeBoxes); empty = the bit levels as before.
+    using ExternalQuery = std::function<void(const glm::vec3&, const glm::vec3&, std::vector<OccupiedBox>&)>;
+    void setExternalQuery(ExternalQuery q) { m_external = std::move(q); bumpRevision(); }
+    bool hasExternalQuery() const { return static_cast<bool>(m_external); }
 
     void clear();
     /// Every cube solid, nothing subdivided — the grid side of a uniform store fill.
@@ -83,6 +89,7 @@ public:
 private:
     glm::ivec3 m_origin{0};
     uint32_t m_revision = 0;
+    ExternalQuery m_external;   // F7.8
     void bumpRevision();   // unique across ALL grids, see the .cpp
 
     // Dense cube-level bitsets: 32³ = 32768 bits = 4 KB each

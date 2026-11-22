@@ -3118,6 +3118,12 @@ levels; `assemble` keeps the drawn LOD selection instead of dropping to level 0.
 ~200 ms per chunk refresh (levers: build the area on the device, or refresh only the edited block columns); levels
 4-7 and the leaf variants stay refused with editable.
 
+**F7.8, the physics occupancy on the switched world (2026-11-22, section 7 step 1's owed part).**
+`VoxFound::storeBoxes` answers queryAABB from a BlockStore (a uniform block = one 1 m box, mixed blocks = z-runs);
+`VoxelOccupancyGrid::setExternalQuery` + `VoxelDynamicsWorld::setGridOverride` put the region's chunks over today's while
+switched. Live: overlapsTerrain = the region at 4,000 / 4,000 probes (red 3,799); a character rests on a dug pit's floor
+and on a placed pillar's top, and falls when the pillar is cleared under it. GPU debris still reads today's pool.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

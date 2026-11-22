@@ -50,7 +50,14 @@ VoxelDynamicsWorld::VoxelDynamicsWorld() {
 
 bool VoxelDynamicsWorld::anyStaticSolidInAABB(const glm::vec3& lo, const glm::vec3& hi) const {
     std::vector<OccupiedBox> hits;
+    std::vector<const VoxelOccupancyGrid*> all;   // F7.8: the overrides replace their chunk's grid
     for (const auto* g : m_grids) {
+        if (!g) continue;
+        const glm::ivec3 o = g->getChunkOrigin();
+        if (!m_gridOverride.count(chunkKey(o.x >> 5, o.y >> 5, o.z >> 5))) all.push_back(g);
+    }
+    for (const auto& kv : m_gridOverride) all.push_back(kv.second);
+    for (const auto* g : all) {
         if (!g) continue;
         const glm::vec3 cLo = g->chunkWorldMin(), cHi = g->chunkWorldMax();
         if (hi.x < cLo.x || lo.x > cHi.x || hi.y < cLo.y || lo.y > cHi.y ||
@@ -79,6 +86,11 @@ void VoxelDynamicsWorld::registerGrid(VoxelOccupancyGrid* grid) {
     }
 }
 
+void VoxelDynamicsWorld::setGridOverride(const glm::ivec3& c, VoxelOccupancyGrid* grid) {   // F7.8
+    if (grid) m_gridOverride[chunkKey(c.x, c.y, c.z)] = grid;
+    else m_gridOverride.erase(chunkKey(c.x, c.y, c.z));
+}
+
 void VoxelDynamicsWorld::unregisterGrid(VoxelOccupancyGrid* grid) {
     if (!grid) return;
     m_grids.erase(std::remove(m_grids.begin(), m_grids.end(), grid), m_grids.end());
@@ -91,7 +103,7 @@ void VoxelDynamicsWorld::unregisterGrid(VoxelOccupancyGrid* grid) {
 void VoxelDynamicsWorld::gatherGridsOverlapping(const glm::vec3& mn, const glm::vec3& mx,
                                                 std::vector<VoxelOccupancyGrid*>& out) const {
     out.clear();
-    if (m_gridByChunk.empty()) return;
+    if (m_gridByChunk.empty() && m_gridOverride.empty()) return;
     // Chunk-coord span the AABB touches. floorDiv by 32 (grids live at multiples of 32);
     // shifting a negative int is fine here because we want arithmetic floor, so use a
     // branch to floor toward -inf.
@@ -104,7 +116,13 @@ void VoxelDynamicsWorld::gatherGridsOverlapping(const glm::vec3& mn, const glm::
     for (int cx = x0; cx <= x1; ++cx)
     for (int cy = y0; cy <= y1; ++cy)
     for (int cz = z0; cz <= z1; ++cz) {
-        auto it = m_gridByChunk.find(chunkKey(cx, cy, cz));
+        const uint64_t k = chunkKey(cx, cy, cz);
+        auto ov = m_gridOverride.find(k);   // F7.8
+        if (ov != m_gridOverride.end()) {
+            out.push_back(ov->second);
+            continue;
+        }
+        auto it = m_gridByChunk.find(k);
         if (it != m_gridByChunk.end()) out.push_back(it->second);
     }
 }
@@ -526,7 +544,7 @@ void VoxelDynamicsWorld::generateContacts() {
     // 870 ms/frame measured at 46 boxes). Each box only overlaps a handful of
     // voxels, so per-box queries are O(boxes × ~4) instead.
     std::vector<uint64_t> threadCalls(tc, 0);   // §15.5: actual queryAABB calls (U1a proof)
-    if (!m_gridByChunk.empty() && na > 0) {
+    if ((!m_gridByChunk.empty() || !m_gridOverride.empty()) && na > 0) {
         std::vector<std::vector<ContactPoint>> threadBufs(tc);
         const float expand = 0.01f;
 

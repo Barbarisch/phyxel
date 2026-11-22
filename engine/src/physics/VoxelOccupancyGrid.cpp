@@ -141,6 +141,10 @@ bool VoxelOccupancyGrid::isMicrocubeFilled(const glm::ivec3& lp, const glm::ivec
 
 void VoxelOccupancyGrid::queryAABB(const glm::vec3& aabbMin, const glm::vec3& aabbMax,
                                     std::vector<OccupiedBox>& results) const {
+    if (m_external) {   // docs/VoxelFoundationPlan.md F7.8: the new store answers
+        m_external(aabbMin, aabbMax, results);
+        return;
+    }
     // Broad chunk-level rejection
     if (aabbMax.x < m_origin.x || aabbMin.x > m_origin.x + CHUNK_SIZE ||
         aabbMax.y < m_origin.y || aabbMin.y > m_origin.y + CHUNK_SIZE ||

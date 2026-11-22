@@ -13,6 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "core/voxfound/WorldReads.h"
+#include "core/voxfound/OccupancyFromStore.h"
 #include "core/NavGraph.h"
 #include "core/PerfCapture.h"
 #include "core/water/WaterSpanWriteBack.h"   // Phase D: span clip/assemble/merge
@@ -13582,6 +13583,29 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("phys_stub")) {   // F7.8 (tests): the switch sets no physics overrides (the red)
+            voxFoundPhysStub = cmd.params["phys_stub"].get<bool>();
+            response = {{"phys_stub", voxFoundPhysStub}};
+            return;
+        }
+        if (cmd.params.contains("phys_probe")) {   // F7.8: VoxelDynamicsWorld::overlapsTerrain at points vs the region
+            auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+            const float he = cmd.params.value("half_m", 0.02f);
+            size_t agree = 0, n = 0, solidRegion = 0;
+            nlohmann::json bad = nlohmann::json::array();
+            for (const auto& pj : cmd.params["phys_probe"]) {
+                const glm::vec3 p(pj[0].get<float>(), pj[1].get<float>(), pj[2].get<float>());
+                const bool phys = vw && vw->overlapsTerrain(p, glm::vec3(he));
+                const bool reg = voxFoundEdit.voxelAt(glm::ivec3(glm::floor(p * 8.0f))) != 0;
+                ++n;
+                solidRegion += reg;
+                if (phys == reg) ++agree;
+                else if (bad.size() < 20) bad.push_back({{"p", {p.x, p.y, p.z}}, {"physics", phys}, {"region", reg}});
+            }
+            response = {{"probes", n}, {"agree", agree}, {"region_solid", solidRegion}, {"disagree", bad},
+                        {"overrides", vw ? vw->gridOverrideCount() : 0}};
+            return;
+        }
         if (cmd.params.contains("lod_stub")) {   // F7.6d (tests): edits mark no chunk's coarse levels dirty (the red)
             voxFoundLodStub = cmd.params["lod_stub"].get<bool>();
             response = {{"lod_stub", voxFoundLodStub}};
@@ -13701,6 +13725,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 loadReport = loadVoxFoundSaved();
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
+            voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
                 if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());
@@ -14397,6 +14422,31 @@ nlohmann::json Application::voxFoundLodCheck() {
     }
     return {{"chunks", chunks}, {"mismatched_by_level", bad}, {"faces_by_level", total},
             {"dirty", voxFoundLodDirty.size()}};
+}
+
+// F7.8 (docs/VoxelFoundationPlan.md section 7 step 1, queryAABB): while switched, every region chunk's static terrain
+// in VoxelDynamicsWorld is a grid whose queryAABB is answered from the region's store (VoxFound::storeBoxes) -- the
+// character's grounding, CPU bodies and overlap tests then read what is drawn.
+void Application::voxFoundPhysSwitch(bool on) {
+    auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+    if (vw)
+        for (const auto& g : voxFoundPhysGrids) vw->setGridOverride(g->getChunkOrigin() / 32, nullptr);
+    voxFoundPhysGrids.clear();
+    if (!on || !vw || voxFoundPhysStub) return;
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        auto g = std::make_unique<Physics::VoxelOccupancyGrid>();
+        const glm::ivec3 c = voxFoundEdit.chunk(i).chunk;
+        g->setChunkOrigin(c * 32);
+        g->setExternalQuery([this, i](const glm::vec3& mn, const glm::vec3& mx, std::vector<Physics::OccupiedBox>& out) {
+            if (i >= voxFoundEdit.chunkCount()) return;
+            const auto& ch = voxFoundEdit.chunk(i);
+            Core::VoxFound::storeBoxes(ch.store, ch.originVoxel, mn, mx, [&](glm::vec3 lo, glm::vec3 hi) {
+                out.push_back({(lo + hi) * 0.5f, (hi - lo) * 0.5f});
+            });
+        });
+        vw->setGridOverride(c, g.get());
+        voxFoundPhysGrids.push_back(std::move(g));
+    }
 }
 
 // F7.6c (docs/VoxelFoundationPlan.md section 7 step 6, section 12): the voxel API on the switched world. The JSON keeps

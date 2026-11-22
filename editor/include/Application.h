@@ -109,6 +109,7 @@
 #include "core/voxfound/Preview.h"
 #include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/EditHistory.h"
+#include "physics/VoxelOccupancyGrid.h"
 #include <set>
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
 #include "core/voxfound/BodySim.h"
@@ -335,6 +336,11 @@ private:
     glm::ivec3 voxFoundLodRegionLo{0};
     std::set<size_t> voxFoundLodDirty;
     bool voxFoundLodStub = false;                                       // F7.6d (tests): edits mark nothing dirty
+    // F7.8: the switched region's physics occupancy -- one grid per region chunk answering queryAABB from its store,
+    // set as VoxelDynamicsWorld overrides while switched
+    std::vector<std::unique_ptr<Physics::VoxelOccupancyGrid>> voxFoundPhysGrids;
+    bool voxFoundPhysStub = false;                                      // F7.8 (tests): no overrides (the red)
+    void voxFoundPhysSwitch(bool on);
     double voxFoundLodMaxChunkMs = 0.0, voxFoundLodLastSelectMs = 0.0, voxFoundLodSumChunkMs = 0.0;
     size_t voxFoundLodRefreshed = 0;
     void voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st);

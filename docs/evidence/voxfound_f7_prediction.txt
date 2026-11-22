@@ -579,3 +579,26 @@ unit test).
      the player standing on it falls to the ground.
 RED: phys_stub (the switch sets no overrides) -> P2 / P3 as the control.
 Not here, stated: GPU debris (GpuParticlePhysics) reads today's shared micro pool -- not used by F7.5's world rig.
+
+F7.8 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); region editable,
+load_saved:false. Evidence: voxfound_f78_live.jsonl; tools/voxfound_f78_live.py; tests/core/OccupancyFromStoreTest.cpp.
+Every artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region), edited through the engine's voxel API; the drops
+by an AnimatedVoxelCharacter spawned over /api/entity/spawn (id f78probe -- the gate project has no player entity: the
+first control run read null for every drop, void, kept and labelled).
+  CONTROL (the F7.6d editor): today's ground 28.0 m; switched, a pit cleared (16,683 voxels) and a pillar placed (1,536):
+     the character over the pit stands at 28.0 (today's hidden ground), over the pillar falls to 27.0 (through it).
+  RED as predicted (phys_stub): overlapsTerrain agrees with the region at 3,799 / 4,000 probes (the pit reads solid,
+     the pillar air); the drops 28.0 / 27.0 as the control.
+  P1 PASS: VoxFoundOccupancyFromStore 2/2 (240 random queries on 4 random stores: every reached solid voxel covered
+     exactly once, no air covered; a uniform block = one 1 m box).
+  P2 PASS: overlapsTerrain = the region's voxel at 4,000 / 4,000 probes (2,172 solid), 32 overrides set.
+  P3 PASS: over the pit the character rests at 24.0 m (the pit floor); over the pillar at 31.0 m (its top); switch off
+     -> 28.0 (today's ground again).
+  P4 PASS: the pillar cleared under the standing character -> it falls to 27.375 m, the region's ground there (the
+     grids read the live store, nothing re-registered).
+  Not here, stated: GPU debris (GpuParticlePhysics) still reads today's shared micro pool (unused by F7.5's world rig);
+     the light occupancy is F7.3b's. Cost not measured (a mixed block emits up to 64 boxes vs the old grid's micro
+     boxes; contacts follow box counts) -- owed with F8's stress.
+CONCLUSION: the switched world is solid where it is drawn: VoxelDynamicsWorld (contacts, overlapsTerrain,
+anyStaticSolidInAABB) reads the region's stores through per-chunk overrides; the character stands in pits, on pillars,
+and falls when an edit removes its floor. Section 7 step 1 is complete for physics.
