@@ -1,0 +1,23 @@
+{
+ "region": {
+  "chunks": 32,
+  "editable": true,
+  "faces": 477858
+ },
+ "red": {
+  "reads_check": {
+   "checked": 4096,
+   "equal_to_region_rule": 3954,
+   "region_kinds": [
+    2231,
+    1566,
+    299
+   ],
+   "routed": false
+  },
+  "reads_routed": false,
+  "region_chunks": 32,
+  "stub": true,
+  "world_switch": true
+ }
+}

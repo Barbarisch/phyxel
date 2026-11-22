@@ -3059,6 +3059,14 @@ Exact against dense references across chunk borders; the hall house realized at 
 chunk border; NPCs walk between its rooms on the new store (sealed doors block); generated surface chunks voxel for
 voxel. Owed: part ids, carving a building's interior from terrain, the settlement / furniture / item placers.
 
+**F7.3, drawing behind a switch (2026-11-21).** `voxfound_preview {"world_switch":bool}`: on, today's world is hidden,
+the editable region drawn, and ChunkManager's reads routed to the region's own stores (`RegionEdit::chunkStore`) --
+what is drawn is what the engine reads. On the F2.19 gate scene: the switch draws exactly F2.19's B (0 px at 5 poses);
+the section 4.3 gate today vs new 46-68 % px, F2.19's numbers, every residual already attributed to content; all 4,096
+sampled reads equal the region (142 differ unrouted -- the red); NPC navigation builds on the switched region (a
+229-node path). OWED: the cost (D5) and a timing guard's re-run, on a quiet GPU (another session's tests held it).
+Not moved: physics and light occupancy, the other chunkMap walkers.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

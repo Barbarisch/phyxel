@@ -1,0 +1,82 @@
+{
+ "overview_south": {
+  "px": 396550,
+  "control_A_px": 1328,
+  "control_B_px": 0,
+  "AB_pct": 46.45,
+  "faces_A_pct": 47.88,
+  "faces_B_pct": 48.99,
+  "faces_one_store_only_pct": 4.51,
+  "faces_both_pct": 46.18,
+  "AB_pct_of_faces_both": 23.28,
+  "AB_pct_outside_faces_both": 66.34,
+  "grey_dom": [
+   255,
+   255
+  ]
+ },
+ "top_down": {
+  "px": 396550,
+  "control_A_px": 4,
+  "control_B_px": 0,
+  "AB_pct": 58.98,
+  "faces_A_pct": 14.86,
+  "faces_B_pct": 15.84,
+  "faces_one_store_only_pct": 4.63,
+  "faces_both_pct": 13.04,
+  "AB_pct_of_faces_both": 23.27,
+  "AB_pct_outside_faces_both": 64.33,
+  "grey_dom": [
+   255,
+   255
+  ]
+ },
+ "forest_floor_open": {
+  "px": 396550,
+  "control_A_px": 18269,
+  "control_B_px": 0,
+  "AB_pct": 49.29,
+  "faces_A_pct": 62.32,
+  "faces_B_pct": 75.21,
+  "faces_one_store_only_pct": 19.03,
+  "faces_both_pct": 59.25,
+  "AB_pct_of_faces_both": 32.24,
+  "AB_pct_outside_faces_both": 74.09,
+  "grey_dom": [
+   255,
+   255
+  ]
+ },
+ "east_low": {
+  "px": 396550,
+  "control_A_px": 20742,
+  "control_B_px": 0,
+  "AB_pct": 67.9,
+  "faces_A_pct": 46.9,
+  "faces_B_pct": 54.32,
+  "faces_one_store_only_pct": 12.82,
+  "faces_both_pct": 44.2,
+  "AB_pct_of_faces_both": 48.7,
+  "AB_pct_outside_faces_both": 83.12,
+  "grey_dom": [
+   255,
+   255
+  ]
+ },
+ "canopy_close": {
+  "px": 396550,
+  "control_A_px": 7078,
+  "control_B_px": 0,
+  "AB_pct": 51.31,
+  "faces_A_pct": 48.57,
+  "faces_B_pct": 51.72,
+  "faces_one_store_only_pct": 20.13,
+  "faces_both_pct": 40.08,
+  "AB_pct_of_faces_both": 26.91,
+  "AB_pct_outside_faces_both": 67.64,
+  "grey_dom": [
+   255,
+   255
+  ]
+ }
+}

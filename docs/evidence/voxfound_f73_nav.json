@@ -1,0 +1,85 @@
+{
+ "region": {
+  "chunks": 32,
+  "editable": true,
+  "faces": 477858
+ },
+ "nav_points": {
+  "ground_columns": 157,
+  "of": 400,
+  "from": [
+   8132.5,
+   28,
+   68.5
+  ],
+  "to": [
+   8246.5,
+   22,
+   182.5
+  ]
+ },
+ "switch_off": {
+  "nav_check": {
+   "build_ms": 570.8871,
+   "found": false,
+   "from": [
+    8132.5,
+    28.0,
+    68.5
+   ],
+   "nodes": 0,
+   "routed": false,
+   "to": [
+    8246.5,
+    22.0,
+    182.5
+   ]
+  },
+  "reads_check": {
+   "checked": 4096,
+   "equal_to_region_rule": 3954,
+   "region_kinds": [
+    2231,
+    1566,
+    299
+   ],
+   "routed": false
+  },
+  "reads_routed": false,
+  "region_chunks": 32,
+  "stub": false,
+  "world_switch": false
+ },
+ "switch_on": {
+  "nav_check": {
+   "build_ms": 753.8653,
+   "found": true,
+   "from": [
+    8132.5,
+    28.0,
+    68.5
+   ],
+   "nodes": 229,
+   "routed": true,
+   "to": [
+    8246.5,
+    22.0,
+    182.5
+   ]
+  },
+  "reads_check": {
+   "checked": 4096,
+   "equal_to_region_rule": 4096,
+   "region_kinds": [
+    2231,
+    1566,
+    299
+   ],
+   "routed": true
+  },
+  "reads_routed": true,
+  "region_chunks": 32,
+  "stub": false,
+  "world_switch": true
+ }
+}

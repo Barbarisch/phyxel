@@ -113,6 +113,17 @@ public:
     Stats loadChunk(size_t i, const BlockStore& saved);
     /// F3.2b: the material of world voxel p (air outside the region).
     uint8_t voxelAt(glm::ivec3 p) const;
+    /// F7.3: the store of engine chunk c (its voxel (0,0,0) = world voxel c * 256), nullptr when the region lacks it;
+    /// and the region's chunk coordinates -- what VoxFound::WorldReads reads.
+    const BlockStore* chunkStore(glm::ivec3 c) const {
+        const int i = index(c);
+        return i < 0 ? nullptr : &m_chunks[size_t(i)].store;
+    }
+    std::vector<glm::ivec3> chunkCoords() const {
+        std::vector<glm::ivec3> out;
+        for (const Chunk& ch : m_chunks) out.push_back(ch.chunk);
+        return out;
+    }
 
     /// Level 0 of pv (faces, clusters, chunk ranges, sprigs, connectivity) from the store; selectLevel(0). leafTex =
     /// the sprig texture per palette material. F2.17: level 0 is a FACE POOL image (FacePool): with `changed` (the

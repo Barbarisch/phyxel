@@ -125,3 +125,37 @@ stands on today's hidden chunks), light occupancy (stateAtMicro / phxOccupancySo
   D5: cost: the switch's whole frame at the 5 poses equals F2.19's B within its CIs' width +- 0.5 ms (reads add CPU
       only on queries) -- 8 pairs x 240 GPU frames, perf_harness, a free GPU.
 RED: a stub switch (it hides the world, does not route): D3 fails (the reads answer from today's chunks).
+
+F7.3 RESULTS (2026-11-21; the prediction above untouched). Release editor, the VoxFoundGate project (port 8120). Evidence:
+voxfound_f73_control_pix.json, voxfound_f73_red.json, voxfound_f73_gate.json, voxfound_f73_nav.json;
+tools/voxfound_f73_gate.py; the poses voxfound_f29_poses.json (F2.9's, now committed). Every artifact: the engine's
+WorldGenerator (Perlin seed 7, flora, the world DB's recipe) -- today's chunks (A) and the 1/8 m region (B / the switch).
+  CONTROL (23:09-23:12, before any code; F2.19's script unchanged): today vs new 46.45 / 58.98 / 49.29 / 67.90 / 51.31 %
+     px differ (F2.19: 46-68 %); the new store's control 0 px at every pose, today's 4-20,742 px frame to frame (as
+     F2.19 found).
+  RED as predicted: the stub switch (hide + draw, no routing): 3,954 of 4,096 sampled cubes equal the region's rule
+     (142 differ: the reads still answer from today's 1/9 m chunks).
+  D1 PASS: the switch vs F2.19's B ({"hide_world":true,"show_preview":true}, unrouted): 0 px at all 5 poses; the switch
+     vs itself again: 0 px.
+  D2 PASS: today vs the switch 46.47 / 58.98 / 49.28 / 67.92 / 51.33 % (F2.19's 46-68 %, within 5 points at every pose;
+     no new cause -- the same content gaps F2.19 traced).
+  D3 PASS: switch on, 4,096 / 4,096 equal the region's rule (routed); off, 3,954 (today's chunks).
+  D4 PASS on run 2. Run 1 (my test error): the "ground" was the top solid cube of fixed columns -- tree crowns at y
+     47-48 -- and no path was found either way; it measured nothing. Run 2 picks open ground: columns whose top cube on
+     the switched reads is below 32 m (157 of 400 scanned), the first and the farthest: (8132.5, 28, 68.5) ->
+     (8246.5, 22, 182.5). Switch on: NPCManager::buildNavGrid over the region's chunks (754 ms) + a 229-node path.
+     Switch off: no path between the same feet (they are the 1/8 m ground's heights; today's 1/9 m ground differs
+     there; the prediction made no claim for off).
+  Found and fixed on the way (my code): a call carrying only world_switch_stub fell through to the preview's default
+     build and wiped the region (the red's first run refused: "no editable region"); it now returns.
+  D5: OWED (not run): another session's integration tests (G:\Github\phyxel) held the GPU from 23:25 and restarted
+     at 00:08; a timing claim on a contended GPU would be void. Run it first on a quiet GPU: perf_harness sample
+     --ab voxfound_f73_ab_config.json (A = F2.19's B unrouted, B = the switch), 8 pairs x 240 frames x 5 poses.
+  Regression: the editor builds; RegionEdit / VoxFoundStorageLab / WorldStore / WorldReads unit tests 27 pass, WorldReads.Cost red
+     (F7.1), and VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild's per-pass timing guard 3.38 ms vs <= 3 (twice, both
+     runs during the other session's tests; its equality checks pass; F7.3 added two read-only accessors to RegionEdit)
+     -- OWED: a quiet re-run, then read it against the guard.
+CONCLUSION: behind the switch the engine draws the new store -- exactly F2.19's B -- and reads what it draws; the gate
+(section 4.3) holds at F2.19's numbers with every residual already attributed to content. Not moved by the switch
+(stated): physics occupancy (the character stands on today's hidden chunks), light occupancy, the other chunkMap
+walkers. Next F7.4: editing.

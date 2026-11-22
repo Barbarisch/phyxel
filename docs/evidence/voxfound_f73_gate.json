@@ -1,0 +1,101 @@
+{
+ "region": {
+  "chunks": 32,
+  "editable": true,
+  "faces": 477858
+ },
+ "switch_off": {
+  "nav_check": {
+   "build_ms": 577.7442,
+   "found": false,
+   "from": [
+    8150.5,
+    48.0,
+    120.5
+   ],
+   "nodes": 0,
+   "routed": false,
+   "to": [
+    8200.5,
+    37.0,
+    150.5
+   ]
+  },
+  "reads_check": {
+   "checked": 4096,
+   "equal_to_region_rule": 3954,
+   "region_kinds": [
+    2231,
+    1566,
+    299
+   ],
+   "routed": false
+  },
+  "reads_routed": false,
+  "region_chunks": 32,
+  "stub": false,
+  "world_switch": false
+ },
+ "switch_on": {
+  "nav_check": {
+   "build_ms": 830.3157,
+   "found": false,
+   "from": [
+    8150.5,
+    47.0,
+    120.5
+   ],
+   "nodes": 0,
+   "routed": true,
+   "to": [
+    8200.5,
+    38.0,
+    150.5
+   ]
+  },
+  "reads_check": {
+   "checked": 4096,
+   "equal_to_region_rule": 4096,
+   "region_kinds": [
+    2231,
+    1566,
+    299
+   ],
+   "routed": true
+  },
+  "reads_routed": true,
+  "region_chunks": 32,
+  "stub": false,
+  "world_switch": true
+ },
+ "overview_south": {
+  "px": 396550,
+  "D1_switch_vs_F219B_px": 0,
+  "D1_switch_vs_switch_px": 0,
+  "D2_today_vs_switch_pct": 46.47
+ },
+ "top_down": {
+  "px": 396550,
+  "D1_switch_vs_F219B_px": 0,
+  "D1_switch_vs_switch_px": 0,
+  "D2_today_vs_switch_pct": 58.98
+ },
+ "forest_floor_open": {
+  "px": 396550,
+  "D1_switch_vs_F219B_px": 0,
+  "D1_switch_vs_switch_px": 0,
+  "D2_today_vs_switch_pct": 49.28
+ },
+ "east_low": {
+  "px": 396550,
+  "D1_switch_vs_F219B_px": 0,
+  "D1_switch_vs_switch_px": 0,
+  "D2_today_vs_switch_pct": 67.92
+ },
+ "canopy_close": {
+  "px": 396550,
+  "D1_switch_vs_F219B_px": 0,
+  "D1_switch_vs_switch_px": 0,
+  "D2_today_vs_switch_pct": 51.33
+ }
+}

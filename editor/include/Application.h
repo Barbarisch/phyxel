@@ -304,6 +304,9 @@ private:
     Core::VoxFound::RegionEdit voxFoundEdit;                           // F2.16 editable region store ({"editable":true})
     std::vector<std::string> voxFoundPalette;                          // F2.16 the region palette (edits may append)
     std::vector<uint16_t> voxFoundLeafTex;                             // F2.16 sprig texture per palette material
+    // F7.3: the world switch -- the region drawn AND ChunkManager's reads routed to its stores (WorldReads)
+    std::unique_ptr<Core::VoxFound::WorldReads> voxFoundWorldReads;
+    bool voxFoundWorldSwitchStub = false;                               // tests: hide + draw, do not route (the red)
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)

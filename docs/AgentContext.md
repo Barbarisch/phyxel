@@ -656,7 +656,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (typeAt 50-52 ns vs <= 50, the owner's call).
       F7.2 done: VoxFound::WorldStore (fillBox / paint / paintCanvas(1/8 m) / fromRegion; reads()); a realized
       building painted and walkable on the new store. Owed: part ids, interior carving, the other placers.
-      NEXT: F7.3 (drawing the WorldStore behind a switch, the pixel-diff gate), prediction BEFORE code. Broad strokes.
+      F7.3 done (functional): voxfound_preview world_switch -- draws the region (= F2.19's B, 0 px) and routes the
+      reads to it; nav works on it. OWED FIRST on a quiet GPU: D5 (perf_harness --ab docs/evidence/
+      voxfound_f73_ab_config.json, 8 x 240 x 5 poses, VoxFoundGate port 8120) and a quiet re-run of
+      VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild (3.38 vs <= 3 ms twice, contended).
+      NEXT: F7.4 (editing on the switched world: hover = RegionEdit::pick, break/place = brushes; cube / subcube /
+      micro = 8 / 2 / 1 voxels), prediction BEFORE code.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

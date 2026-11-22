@@ -12,6 +12,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <unistd.h>
 #endif
 #include "Application.h"
+#include "core/voxfound/WorldReads.h"
+#include "core/NavGraph.h"
 #include "core/PerfCapture.h"
 #include "core/water/WaterSpanWriteBack.h"   // Phase D: span clip/assemble/merge
 #include "core/water/WaterSpanEdit.h"        // Phase D2: edits never create water
@@ -13350,6 +13352,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPreview.sprigs.clear();
             voxFoundPreview.chunks.clear();
             voxFoundPreview.clusters.clear();
+            if (chunkManager && voxFoundWorldReads) chunkManager->setVoxFoundReads(nullptr);   // F7.3: unroute first
+            voxFoundWorldReads.reset();
             voxFoundEdit.clear();   // F2.16
             ++voxFoundPreview.revision;
             response = {{"cleared", true}};
@@ -13567,6 +13571,103 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (!ok) response["error"] = "level " + std::to_string(k) + " not built (lod_levels)";
             return;
         }
+        // F7.3 (docs/VoxelFoundationPlan.md section 7 step 3): {"world_switch":bool} -- on: today's world hidden, the
+        // editable region drawn, AND ChunkManager's four reads routed to the region's own stores (what is drawn is what
+        // the engine reads); off: both back. {"world_switch_stub":bool} (tests): hide + draw without routing (the red).
+        // {"reads_check":{"n":N}}: N sampled region cubes -- ChunkManager::getVoxelTypeAt vs the region's rule.
+        // {"nav_check":{"from":[x,z],"to":[x,z]}}: NPCManager::buildNavGrid + a path between the two ground points.
+        if (cmd.params.contains("world_switch_stub")) {
+            voxFoundWorldSwitchStub = cmd.params["world_switch_stub"].get<bool>();
+            if (!cmd.params.contains("world_switch") && !cmd.params.contains("reads_check") &&
+                !cmd.params.contains("nav_check")) {   // alone: must not fall through to a default preview build
+                response = {{"world_switch_stub", voxFoundWorldSwitchStub}};
+                return;
+            }
+        }
+        if (cmd.params.contains("world_switch")) {
+            const bool on = cmd.params["world_switch"].get<bool>();
+            if (on && voxFoundEdit.empty()) {
+                response = {{"error", "world_switch: no editable region (build one: region + editable:true)"}};
+                return;
+            }
+            if (chunkManager) chunkManager->setVoxFoundReads(nullptr);
+            voxFoundWorldReads.reset();
+            if (on) {
+                voxFoundWorldReads = std::make_unique<WorldReads>(
+                    [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
+                if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
+            }
+            renderCoordinator->setHideWorld(on);
+            voxFoundPreview.shown = on;
+            response = {{"world_switch", on}, {"reads_routed", chunkManager && chunkManager->voxFoundReads() != nullptr},
+                        {"region_chunks", voxFoundEdit.chunkCount()}, {"stub", voxFoundWorldSwitchStub}};
+            if (!cmd.params.contains("reads_check") && !cmd.params.contains("nav_check")) return;
+        }
+        if (cmd.params.contains("reads_check") && chunkManager) {
+            const int n = cmd.params["reads_check"].value("n", 4096);
+            std::vector<glm::ivec3> cs = voxFoundEdit.chunkCoords();
+            size_t sameRegion = 0, checked = 0, kinds[3] = {0, 0, 0};
+            for (int i = 0; i < n && !cs.empty(); ++i) {
+                uint32_t h = uint32_t(i) * 2654435761u ^ 0x9e3779b9u;
+                h ^= h >> 15;
+                h *= 0x85ebca6bu;
+                h ^= h >> 13;
+                const glm::ivec3 c = cs[h % cs.size()];
+                const glm::ivec3 cube = c * 32 + glm::ivec3(int((h >> 8) % 32), int((h >> 13) % 32), int((h >> 18) % 32));
+                int solid = 0;   // the region's rule: 512 voxels of the cube's block
+                for (int x = 0; x < 8; ++x)
+                    for (int y = 0; y < 8; ++y)
+                        for (int z = 0; z < 8; ++z) solid += voxFoundEdit.voxelAt(cube * 8 + glm::ivec3(x, y, z)) != 0;
+                const auto rule = solid == 0 ? VoxelLocation::EMPTY : solid == 512 ? VoxelLocation::CUBE
+                                                                                    : VoxelLocation::SUBDIVIDED;
+                ++kinds[rule];
+                sameRegion += chunkManager->getVoxelTypeAt(cube) == rule;
+                ++checked;
+            }
+            response["reads_check"] = {{"checked", checked}, {"equal_to_region_rule", sameRegion},
+                                       {"region_kinds", {kinds[0], kinds[1], kinds[2]}},
+                                       {"routed", chunkManager->voxFoundReads() != nullptr}};
+        }
+        if (cmd.params.contains("nav_check") && chunkManager && npcManager) {
+            const auto& nj = cmd.params["nav_check"];
+            auto ground = [&](const nlohmann::json& xz) {   // [x,y,z] = the feet as given; [x,z] = on the top solid cube
+                if (xz.size() == 3) return glm::vec3(xz.at(0).get<float>(), xz.at(1).get<float>(), xz.at(2).get<float>());
+                const int x = xz.at(0).get<int>(), z = xz.at(1).get<int>();
+                for (int y = 63; y >= 0; --y)
+                    if (chunkManager->hasVoxelAt({x, y, z})) return glm::vec3(x + 0.5f, float(y + 1), z + 0.5f);
+                return glm::vec3(x + 0.5f, -1.0f, z + 0.5f);
+            };
+            const glm::vec3 from = ground(nj.at("from")), to = ground(nj.at("to"));
+            const auto t0 = std::chrono::steady_clock::now();
+            npcManager->buildNavGrid();
+            const double buildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            nlohmann::json nr = {{"from", {from.x, from.y, from.z}}, {"to", {to.x, to.y, to.z}}, {"build_ms", buildMs},
+                                 {"routed", chunkManager->voxFoundReads() != nullptr}};
+            if (const auto* g = npcManager->getNavGraph()) {
+                Core::NavAgentProfile agent;
+                const auto p = g->findPath(from, to, agent);
+                nr["found"] = p.found;
+                nr["nodes"] = p.nodes.size();
+            } else {
+                nr["found"] = false;
+                nr["error"] = "no nav graph";
+            }
+            response["nav_check"] = nr;
+        }
+        if (cmd.params.contains("column_top") && chunkManager) {   // F7.3: [[x,z],...] -> the top solid cube per column
+            nlohmann::json tops = nlohmann::json::array();
+            for (const auto& xz : cmd.params["column_top"]) {
+                const int x = xz.at(0).get<int>(), z = xz.at(1).get<int>();
+                int top = -1;
+                for (int y = 63; y >= 0 && top < 0; --y)
+                    if (chunkManager->hasVoxelAt({x, y, z})) top = y;
+                tops.push_back({x, top, z});
+            }
+            response["column_top"] = tops;
+        }
+        if (cmd.params.contains("world_switch") || cmd.params.contains("reads_check") || cmd.params.contains("nav_check") ||
+            cmd.params.contains("column_top"))
+            return;
         if (cmd.params.contains("hide_world") || cmd.params.contains("show_preview") || cmd.params.contains("chunk_cull") ||
             cmd.params.contains("occlusion") || cmd.params.contains("mdi") || cmd.params.contains("shadow_cull") ||
             cmd.params.contains("shadow_mdi") || cmd.params.contains("face_pool") || cmd.params.contains("tjunction") ||
