@@ -604,6 +604,16 @@ PlacedObjectManager::SeatPlan PlacedObjectManager::seatStructure(
 
 void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& max) {
     if (!m_chunkManager) return;
+    if (m_chunkManager->voxFoundWrite()) {   // docs/VoxelFoundationPlan.md F7.15: the switched world, air over the cubes
+        std::vector<std::pair<glm::ivec3, std::string>> voxels;
+        for (int x = min.x; x <= max.x; ++x)
+            for (int y = min.y; y <= max.y; ++y)
+                for (int z = min.z; z <= max.z; ++z)
+                    for (int k = 0; k < 512; ++k)
+                        voxels.push_back({glm::ivec3(x, y, z) * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), std::string()});
+        m_chunkManager->voxFoundWrite()(voxels, "placed_object_clear");
+        return;
+    }
 
     // Group positions by chunk for batch removal (same pattern as clear_region handler)
     struct ChunkCoordHash {

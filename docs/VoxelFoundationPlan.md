@@ -3174,6 +3174,12 @@ masked edit; the orphaned-canopy sweep is a 37 s frame on the switched world (ne
 checks ask the region (a Leaf* / Log* voxel in the cube's block) instead of scanning today's chunks. The canopy sweep
 now finds the region's orphans (a floating leaf cube swept) and the village job takes 6.6 s (41 s).
 
+**F7.15, furnished buildings on the switched world (2026-11-22).** `{"furnish":true}`: the whole structure pipeline
+runs with its voxel writes hooked -- now also ObjectTemplateManager's static stamps, PlacedObjectManager::clearRegion and
+the forge's vegetation gate -- so furniture, clutter, item props, lights and nav come with it (the shell centre-sampled
+from 1/9 m). Same 20-fixture plan as today's build, 19/20 fixtures in the region, today's world untouched. Found: five
+writers into today's world (placed-object removal, the vegetation gate, ...). The default stays the exact 1/8 m shell.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

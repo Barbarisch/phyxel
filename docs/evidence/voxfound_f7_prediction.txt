@@ -943,3 +943,31 @@ into the region. Item props and lights are not voxels (kinematic / light records
   Z3: >= 90 % of the static fixtures have region voxels at their reported cube.
   Z4: a character inside rests on a floor (within 1/8 m of a region surface).
 RED: the default request (no furnish) -> no fixtures (the control).
+F7.15 ADDENDUM (before the build, after the control): the control found a second writer the prediction missed --
+StructureForge::stageFootprint removes overlapping PLACED OBJECTS (structures, tree templates), which on the switched
+world are today's hidden world's (17 of 336 sampled cubes of today's world changed by a switched build: the reference
+house removed). The change now also skips that removal while switched. Z2 applies to both the default and furnish paths.
+
+F7.15 RESULTS (2026-11-22; the prediction and its addendum untouched). Release; VoxFoundGate (port 8120). Evidence:
+voxfound_f715_live.jsonl; tools/voxfound_f715_live.py. Every artifact: WorldGenerator Perlin s7 + flora; the building
+is the ENGINE's StructureForge (hall_house [16, 7], 1 story); the reference = the same request on today's world.
+  CONTROL (the F7.14 editor): {"furnish":true} on the switched world -> the sink, 0 fixtures (furnish skipped); FOUND
+     the addendum's leak: 17 of 336 sampled cubes of today's world changed (stageFootprint removed today's placed house).
+  RED (the default request on the new editor): the sink, 0 fixtures; today's world 0 changed (the footprint guard).
+  The furnished path found three more writers into today's world, one per run (kept, labelled): the route's 5 s wait
+     (response lost; now 120 s for /api/structure/build); PlacedObjectManager::clearRegion (hooked -- not the cause
+     here); StructureForge's vegetation gate, which clears the tree cells it finds with chunkManager->removeCube in
+     today's chunks (now through the hook; its reported count kept). Run 4 is the record.
+  Z1 PASS: the furnished build reports the same fixture plan as the reference (20 fixtures, same types and rooms); 3
+     lights registered.
+  Z2 PASS (run 4): 0 of 336 sampled cubes of today's world changed.
+  Z3 PASS: 19 / 20 fixtures have region voxels at their reported cube.
+  Z4 PASS in substance: of 4 drops inside, 2 rest exactly on the region floor (28.375), 1 within 1/8 m of a region
+     surface (it spawned inside hearth masonry and was lifted onto it), 1 rests 0.375 m up on a fixture BODY (kinematic
+     furniture is not region voxels) -- stated.
+  Not here, stated: the shell on this path is the 1/9 m realizer's, centre-sampled (not the exact 1/8 m shell of the
+     default path); FurniturePlacer is still 1/9-native (FC's "furniture placement in C++"); kinematic furniture /
+     doors and item props live outside the store; the grass-under-house pass READS today's cubes; the structure
+     seater's steps (PlacedObjectManager lines 553 / 586) still write today's chunks (seat mode only).
+CONCLUSION: generated buildings can be furnished on the switched world -- furniture, clutter, item props, lights, nav --
+by running the whole pipeline with its voxel writes hooked; five cross-world leaks found and closed on the way.

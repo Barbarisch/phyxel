@@ -1,3 +1,4 @@
+#include "core/voxfound/PlacementToVoxels.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/WorldGenerator.h"
 #include "core/ProceduralTree.h"
@@ -717,6 +718,9 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     std::unordered_map<int, PartVoxelAcc> movableAcc;
 
     // Spawn Cubes
+    const bool vfWrite = isStatic && m_chunkManager && static_cast<bool>(m_chunkManager->voxFoundWrite());   // F7.15
+    std::vector<std::pair<glm::ivec3, std::string>> vfCells;
+    std::vector<glm::ivec3> vfTmp;
     for (const auto& tCube : tmpl->cubes) {
         if (routeKinematic && isMovablePart(tCube.partId)) {
             // Local-space (unrotated) voxel descriptor. We pin world placement
@@ -734,6 +738,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             continue;
         }
         glm::ivec3 pos = basePos + rotateOffset(tCube.relativePos);
+        if (vfWrite) {   // F7.15: the switched world (centre-sampled 1/8 m voxels)
+            vfTmp.clear();
+            Core::VoxFound::placementVoxels(pos, 0, {}, {}, vfTmp);
+            for (const auto& v : vfTmp) vfCells.push_back({v, tCube.material});
+            continue;
+        }
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
         if (Chunk* chunk = getOrCreateChunk(pos)) {
             chunk->addCube(localPos, tCube.material);
@@ -758,6 +768,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         }
         glm::ivec3 parentPos = basePos + rotateOffset(tSub.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
+        if (vfWrite) {   // F7.15
+            vfTmp.clear();
+            Core::VoxFound::placementVoxels(parentPos, 1, subPos, {}, vfTmp);
+            for (const auto& v : vfTmp) vfCells.push_back({v, tSub.material});
+            continue;
+        }
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
             chunk->addSubcube(localPos, subPos, tSub.material, tSub.tint, tSub.state);
@@ -784,11 +800,18 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 parentPos = basePos + rotateOffset(tMicro.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tMicro.subcubePos);
         glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
+        if (vfWrite) {   // F7.15
+            vfTmp.clear();
+            Core::VoxFound::placementVoxels(parentPos, 2, subPos, microPos, vfTmp);
+            for (const auto& v : vfTmp) vfCells.push_back({v, tMicro.material});
+            continue;
+        }
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
             chunk->addMicrocube(localPos, subPos, microPos, tMicro.material, tMicro.tint, tMicro.state);
         }
     }
+    if (vfWrite && !vfCells.empty()) m_chunkManager->voxFoundWrite()(vfCells, "spawn_template:" + name);   // F7.15
 
     // Finalise all modified chunks: flush deferred collisions, rebuild faces
     for (Chunk* chunk : modifiedChunks) {
@@ -1070,18 +1093,28 @@ bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm
         return chunk;
     };
 
+    const bool vfWriteM = m_chunkManager && static_cast<bool>(m_chunkManager->voxFoundWrite());   // F7.15
+    std::vector<std::pair<glm::ivec3, std::string>> vfCellsM;
+    std::vector<glm::ivec3> vfTmpM;
     for (const auto& cell : cells) {
         const glm::ivec3 gm = worldMicro + rotMicro(cell.m);   // global micro position
         const glm::ivec3 cube(floorDiv(gm.x, 9), floorDiv(gm.y, 9), floorDiv(gm.z, 9));
         const glm::ivec3 rem(floorMod(gm.x, 9), floorMod(gm.y, 9), floorMod(gm.z, 9));
         const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3);
         const glm::ivec3 mic(rem.x % 3, rem.y % 3, rem.z % 3);
+        if (vfWriteM) {   // F7.15: the switched world (centre-sampled 1/8 m voxels; erase = air)
+            vfTmpM.clear();
+            Core::VoxFound::placementVoxels(cube, 2, sub, mic, vfTmpM);
+            for (const auto& v : vfTmpM) vfCellsM.push_back({v, erase ? std::string() : cell.mat});
+            continue;
+        }
         if (Chunk* chunk = getOrCreateChunk(cube)) {
             const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
             if (erase) chunk->removeMicrocube(lp, sub, mic);
             else       chunk->addMicrocube(lp, sub, mic, cell.mat);
         }
     }
+    if (vfWriteM && !vfCellsM.empty()) m_chunkManager->voxFoundWrite()(vfCellsM, "spawn_template_micro:" + name);
 
     for (Chunk* chunk : modifiedChunks) {
         chunk->batchUpdateCollisions();

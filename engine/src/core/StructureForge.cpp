@@ -450,7 +450,10 @@ StructureForge::StageReport StructureForge::stageFootprint(Context& ctx) {
     StageReport rep;
     auto* chunkManager = ctx.deps.chunkManager;
     auto* placedObjectManager = ctx.deps.placedObjects;
-    if (placedObjectManager) {
+    // F7.15: on the switched world the placed objects (structures, trees) are TODAY's hidden world's -- removing them
+    // would edit the world the player does not see (found live: a switched build removed today's house)
+    const bool switchedWorld = chunkManager && static_cast<bool>(chunkManager->voxFoundWrite());
+    if (placedObjectManager && !switchedWorld) {
         const int fw = std::max(ctx.program.footprintW, 1);
         const int fd = std::max(ctx.program.footprintD, 1);
         const bool keepVeg = ctx.params.value("keep_vegetation", false);
@@ -641,11 +644,20 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
             }
             // Bulk-clear per chunk (cube AND subdivision content — canopy cells
             // are often subcube/micro-only, which removeCube alone leaves behind).
+            if (chunkManager->voxFoundWrite()) {   // F7.15: the switched world's tree cells, cleared there (air)
+                std::vector<std::pair<glm::ivec3, std::string>> voxels;
+                for (const auto& p : toClear)
+                    for (int k = 0; k < 512; ++k)
+                        voxels.push_back({p * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), std::string()});
+                chunkManager->voxFoundWrite()(voxels, "vegetation_gate");
+            }
+            static const std::vector<glm::ivec3> kNone;
+            const auto& todayClear = chunkManager->voxFoundWrite() ? kNone : toClear;   // switched: today untouched
             std::map<Chunk*, bool> vegTouched;
-            for (const auto& p : toClear)
+            for (const auto& p : todayClear)
                 if (Chunk* c = chunkManager->getChunkAtFast(p))
                     if (vegTouched.emplace(c, true).second) c->beginBulkOperation();
-            for (const auto& p : toClear) {
+            for (const auto& p : todayClear) {
                 chunkManager->removeCube(p);
                 if (Chunk* c = chunkManager->getChunkAtFast(p))
                     c->clearSubdivisionAt(ChunkManager::worldToLocalCoord(p));

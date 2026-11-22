@@ -22102,7 +22102,9 @@ void Application::processAPICommands() {
                                        .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
                         };
 
-                    if (voxFoundWorldReads && !voxFoundStructStub)   // F7.11: the switched world takes the 1/8 m shell
+                    // F7.15: {"furnish":true} runs the whole pipeline (furniture, items, lights, nav) with every voxel
+                    // write through the F7.13 hook (the 1/9 m shell centre-sampled); default: the exact 1/8 m shell
+                    if (voxFoundWorldReads && !voxFoundStructStub && !cmd.params.value("furnish", false))   // F7.11
                         deps.canvasSink = [this](const Core::MicroCanvas& c, int floorTop, int ox, int oz) {
                             return voxFoundPlaceCanvas(c, floorTop, ox, oz);
                         };

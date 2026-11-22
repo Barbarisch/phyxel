@@ -1466,7 +1466,9 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/structure/build", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
-            json result = queueAndWait("build_structure", params);
+            // F7.15: a furnished build (or one on the switched world) runs past the 5 s default; the response must
+            // not be lost while the build completes anyway
+            json result = queueAndWait("build_structure", params, 120000);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
