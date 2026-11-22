@@ -358,3 +358,24 @@ energy 400) -> F4.1 fracture + F5.1 extraction on a 64^3 window -> BodySimGpu ->
 CONCLUSION: on the switched world a blast runs the plan's section 6 chain -- fracture, pieces as simulated bodies,
 crumbs as rubble, the pieces baked back -- every material conserved and the drawn world equal to the simulated one.
 Next F7.6: saving / LOD / undo / the voxel API.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.6a PREDICTION -- saving the switched world (plan section 7 step 6, its first part: "Saving (codec v3 + converter)";
+then F7.6b undo, F7.6c the voxel API, F7.6d LOD; 2026-11-22, before any code).
+CONTROL: F3.3's path exists: voxfound_preview {"save":true} writes the edited region chunks (codec v3) into world.db;
+{"load_saved":true} with a region build loads them. But the ENGINE's save (save_world: Ctrl+S, the API, the MCP tool)
+saves today's chunks only, and the world switch loads nothing -- edits made on the switched world (F7.4 brushes, F7.5
+blasts) are lost on a relaunch. Re-run first: edit the switched world, save_world, relaunch, switch on -> the region's
+store hashes are the generator's again (the edits gone).
+THE CHANGE: save_world also writes the switched region's edited chunks (handleVoxFoundSave) when the switch is on
+({"voxfound": {...}} in its response); the switch-on loads the world.db's saved chunks of the region first (F3.3's
+loadVoxFoundSaved; {"load_saved":false} skips it) and bumps their light occupancy revisions (F7.3b). Bodies in flight
+are not saved (stated: they are transient until baked).
+  S1: an edited switched world survives a relaunch: after a brush break (F7.4), a blast (F7.5) and its forced bake,
+      every region chunk's store hash after save_world -> relaunch -> region build -> switch on equals the hash before
+      the save (F3.3's {"store_hash":true}); the hit columns' tops (the engine's routed reads) equal.
+  S2: only edited chunks are written (the saved rows = the chunks the edits touched); today's chunks still saved by
+      save_world as before (its response unchanged otherwise).
+  S3: cost: save_world's voxfound part <= 100 ms, the switch-on load <= 200 ms (the edited chunks only).
+RED: the save hook stubbed ({"save_stub":true}: save_world skips the region) -> after the relaunch the hashes are the
+generator's (the edits lost).
