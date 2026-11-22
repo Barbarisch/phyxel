@@ -1,4 +1,4 @@
-﻿// docs/VoxelFoundationPlan.md F7.9a -- the generation rate levers are exact: buildTerrainArea (one generator lookup per
+// docs/VoxelFoundationPlan.md F7.9a -- the generation rate levers are exact: buildTerrainArea (one generator lookup per
 // metre key) equals the per-voxel reference; forEachRegionChunk on worker threads hands out the same chunks, in the same
 // order, with the same palette, as one thread. Timings are printed (the live gate measures the rate).
 #include <gtest/gtest.h>

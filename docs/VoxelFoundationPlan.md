@@ -3152,6 +3152,12 @@ walkers, then the deletion.
 (`resources/templates_g8`) into the region as one undoable edit (`voxFoundPaintCells`, the shared placer path):
 exact cells (147 / 147, 325 / 325), rotation, snap to the region's ground, undo exact. Buildings are not seated yet.
 
+**F7.11, structures on the switched world (2026-11-22).** `StructureBuildService::Deps::canvasSink`: StructureForge
+realizes the shell on the 1/8 m grid and, after validate_realized, the editor's sink seats it on the region's ground
+(tree matter is not ground), excavates the box above the floor, clears tree matter above the footprint and paints it as
+one undoable edit. Live: a hall house, 121,826 cells exact, a character stands on its floor, undo exact. Found: region
+trees are voxels the old vegetation gate never sees. Not yet: furnish / emit (furniture, items, lights, nav), settlements.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

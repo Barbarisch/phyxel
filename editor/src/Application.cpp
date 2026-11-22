@@ -13594,6 +13594,29 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("struct_stub")) {   // F7.11 (tests): build_structure not routed (the red)
+            voxFoundStructStub = cmd.params["struct_stub"].get<bool>();
+            response = {{"struct_stub", voxFoundStructStub}};
+            return;
+        }
+        if (cmd.params.contains("struct_check")) {   // F7.11 W3: solid voxels above the floor in a box (no canvas cells)
+            const auto& sc = cmd.params["struct_check"];
+            const glm::ivec3 lo(sc["lo"][0].get<int>(), sc["lo"][1].get<int>(), sc["lo"][2].get<int>());
+            const glm::ivec3 hi(sc["hi"][0].get<int>(), sc["hi"][1].get<int>(), sc["hi"][2].get<int>());
+            const int floor = sc["floor"].get<int>();
+            size_t solid = 0, stray = 0;
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = floor; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z) {
+                        const uint8_t m = voxFoundEdit.voxelAt({x, y, z});
+                        if (!m) continue;
+                        ++solid;
+                        stray += !voxFoundLastCanvasCells.count({x, y, z});
+                    }
+            response = {{"solid_above_floor", solid}, {"not_from_canvas", stray},
+                        {"canvas_cells", voxFoundLastCanvasCells.size()}};
+            return;
+        }
         if (cmd.params.contains("template_stub")) {   // F7.10 (tests): spawn_template not routed (the red)
             voxFoundTemplateStub = cmd.params["template_stub"].get<bool>();
             response = {{"template_stub", voxFoundTemplateStub}};
@@ -14509,10 +14532,24 @@ nlohmann::json Application::voxFoundPaintCells(const std::string& label,
     if (voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
-    size_t bad = 0;   // read back: every listed cell holds its material
-    for (const auto& [p, m] : cells) bad += voxFoundEdit.voxelAt(p) != m;
+    size_t bad = 0, clipped = 0;   // read back: every listed cell inside the region holds its material
+    nlohmann::json badSamples = nlohmann::json::array();
+    const glm::ivec3 rlo = voxFoundEdit.voxelLo(), rhi = voxFoundEdit.voxelHi();
+    for (const auto& [p, m] : cells) {
+        if (glm::any(glm::lessThan(p, rlo)) || glm::any(glm::greaterThan(p, rhi))) {
+            ++clipped;   // outside the region: not written (applyCells clips), reported
+            continue;
+        }
+        const uint8_t got = voxFoundEdit.voxelAt(p);
+        if (got == m) continue;
+        ++bad;
+        if (badSamples.size() < 6)
+            badSamples.push_back({{"p", {p.x, p.y, p.z}}, {"want", m < voxFoundPalette.size() ? voxFoundPalette[m] : "?"},
+                                  {"got", got < voxFoundPalette.size() ? voxFoundPalette[got] : "?"}});
+    }
     return {{"voxels_changed", st.voxelsChanged}, {"lo", {lo.x, lo.y, lo.z}}, {"hi", {hi.x, hi.y, hi.z}},
             {"undo", recorded ? "recorded" : (pending ? "no_change" : "too_large")}, {"verify_bad", bad},
+            {"verify_samples", badSamples}, {"cells", cells.size()}, {"clipped_outside_region", clipped},
             {"error", err},
             {"wall_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()}};
 }
@@ -14583,6 +14620,81 @@ nlohmann::json Application::voxFoundSpawnTemplate(const nlohmann::json& params) 
     r["origin"] = {origin.x, origin.y, origin.z};
     r["rotation"] = rot;
     if (groundTop != std::numeric_limits<int>::min()) r["snap_ground_top"] = groundTop;
+    return r;
+}
+
+// F7.11: a realized 1/8 m shell on the switched world. Seated: story 0's walkable floor surface = the highest solid
+// region voxel under the footprint + 1; excavated: the canvas box's air cells above the floor that are solid in the
+// region become air (terrain bumps, trees); painted with the canvas's solid cells -- all ONE voxFoundPaintCells edit.
+nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas, int floorTopCell, int ox, int oz) {
+    using namespace Core::VoxFound;
+    if (canvas.cellsPerM() != kVoxelsPerM) return {{"success", false}, {"error", "canvas is not 1/8 m"}};
+    const std::vector<glm::ivec3> occ = canvas.occupiedCells();
+    if (occ.empty()) return {{"success", false}, {"error", "empty canvas"}};
+    glm::ivec3 clo(std::numeric_limits<int>::max()), chi(std::numeric_limits<int>::min());
+    for (const glm::ivec3& c : occ) clo = glm::min(clo, c), chi = glm::max(chi, c);
+    const int ox8 = ox * kVoxelsPerM, oz8 = oz * kVoxelsPerM;
+    // tree matter (the flora's Leaf* / Log* voxels) is not ground: the region's trees are voxels, not the placed
+    // objects the old vegetation gate removes (found live: the first seat landed on a canopy 20 m up)
+    std::vector<char> vegetation(256, 0);
+    for (size_t m = 1; m < voxFoundPalette.size() && m < 256; ++m)
+        vegetation[m] = voxFoundPalette[m].rfind("Leaf", 0) == 0 || voxFoundPalette[m].rfind("Log", 0) == 0;
+    int groundTop = std::numeric_limits<int>::min();
+    std::set<std::pair<int, int>> cols;
+    for (const glm::ivec3& c : occ) cols.insert({c.x, c.z});
+    for (const auto& [x, z] : cols)
+        for (int y = 160 * kVoxelsPerM; y > -64 * kVoxelsPerM; --y) {   // the region's column, from 160 m down
+            const uint8_t m = voxFoundEdit.voxelAt({ox8 + x, y, oz8 + z});
+            if (m && !vegetation[m]) {
+                groundTop = std::max(groundTop, y);
+                break;
+            }
+        }
+    if (groundTop == std::numeric_limits<int>::min()) return {{"success", false}, {"error", "no ground under the footprint"}};
+    const glm::ivec3 origin(ox8, groundTop + 1 - floorTopCell, oz8);
+    std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+    voxFoundLastCanvasCells.clear();
+    std::map<std::string, uint8_t> ids;
+    for (const glm::ivec3& c : occ) {
+        const std::string name = canvas.materialAt(c.x, c.y, c.z);
+        auto it = ids.find(name);
+        if (it == ids.end()) {
+            std::string err;
+            const int m = voxFoundMaterial(name, &err);
+            if (m < 0) return {{"success", false}, {"error", err}};
+            it = ids.emplace(name, uint8_t(m)).first;
+        }
+        cells.push_back({origin + c, it->second});
+        voxFoundLastCanvasCells.insert({origin.x + c.x, origin.y + c.y, origin.z + c.z});
+    }
+    size_t clearedTrees = 0;   // tree matter in the footprint columns from the floor up (above the canvas box too)
+    for (int x = clo.x; x <= chi.x; ++x)
+        for (int z = clo.z; z <= chi.z; ++z)
+            for (int y = groundTop + 1; y < 160 * kVoxelsPerM; ++y) {
+                const glm::ivec3 w(ox8 + x, y, oz8 + z);
+                const uint8_t m = voxFoundEdit.voxelAt(w);
+                if (!m || !vegetation[m] || voxFoundLastCanvasCells.count({w.x, w.y, w.z})) continue;
+                if (y - origin.y >= std::max(clo.y, floorTopCell) && y - origin.y <= chi.y) continue;   // the box pass
+                cells.push_back({w, uint8_t(0)});
+                ++clearedTrees;
+            }
+    size_t excavated = 0;   // the canvas box above the floor: region solids the canvas does not paint
+    for (int x = clo.x; x <= chi.x; ++x)
+        for (int y = std::max(clo.y, floorTopCell); y <= chi.y; ++y)
+            for (int z = clo.z; z <= chi.z; ++z) {
+                const glm::ivec3 w = origin + glm::ivec3(x, y, z);
+                if (voxFoundLastCanvasCells.count({w.x, w.y, w.z}) || !voxFoundEdit.voxelAt(w)) continue;
+                cells.push_back({w, uint8_t(0)});
+                ++excavated;
+            }
+    nlohmann::json r = voxFoundPaintCells("build_structure", cells);
+    r["success"] = r.value("error", std::string()).empty() && r.value("verify_bad", size_t(1)) == 0;
+    r["world"] = "voxfound";
+    r["canvas_cells"] = occ.size();
+    r["excavated"] = excavated;
+    r["cleared_tree_voxels"] = clearedTrees;
+    r["floor_y_voxel"] = groundTop + 1;
+    r["origin"] = {origin.x, origin.y, origin.z};
     return r;
 }
 
@@ -21872,6 +21984,10 @@ void Application::processAPICommands() {
                                        .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
                         };
 
+                    if (voxFoundWorldReads && !voxFoundStructStub)   // F7.11: the switched world takes the 1/8 m shell
+                        deps.canvasSink = [this](const Core::MicroCanvas& c, int floorTop, int ox, int oz) {
+                            return voxFoundPlaceCanvas(c, floorTop, ox, oz);
+                        };
                     const std::string stype = cmd.params.value("type", std::string());
                     if (cmd.params.value("schema", std::string()) == "v2") {
                         response = Core::StructureBuildService::buildV2(cmd.params, deps);

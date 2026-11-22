@@ -686,8 +686,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.9c done: background incremental shifts (4-thread generation, one chunk prepared per frame, a one-frame swap);
       exact vs a fresh build; sprint-speed walk stays on the world; worst slice 278 ms.
       F7.10 done: spawn_template on the switched world paints the 1/8 m template (voxFoundPaintCells, undoable).
-      NEXT: F7.11 structures / settlements on the switched world (StructureRealizer's 1/8 m canvas through
-      voxFoundPaintCells), then the chunkMap walkers, then the F7.7 deletion, then F7's exit.
+      F7.11 done: build_structure v2 on the switched world (Deps::canvasSink: 1/8 m shell, seated, excavated, trees
+      cleared, one undoable edit). Furnish / emit / settlements not yet.
+      NEXT: settlements through the sink, then furnish, then the chunkMap walkers, the F7.7 deletion, F7's exit.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

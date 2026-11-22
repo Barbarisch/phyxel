@@ -1,3 +1,4 @@
+#include "core/StructureGrid.h"
 #include "core/StructureForge.h"
 
 #include <algorithm>
@@ -193,6 +194,14 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
             refusal["refused_at"] = name;
             refusal["gates"] = gates;
             return refusal;
+        }
+        if (ctx.deps.canvasSink && std::string(name) == "validate_realized") {   // F7.11: the new store places it
+            nlohmann::json out = ctx.deps.canvasSink(ctx.shell.canvas, ctx.shell.floorTopMicro, ctx.ox, ctx.oz);
+            gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
+                             {"ms", stageClock.lap()}});
+            out["gates"] = gates;
+            out["skipped"] = {"furnish", "emit"};
+            return out;
         }
     }
     ctx.response["gates"] = gates;
@@ -491,7 +500,10 @@ StructureForge::StageReport StructureForge::stageFootprint(Context& ctx) {
 // ---------------------------------------------------------------------------
 StructureForge::StageReport StructureForge::stageRealize(Context& ctx) {
     StageReport rep;
-    ctx.shell = StructureRealizer::realizeShell(ctx.program, ctx.style);
+    // F7.11: the new store takes 1/8 m canvases (the sink's grid); the old placement keeps the 1/9 m grid
+    ctx.shell = ctx.deps.canvasSink
+                    ? StructureRealizer::realizeShell(ctx.program, ctx.style, StructureGrid::foundation())
+                    : StructureRealizer::realizeShell(ctx.program, ctx.style);
     if (!ctx.shell.ok) {
         rep.action = StageReport::Action::Refused;
         rep.refusal = {{"error", "realize failed: " + ctx.shell.error}};

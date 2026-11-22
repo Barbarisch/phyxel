@@ -110,6 +110,7 @@
 #include "core/voxfound/RegionEdit.h"
 #include "core/voxfound/EditHistory.h"
 #include "physics/VoxelOccupancyGrid.h"
+#include "core/MicroCanvas.h"
 #include <set>
 #include "core/WorldGenerator.h"
 #include "core/voxfound/BodyDraw.h"       // F5.3 bodies lab
@@ -139,7 +140,7 @@
 
 namespace Phyxel {
 
-/// Editor mode — Edit for development workflow, Play for game testing.
+/// Editor mode â€” Edit for development workflow, Play for game testing.
 enum class EditorMode {
     Edit,   // Free camera, full panel access, simulation can be paused
     Play    // Game-like behavior, simulation running (future)
@@ -189,7 +190,7 @@ public:
     /// Point the free camera at `target` from `pos`.
     /// The camera is yaw/pitch driven and the free-cam controller re-syncs it
     /// from the InputManager every frame, so setting position alone (or a
-    /// look-at vector) is silently reverted — this converts to yaw/pitch AND
+    /// look-at vector) is silently reverted â€” this converts to yaw/pitch AND
     /// pushes them into the InputManager, which is what makes the move stick.
     void focusCameraOn(const glm::vec3& pos, const glm::vec3& target);
 
@@ -199,7 +200,7 @@ public:
     bool stageBestiaryHall(const glm::vec3& origin, float groundY, bool groundFromTerrain);
 
     /// Draw a floating nameplate over every staged creature. Always-on, so a
-    /// creature is identifiable without selecting it first — selection is for
+    /// creature is identifiable without selecting it first â€” selection is for
     /// isolating one, not for finding out what it is.
     void renderBestiaryNameplates();
 
@@ -279,7 +280,7 @@ private:
     // Project directory (set via --project flag for dev workflow)
     std::string projectDir_;
 
-    // Convenience aliases — non-owning pointers into EngineRuntime's subsystems.
+    // Convenience aliases â€” non-owning pointers into EngineRuntime's subsystems.
     // These are set in initialize() after runtime->initialize() succeeds.
     // Using raw pointers keeps existing code unchanged (same -> syntax).
     UI::WindowManager* windowManager = nullptr;
@@ -348,6 +349,9 @@ private:
     bool voxFoundStreamOn = false, voxFoundStreamStub = false;
     bool voxFoundSwitchLoadSaved = true;
     bool voxFoundTemplateStub = false;   // F7.10 (tests): spawn_template not routed
+    bool voxFoundStructStub = false;     // F7.11 (tests): build_structure not routed
+    std::set<std::tuple<int, int, int>> voxFoundLastCanvasCells;   // F7.11: the last shell's cells (struct_check)
+    nlohmann::json voxFoundPlaceCanvas(const Core::MicroCanvas& canvas, int floorTopCell, int originX, int originZ);
     /// F7.10: one undoable edit of listed cells (world voxels, palette ids) on the region -- what placers write through
     nlohmann::json voxFoundPaintCells(const std::string& label, const std::vector<std::pair<glm::ivec3, uint8_t>>& cells);
     nlohmann::json voxFoundSpawnTemplate(const nlohmann::json& params);
@@ -590,14 +594,14 @@ private:
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::TriggerSystem> triggerSystem;
-    Core::GameSubsystems m_sceneSubsystems; // persistent — SceneManager keeps a pointer to it
+    Core::GameSubsystems m_sceneSubsystems; // persistent â€” SceneManager keeps a pointer to it
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
     std::unique_ptr<Core::PlacedObjectManager> placedObjectManager;
 
     // Combat
     std::unique_ptr<Core::CombatSystem> combatSystem;
 
-    // Axe tree-chopping — accumulates chop progress per tree (keyed by trunk
+    // Axe tree-chopping â€” accumulates chop progress per tree (keyed by trunk
     // base) and fires onTreeFelled once. Changes no voxels; the destruction
     // session owns topple/fall + gatherable-log drops (see ChopManager.h).
     Core::ChopManager m_chopManager;
@@ -634,7 +638,7 @@ private:
     float m_combatCamDistance  = 8.0f;   // default pulled-back tactical distance
 
     // S6 click picking: resolve a world-space ray (from the cursor or an HTTP
-    // test) into a player turn intent — nearest enemy combatant hit = attack
+    // test) into a player turn intent â€” nearest enemy combatant hit = attack
     // (move toward it if out of reach), otherwise the ground point = move.
     PendingPlayerIntent resolveCombatPick(const glm::vec3& origin, const glm::vec3& dir) const;
     void setPendingPlayerIntent(const PendingPlayerIntent& intent);
@@ -657,7 +661,7 @@ private:
     std::unique_ptr<Core::KinematicAnimator>     kinematicAnimator;
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
-    // Coherent world-collapse fragments (docs/DestructionSystemV2.md §5.G) — owns + ticks
+    // Coherent world-collapse fragments (docs/DestructionSystemV2.md Â§5.G) â€” owns + ticks
     // physicalize'd slabs from apply_damage's coherent path. Deps set lazily at first use.
     Core::CoherentFragmentManager coherentFragmentManager;
 
@@ -674,7 +678,7 @@ private:
     // Called from the player's melee hit-frame when an axe is equipped: find the
     // tree voxel the swing lands on, accumulate chop progress, spawn wood-chip
     // + sound feedback, and (via ChopManager) fire onTreeFelled when the tree is
-    // chopped through. Changes no voxels — see m_chopManager / ChopManager.h.
+    // chopped through. Changes no voxels â€” see m_chopManager / ChopManager.h.
     // Blade-contact chop: computes the held axe head's world position and bites
     // the wood it touches (kerf carve + feedback). Called EVERY FRAME during a
     // swing (contact decides the moment, not a clip fraction); returns true when
@@ -682,7 +686,7 @@ private:
     bool tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw);
     bool m_swingBiteDone = false;   // one bite per swing latch
 
-    // Held weapons for combat NPCs — same template + grip orientation as the
+    // Held weapons for combat NPCs â€” same template + grip orientation as the
     // player's held item, but driven per-NPC from CombatBehavior::getWeaponId().
     // What each NPC holds (combat weapon, else a carried item such as a torch), with its
     // effects - the engine class the shipped game uses too (Core::NpcHeldItems).
@@ -699,7 +703,7 @@ private:
     std::unique_ptr<UI::SpeechBubbleManager> speechBubbleManager;
     std::unique_ptr<UI::DialogueTree> m_apiDialogueTree; // Keeps API-started dialogue trees alive
 
-    // Entities — the unique_ptrs own the objects; the raw pointers below are
+    // Entities â€” the unique_ptrs own the objects; the raw pointers below are
     // non-owning observers. If you add a new raw pointer here, you MUST also
     // null it in resetEditorScene() BEFORE entities.clear(), otherwise the
     // main loop will dereference a dangling pointer after a File > Open switch.
@@ -714,7 +718,7 @@ private:
     // Shared input->character->camera driver for the animated character (same
     // path the standalone games use). The active rig is derived from CameraMode
     // (V toggle) unless gameplayRigOverride_ names one explicitly (set by the
-    // Camera panel or the set_camera MCP tool — e.g. "overhead"/"isometric");
+    // Camera panel or the set_camera MCP tool â€” e.g. "overhead"/"isometric");
     // pressing V clears the override. See docs/CameraControlSystem.md.
     Core::GameplayCameraController cameraCtl_;
     std::string gameplayRigOverride_;
@@ -781,7 +785,7 @@ private:
     bool showClickActions = false;
     void renderClickActions();
 
-    // Item Equipper panel — GUI equip/give/spawn for registered items
+    // Item Equipper panel â€” GUI equip/give/spawn for registered items
     bool showItemEquipper = true;
     // `POST /api/debug/editor_panels {"tool_panels": false}`: hides EVERY floating ImGui tool
     // panel over the viewport (customizer, tuner, spawner, click actions, spell caster, item
@@ -814,9 +818,9 @@ private:
     Utils::Frustum cameraFrustum;
     // Render distance configuration - two-tier system.
     //
-    // ⚠️ THIS IS THE ONE THAT ACTUALLY GOVERNS IN THE EDITOR. EngineConfig::maxChunkRenderDistance,
+    // âš ï¸ THIS IS THE ONE THAT ACTUALLY GOVERNS IN THE EDITOR. EngineConfig::maxChunkRenderDistance,
     // WorldInitializer::maxChunkRenderDistance and GameSettings::renderDistance all exist and none
-    // of them feed this path — Application owns its own copy and pushes it to RenderCoordinator at
+    // of them feed this path â€” Application owns its own copy and pushes it to RenderCoordinator at
     // startup (Application.cpp:349). Changing those three and expecting the editor to follow is a
     // trap; it cost a whole measurement session on 2026-08-01, where a 192-unit far plane clipped
     // every far-terrain tile past 192u and the resulting "far terrain draws almost nothing" reading
@@ -825,8 +829,8 @@ private:
     // maxChunkRenderDistance IS the projection far plane
     // (RenderCoordinator: getProjectionMatrix(aspect, 0.1f, maxChunkRenderDistance)), so it must
     // reach past the outermost far tier or that tier is invisible no matter how it is configured.
-    // It bounds only what ALREADY-RESIDENT chunks are culled to — residency is
-    // ChunkManager::loadDistance — so raising it does NOT add near-field chunk cost.
+    // It bounds only what ALREADY-RESIDENT chunks are culled to â€” residency is
+    // ChunkManager::loadDistance â€” so raising it does NOT add near-field chunk cost.
     // Measured at 4096 on LodTest (Release): far terrain 9 -> 57 tiles drawn, 17k -> 71.6k
     // triangles, terrain to the horizon, 319 FPS.
     float maxChunkRenderDistance = 4096.0f; // Frustum culling distance == projection far plane
@@ -881,7 +885,7 @@ private:
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
     // Keep the SceneManager's GameSubsystems pointers current (refreshed each frame
-    // before pumping transitions — systems can be recreated across project loads).
+    // before pumping transitions â€” systems can be recreated across project loads).
     void refreshSceneSubsystems();
     void renderScenePanel();         // Dockable ImGui panel for scene management
 
@@ -906,8 +910,8 @@ private:
     void onLauncherResult(const LauncherResult& result);
     void applyProjectSelection(const std::string& projectPath);
 
-    // Rebuild the grounded water render grid FROM CHUNK-RESIDENT SPANS (docs/Water.md §6 step 2,
-    // editor path). Chunks are the only source — the renderer draws what the world data holds, so
+    // Rebuild the grounded water render grid FROM CHUNK-RESIDENT SPANS (docs/Water.md Â§6 step 2,
+    // editor path). Chunks are the only source â€” the renderer draws what the world data holds, so
     // saved water appears at boot with no command, and every writer (generation, ground_sync)
     // renders through one derivation. No-op on baked/streaming worlds (their layer is the
     // hydrology upload) and when no chunks are loaded. Returns the number of wet columns bound.
@@ -1013,7 +1017,7 @@ private:
         float contactFrame1     = 0.0f;  // normalized time (0-1) when first foot contacts step 1
         float contactFrame2     = 0.0f;  // normalized time (0-1) when second foot contacts step 2
         std::string clipType;            // "locomotion"|"jump"|"stair"|"combat"|"transition" (empty = auto)
-        // Foot planting IK — how far above a surface the foot can be before IK activates,
+        // Foot planting IK â€” how far above a surface the foot can be before IK activates,
         // and how much the pelvis can shift to help the legs reach the IK target.
         // Defaults match 1 microcube (0.111 = 1/9) for subtle correction on flat terrain.
         // Stair clips typically need larger values (e.g. 0.333 / 0.222).
@@ -1066,7 +1070,7 @@ private:
     Scene::AnimatedVoxelCharacter* m_ieChar = nullptr;     // Non-owning pointer into entities list
     int m_ieSelectedPoint = 0;                             // Currently selected interaction point index
     InteractionPreviewState m_iePreviewState = InteractionPreviewState::None;
-    bool m_ieAutoPreview = false;                          // True when auto-preview (sit→wait→stand)
+    bool m_ieAutoPreview = false;                          // True when auto-preview (sitâ†’waitâ†’stand)
     float m_ieAutoTimer = 0.0f;                            // Timer for auto-preview idle wait
     bool m_ieCtrlSPrev = false;                            // Edge-detect Ctrl+S
     glm::vec3 m_ieCharRestPos{17.0f, 16.0f, 13.0f};       // Stand position for character when not previewing
@@ -1123,7 +1127,7 @@ private:
     bool m_showBestiaryNameplates = true;
 
     // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
-    // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.
+    // covers (for the hoverâ†’world-coordinate readout). Refresh-driven, never per frame.
     // Per-frame jitter trace (see the update-loop recorder + the "frame_trace" command).
     struct FrameTraceSample {
         uint64_t frame = 0;
@@ -1143,7 +1147,7 @@ private:
     int m_worldMapZoom = 0;              // 0 = region, 1 = 4x on camera, 2 = 16x on camera
     float m_worldMapX0 = 0.0f, m_worldMapZ0 = 0.0f, m_worldMapSize = 1.0f;
     // Fill `img` (px*px RGB) with the biome/water/road/site map for the given world
-    // window — the SAME renderer the worldforge_minimap API serves. False + *err when the
+    // window â€” the SAME renderer the worldforge_minimap API serves. False + *err when the
     // world has no hydrology bake.
     bool renderWorldMapImage(int px, float cx, float cz, float radius,
                              std::vector<unsigned char>& img, std::string* err);

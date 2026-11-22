@@ -783,3 +783,31 @@ Furniture, items, doors, lights, location registration and NPC nav rebuild are n
   W3: no region voxel above the floor inside the footprint box is solid unless the canvas paints it there.
   W4: one undo restores all 32 store hashes.
 RED: struct_stub (no sink) -> the control.
+
+F7.11 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); flora_window open,
+load_saved false. Evidence: voxfound_f711_live.jsonl, voxfound_f711_hall_house.png (camera (8122, 36, 54), yaw 55,
+pitch -20); tools/voxfound_f711_live.py. Every artifact: WorldGenerator Perlin s7 + flora (the region); the building is
+the ENGINE's generator -- StructureForge (POST /api/structure/build, schema v2, typology hall_house, footprint [16, 7],
+stories 1), its shell realized on the 1/8 m grid -- never hand-placed.
+  Request fixes before the record (kept, labelled): footprint [8, 6] is below the hall_house program (4 bays x 4 m);
+     without "stories" the program has no stories -- both refused at validate_program, nothing written.
+  CONTROL (the F7.10 editor, before the code): the build placed into today's hidden chunks (all ten stages, 3.3 s
+     place), the region unchanged.
+  RED as predicted (struct_stub): the same.
+  GREEN run 1 FOUND: the seat landed on a tree canopy (floor 48.1 m over ~28 m ground) -- the region's trees are voxels
+     the old vegetation gate never sees (it removes placed tree objects). Fixed: seating skips tree matter (Leaf* /
+     Log* materials) and the footprint columns' tree matter above the floor is cleared. Run 2 FOUND: 68 Log overhang
+     cells one voxel outside the region (z 511; the region starts at 512) -- clipped by applyCells, counted as
+     mismatches by the verify; fixed: the verify counts in-region cells and reports clipped ones; the test building
+     moved 2 m inside. Run 3 is the record.
+  W1 PASS: success on the new store; the gates intake .. validate_realized proceeded (the L3 traversal flood on the
+     1/8 m canvas), "place" = new_store, furnish / emit skipped (stated); 121,826 canvas cells painted, 42,990 voxels
+     excavated in the box above the floor, 34,960 tree voxels cleared above it; 0 read-back mismatches, 0 clipped;
+     today's sampled cubes unchanged.
+  W2 PASS: a character dropped 1 m above the hall floor rests at 27.75 m = the floor surface.
+  W3 PASS: inside the footprint box above the floor, 100,322 solid voxels, 0 not painted by the canvas.
+  W4 PASS: one undo -> 32 / 32 store hashes back to the start.
+  Not here, stated: furniture, items, doors as kinematic objects, lights, location registration and the NPC nav rebuild
+     (the old-grid place / furnish / emit stages); settlements.
+CONCLUSION: the engine's structure generator builds on the switched world -- realized at 1/8 m, seated on the region's
+ground, excavated, one undoable edit, standable. Next: settlements through the same sink, then the furnish stage.

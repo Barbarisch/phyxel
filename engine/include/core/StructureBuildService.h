@@ -18,6 +18,7 @@
 // placeAndRegister so their registration/undo/navgrid behavior stays identical.
 // ============================================================================
 
+#include "core/MicroCanvas.h"
 #include <functional>
 #include <string>
 #include <vector>
@@ -63,6 +64,11 @@ public:
         /// transition-trigger regions. Regen #16 of Ravenmere parked a barrel on the
         /// cellar trapdoor cell because the generator never heard of the trigger.
         std::vector<KeepClearBox> keepClear;
+        /// docs/VoxelFoundationPlan.md F7.11: when set, the shell is realized on the 1/8 m grid
+        /// (StructureGrid::foundation) and, after validate_realized, handed here instead of being placed
+        /// on the old grid -- place / furnish / emit do not run. Args: the canvas, story 0's walkable
+        /// floor (canvas cells), the footprint origin cube x / z. Returns the build's response.
+        std::function<nlohmann::json(const MicroCanvas& canvas, int floorTopCell, int originX, int originZ)> canvasSink;
     };
 
     /// Full v2 build from build_structure params (expects footprint/stories/...;

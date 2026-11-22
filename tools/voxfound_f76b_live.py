@@ -1,4 +1,4 @@
-﻿"""F7.6b live (docs/evidence/voxfound_f7_prediction.txt U1-U3): undo / redo on the switched world. VoxFoundGate (8120).
+"""F7.6b live (docs/evidence/voxfound_f7_prediction.txt U1-U3): undo / redo on the switched world. VoxFoundGate (8120).
   control / red : switch on, one brush break (F7.4 edit_action), POST /api/undo -> are the region hashes back?
                   (red: undo_stub true first)
   green         : U1 (break, undo, redo), U2 (20 overlapping breaks / places, 20 undos stepwise, a 21st, redo cleared

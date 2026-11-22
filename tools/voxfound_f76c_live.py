@@ -1,4 +1,4 @@
-﻿"""F7.6c live (docs/evidence/voxfound_f7_prediction.txt A1-A4): the voxel API on the switched world. VoxFoundGate (8120).
+"""F7.6c live (docs/evidence/voxfound_f7_prediction.txt A1-A4): the voxel API on the switched world. VoxFoundGate (8120).
   control / red : switch on, place_voxel Stone in air at (8132, 30, 68) -> region hashes, GET /api/world/voxel there.
                   (red: api_stub true first)
   green         : A1-A4 as stated. The region built with load_saved:false (the generator's). Every artifact:
