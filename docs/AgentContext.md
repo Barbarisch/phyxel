@@ -696,7 +696,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.15 done: furnish:true = the whole pipeline with hooked writes (template stamps, clearRegion, vegetation
       gate hooked; the footprint stage leaves today's placed objects alone); 20/20 plan, today untouched.
       F7.16 done: game.json world.voxfound boots straight into the switched world (4.7 s); save/relaunch exact.
-      NEXT: water on the switched world (spans live in today's chunks), the remaining walkers, F7.7, F7's exit.
+      F7.17 done: the CA water sim's solids follow the switched world (switch + every region edit resync).
+      NEXT: the remaining walkers (water span storage, outliner, residency hash), F7.7 (delete), F7's exit, F8.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

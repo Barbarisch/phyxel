@@ -62,6 +62,19 @@ WaterManager::WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin,
     rebuildSurface();
 }
 
+void WaterManager::syncSolidsBox(const glm::ivec3& lo, const glm::ivec3& hi) {   // F7.17
+    if (!m_cm) return;
+    const glm::ivec3 a = glm::max(lo - m_origin, glm::ivec3(0)), b = glm::min(hi - m_origin, m_dims - 1);
+    for (int z = a.z; z <= b.z; ++z)
+        for (int y = a.y; y <= b.y; ++y)
+            for (int x = a.x; x <= b.x; ++x) {
+                const float floor = m_cm->subVoxelFloor(m_origin + glm::ivec3(x, y, z));
+                const bool solid = (floor < 0.0f) || (floor >= 0.999f);
+                m_sim.setSolid(x, y, z, solid);
+                m_sim.setFloor(x, y, z, solid ? 0.0f : floor);
+            }
+}
+
 void WaterManager::syncSolidsFromChunks() {
     if (!m_cm) return;
     for (int z = 0; z < m_dims.z; ++z)

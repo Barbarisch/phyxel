@@ -13610,6 +13610,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"configured", !voxFoundBootConfig.is_null()}};
             return;
         }
+        if (cmd.params.contains("water_sync_stub")) {   // F7.17 (tests): the water sim's resyncs skipped (the red)
+            voxFoundWaterSyncStub = cmd.params["water_sync_stub"].get<bool>();
+            response = {{"water_sync_stub", voxFoundWaterSyncStub}};
+            return;
+        }
         if (cmd.params.contains("tree_stub")) {   // F7.14 (tests): tree-matter reads not routed (the red)
             voxFoundTreeStub = cmd.params["tree_stub"].get<bool>();
             response = {{"tree_stub", voxFoundTreeStub}};
@@ -13829,6 +13834,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
+            if (!on && waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: back to today
             if (chunkManager) {       // F7.13: the old-grid writers write the switched world
                 if (on && !voxFoundWriterStub)
                     chunkManager->setVoxFoundWrite([this](const std::vector<std::pair<glm::ivec3, std::string>>& vox,
@@ -13939,6 +13945,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 voxFoundWorldReads = std::make_unique<WorldReads>(
                     [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
                 if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
+                if (waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: the region's solids
             }
             renderCoordinator->setHideWorld(on);
             voxFoundPreview.shown = on;
@@ -14462,6 +14469,12 @@ std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return s
 // each level's cut as the build does) and spliced into Preview::levels[k]; when none are left the drawn selection is
 // re-made.
 void Application::voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st) {
+    // F7.17: every region edit reaches here with its box -- the water sim re-samples the cubes under it
+    if (waterManager && voxFoundWorldReads && !voxFoundWaterSyncStub && st.boxLo.x <= st.boxHi.x) {
+        auto fd = [](int v) { return v >= 0 ? v / 8 : -((-v + 7) / 8); };
+        waterManager->syncSolidsBox({fd(st.boxLo.x), fd(st.boxLo.y), fd(st.boxLo.z)},
+                                    {fd(st.boxHi.x), fd(st.boxHi.y), fd(st.boxHi.z)});
+    }
     if (voxFoundLodEditLevels <= 0 || voxFoundLodStub) return;
     for (size_t i : voxFoundEdit.chunksNear(st.boxLo, st.boxHi, Core::VoxFound::kVoxelsPerM)) voxFoundLodDirty.insert(i);
 }

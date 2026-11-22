@@ -41,6 +41,9 @@ public:
     // Re-read terrain solidity for the whole region from the chunk manager. Call after
     // the world loads and whenever terrain changes (e.g. after destruction).
     void syncSolidsFromChunks();
+    /// docs/VoxelFoundationPlan.md F7.17: re-sample the solid mask (subVoxelFloor) of the sim cells in the world cube box
+    /// [lo, hi] (clipped to the sim) -- what a region edit on the switched world calls.
+    void syncSolidsBox(const glm::ivec3& lo, const glm::ivec3& hi);
 
     // Fixed-timestep stepping; accumulates real time and steps at STEP_HZ.
     void update(float dt);

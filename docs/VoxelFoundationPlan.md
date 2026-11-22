@@ -3185,6 +3185,11 @@ load_saved, stream}: the project boots into the switched world with no API call 
 stream; 4.7 s). Live: edits and a building saved, back after a relaunch (32/32 chunks), streaming walk. The global
 default stays off until water, the API's voxel units, items and the remaining walkers move (F7.7).
 
+**F7.17, the water sim's solids on the switched world (2026-11-22).** The switch and every region edit resync
+WaterManager's solid mask (`syncSolidsBox`): in a coast project booted switched, a pit dug in the new world reads open
+(27/27, red 3/27) and holds the water poured in (8.15 of 9 units on its floor, red 0). Water spans are still stored in
+today's chunk objects.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

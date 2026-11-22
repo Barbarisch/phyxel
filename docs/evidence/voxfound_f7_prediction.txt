@@ -1028,3 +1028,20 @@ brushes, the voxel API, undo, bodies lab, saved-chunk loads, the writer hooks) r
   K3: water placed in the pit stays in it: after 5 s the pit's bottom layer holds mass > 0 and the probe's mass sum in
       the pit >= half the placed amount.
 RED: water_sync_stub (the resyncs skipped) -> the control.
+
+F7.17 RESULTS (2026-11-22; the prediction above untouched). Release; the project VoxFoundWater (a copy of
+WaterBench_Coast with the F7.16 boot, load_saved false; its own world.db). Evidence: voxfound_f717_live.jsonl;
+tools/voxfound_f717_live.py. Every artifact: WorldGenerator Perlin s20260804 + flora (the region), the CA water sim
+(WaterManager); the pit cleared through the engine's voxel API; the water through /api/debug/place_water.
+  CONTROL (the F7.16 editor): the pit at (145..147, 16..18, 634..636) reads open in 9 / 27 sim cells; 9 units placed
+     -> 2.69 in the pit, 0 on its bottom layer. K1's uniform-cube sample already agreed (0 / 600: away from edits the
+     region and today's terrain coincide there).
+  RED as predicted (water_sync_stub): 3 / 27 open; 1.14 in the pit, 0 on its bottom.
+  K1 PASS: 0 mismatches of 600 sampled uniform cubes (sim solid = the region's).
+  K2 PASS: 27 / 27 pit cells open right after the clear.
+  K3 PASS: 8.15 of the 9 units in the pit after 5 s, all of it on the bottom layer.
+  Not here, stated: water spans (the tier-A record / generation-time water) are still stored in today's chunk objects;
+     WaterCore (the new water core, docs/WaterCore.md) is not on in this project; the occupancy pool feeding WaterCore
+     already follows the switch (F7.3b).
+CONCLUSION: the CA water sim reads the switched world's solids, from the switch on and after every region edit: water
+pours into a pit dug in the new world and stays there.
