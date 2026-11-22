@@ -3180,6 +3180,11 @@ the forge's vegetation gate -- so furniture, clutter, item props, lights and nav
 from 1/9 m). Same 20-fixture plan as today's build, 19/20 fixtures in the region, today's world untouched. Found: five
 writers into today's world (placed-object removal, the vegetation gate, ...). The default stays the exact 1/8 m shell.
 
+**F7.16, the switched world as a boot mode (2026-11-22).** game.json `world.voxfound` = {enabled, size, y_from,
+load_saved, stream}: the project boots into the switched world with no API call (region around the camera, switch,
+stream; 4.7 s). Live: edits and a building saved, back after a relaunch (32/32 chunks), streaming walk. The global
+default stays off until water, the API's voxel units, items and the remaining walkers move (F7.7).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

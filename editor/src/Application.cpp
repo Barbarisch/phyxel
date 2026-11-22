@@ -246,6 +246,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
 
         LOG_INFO("Application", "Project mode: worlds={}, game={}", engineConfig.worldsDir, engineConfig.gameDefinitionFile);
+        voxFoundReadBootConfig((projPath / "game.json").string());   // F7.16: the boot mode, if configured
     }
 
     // Enable editor multi-viewport (pop-out OS windows for docked panels)
@@ -3034,6 +3035,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
     auto gameJsonPath = projPath / "game.json";
     if (fs::exists(gameJsonPath)) {
         engineConfig.gameDefinitionFile = gameJsonPath.string();
+        voxFoundReadBootConfig(gameJsonPath.string());   // F7.16
     }
 
     // Update runtime config
@@ -3876,6 +3878,10 @@ void Application::update(float deltaTime) {
     stepVoxFoundBodies(deltaTime);   // F5.3 bodies lab (its own run switch; inert without a rig)
     if (!voxFoundLodDirty.empty()) voxFoundLodRefresh(1);   // F7.6d: one dirty chunk's coarse levels per frame
     voxFoundStreamTick();                                   // F7.9b: the switched world follows the camera
+    if (voxFoundBootPending && ++voxFoundBootFrames > 30) {  // F7.16: the boot mode, once the first frames ran
+        voxFoundBootPending = false;
+        voxFoundBoot();
+    }
 
     // Skip simulation when paused (API commands and jobs still process)
     if (gamePaused) return;
@@ -13599,6 +13605,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.value("boot_status", false)) {   // F7.16
+            response = {{"pending", voxFoundBootPending}, {"report", voxFoundBootReport},
+                        {"configured", !voxFoundBootConfig.is_null()}};
+            return;
+        }
         if (cmd.params.contains("tree_stub")) {   // F7.14 (tests): tree-matter reads not routed (the red)
             voxFoundTreeStub = cmd.params["tree_stub"].get<bool>();
             response = {{"tree_stub", voxFoundTreeStub}};
@@ -14809,6 +14820,65 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
     logged.erase("verify_samples");
     voxFoundCanvasLog.push_back(logged);
     return r;
+}
+
+// F7.16: game.json world.voxfound = the switched world as a boot mode (read at project load, startup or runtime)
+void Application::voxFoundReadBootConfig(const std::string& gameJsonPath) {
+    try {
+        std::ifstream gin(gameJsonPath, std::ios::binary);
+        if (!gin) return;
+        std::string text((std::istreambuf_iterator<char>(gin)), std::istreambuf_iterator<char>());
+        if (text.size() >= 3 && uint8_t(text[0]) == 0xEF && uint8_t(text[1]) == 0xBB && uint8_t(text[2]) == 0xBF)
+            text.erase(0, 3);   // a UTF-8 BOM (PowerShell writes one)
+        const nlohmann::json g = nlohmann::json::parse(text);
+        if (g.contains("world") && g["world"].is_object() && g["world"].contains("voxfound") &&
+            g["world"]["voxfound"].value("enabled", false)) {
+            voxFoundBootConfig = g["world"];
+            voxFoundBootPending = true;
+            voxFoundBootFrames = 0;
+            LOG_INFO("VoxFound", "boot mode configured from " + gameJsonPath);
+        }
+    } catch (const std::exception& e) {
+        LOG_WARN("VoxFound", std::string("boot config: game.json not read: ") + e.what());
+    }
+}
+
+// F7.16: the switched world as a boot mode -- the same sequence the tests drive by hand: the editable region around
+// the camera (the world's type / seed / flora; flora_window open, which streaming needs), switch on, stream.
+void Application::voxFoundBoot() {
+    const auto t0 = std::chrono::steady_clock::now();
+    const nlohmann::json& w = voxFoundBootConfig;
+    const nlohmann::json& v = w["voxfound"];
+    std::vector<int> size = v.value("size", std::vector<int>{4, 2, 4});
+    if (size.size() != 3) size = {4, 2, 4};
+    const glm::vec3 cam = camera ? camera->getPosition() : glm::vec3(0.0f);
+    const int cx = int(std::floor(cam.x / 32.0f)), cz = int(std::floor(cam.z / 32.0f));
+    const int y0 = v.value("y_from", 0);
+    const glm::ivec3 lo(cx - size[0] / 2, y0, cz - size[2] / 2), hi = lo + glm::ivec3(size[0], size[1], size[2]) - 1;
+    nlohmann::json req = {{"type", w.value("type", std::string("Perlin"))}, {"seed", w.value("seed", 0)},
+                          {"flora", w.value("flora", true)}, {"editable", true}, {"hide_world", false},
+                          {"flora_window", "open"},
+                          {"region", {{"from", {lo.x, lo.y, lo.z}}, {"to", {hi.x, hi.y, hi.z}}}}};
+    Core::APICommand c;
+    nlohmann::json r, on, st;
+    c.params = req;
+    handleVoxFoundPreview(c, r);
+    const auto t1 = std::chrono::steady_clock::now();
+    if (!r.contains("error")) {
+        c.params = {{"world_switch", true}, {"load_saved", v.value("load_saved", true)}};
+        handleVoxFoundPreview(c, on);
+        if (v.value("stream", true)) {
+            c.params = {{"stream", true}};
+            handleVoxFoundPreview(c, st);
+        }
+    }
+    const auto t2 = std::chrono::steady_clock::now();
+    auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    voxFoundBootReport = {{"booted", !r.contains("error") && !on.contains("error")}, {"region_request", req},
+                          {"build_error", r.value("error", std::string())}, {"build_ms", ms(t0, t1)},
+                          {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
+                          {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}}};
+    LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 
 // F7.9b: the switched world streams. A shift keeps every edited region chunk (codec v3, F3.3) in voxFoundStreamCache,

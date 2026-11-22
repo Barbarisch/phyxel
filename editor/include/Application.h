@@ -353,6 +353,13 @@ private:
     nlohmann::json voxFoundCanvasLog = nlohmann::json::array();   // F7.12: every new-store placement's result
     bool voxFoundWriterStub = false;                             // F7.13 (tests): the old-grid writers not routed
     bool voxFoundTreeStub = false;                               // F7.14 (tests): tree-matter reads not routed
+    // F7.16: game.json world.voxfound -- the switched world as a boot mode
+    nlohmann::json voxFoundBootConfig;   // the world block (type, seed, flora) + its "voxfound" object
+    bool voxFoundBootPending = false;
+    int voxFoundBootFrames = 0;
+    nlohmann::json voxFoundBootReport;
+    void voxFoundBoot();
+    void voxFoundReadBootConfig(const std::string& gameJsonPath);
     std::map<std::string, std::pair<size_t, size_t>> voxFoundWriterLog;   // F7.13: label -> (calls, voxels changed)
     std::set<std::tuple<int, int, int>> voxFoundLastCanvasCells;   // F7.11: the last shell's cells (struct_check)
     nlohmann::json voxFoundPlaceCanvas(const Core::MicroCanvas& canvas, int floorTopCell, int originX, int originZ);

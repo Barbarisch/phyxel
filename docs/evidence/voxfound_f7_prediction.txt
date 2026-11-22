@@ -989,3 +989,25 @@ items etc. still assume today's world -- F7.7 / the exit's second half).
       streams (the camera stays inside the region).
   B3: the boot's own cost (region build + switch) <= 10 s after the config is read.
 RED: the same project without the config key -> the control (no switch).
+
+F7.16 RESULTS (2026-11-22; the prediction above untouched). Release; the project VoxFoundBoot = a copy of the gate
+project with world.voxfound {"enabled":true, "size":[4,2,4], "y_from":0, "load_saved":true, "stream":true} (its own
+world.db; the gate project untouched). Evidence: voxfound_f716_live.jsonl, voxfound_f716_state.json;
+tools/voxfound_f716_live.py. Every artifact: WorldGenerator Perlin s7 + flora; edits through the preview edit API, the
+DamageSystem route and StructureForge (hall_house).
+  CONTROL (the F7.15 editor, the gate project): not switched 15 s after settle; GET /api/world/voxel from today's chunks.
+  RED (the F7.16 editor, the gate project, no config): boot_status configured false, not switched.
+  GREEN run 0 (void, kept): the config was read only on the runtime project-open path, not at --project startup --
+     no boot. Now read on both. Run 1 is the record.
+  B1 PASS: the cold boot is switched with no API call: reads routed (GET answers "voxfound"), 32 physics overrides,
+     stream on, the region (254..257, 0..1, 5..8) holds the camera's chunk.
+  B3 PASS: the boot itself 4.7 s (region build 4.5 s + switch 0.2 s; it loaded the copied world.db's 7 saved chunks).
+  B2 PASS / partial: a brush break (378 voxels) and a hall house (121,826 cells) on the switched world, save_world (9
+     chunks); relaunch -> the boot loads them back: 32 / 32 chunks equal by name; a 128 m camera walk stays in the
+     region 9 / 9 steps. NOT exercised: the blast broke 0 voxels here (its hit point was probably canopy) -- F7.5 /
+     F7.6a covered blasts and their saves.
+  Not here, stated: the global default stays OFF -- water (spans in today's chunks; not tested on the switched world:
+     the gate projects have no water), the HTTP / MCP voxel units, items and the remaining chunkMap walkers still assume
+     today's world (F7.7 and the exit's second half).
+CONCLUSION: a project can boot straight into the switched world, edit it, build on it, save and come back -- the plan's
+"default switched" for an opting-in project.
