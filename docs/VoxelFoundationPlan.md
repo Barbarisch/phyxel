@@ -3067,6 +3067,13 @@ sampled reads equal the region (142 differ unrouted -- the red); NPC navigation 
 229-node path). OWED: the cost (D5) and a timing guard's re-run, on a quiet GPU (another session's tests held it).
 Not moved: physics and light occupancy, the other chunkMap walkers.
 
+**F7.4, editing on the switched world (2026-11-22).** `IWorldEditor` + `VoxelInteractionSystem::setWorldEditor`: with
+the switch on, the player's hover is the region's pick and break / place are its brushes (cube / subcube / microcube =
+8 / 2 / 1 voxels; placing in front of the hit face; the material provider's material), through F3's edit path. Live:
+break and place a cube, a subcube, a micro -- every edit verified equal to a full rebuild, the engine's reads follow,
+0.44-0.68 ms per action. **Found:** an edited hole renders black -- the ambient probe field still traces today's hidden
+chunks (section 4.4's occupancy from block masks is owed; it bites as soon as the switched world is edited).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

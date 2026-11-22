@@ -150,6 +150,13 @@ private:
 
     // Optional material provider — called at placement time to get the active material
     std::function<std::string()> m_materialProvider;
+public:
+    /// F7.4: the material placing uses now ("Stone" when no provider is set or it returns "").
+    std::string currentMaterial() const {
+        const std::string m = m_materialProvider ? m_materialProvider() : std::string();
+        return m.empty() ? std::string("Stone") : m;
+    }
+private:
     std::function<GpuParticlePhysics*()> m_gpuDebris;
     /// Spawn one broken piece as GPU debris (refused + counted without a GPU solver).
     bool spawnPiece(const glm::vec3& centre, float edge, const std::string& material);

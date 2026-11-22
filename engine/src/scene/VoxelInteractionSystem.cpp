@@ -65,6 +65,10 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         [this]() -> UI::WindowManager* { return m_windowManager; }
     );
     m_lastMouseRay = rayDirection;   // click actions ray-test with THIS, not cameraFront
+    if (m_worldEditor) {   // F7.4: the new store's pick (the camera's forward ray without a window)
+        updateHoverFromRay(cameraPos, glm::length(rayDirection) > 0.0f ? rayDirection : cameraFront);
+        return;
+    }
     
     // NEW: Use optimized O(1) VoxelLocation-based hover detection (delegated to VoxelRaycaster)
     VoxelLocation voxelLocation = m_raycaster.pickVoxel(
@@ -243,7 +247,31 @@ void VoxelInteractionSystem::subdivideHoveredSubcube() {
     }
 }
 
+void VoxelInteractionSystem::updateHoverFromRay(const glm::vec3& origin, const glm::vec3& dir) {
+    if (!m_worldEditor) return;
+    m_editHover = m_worldEditor->pick(origin, dir, 64.0f);
+    m_hasHoveredCube = m_editHover.hit;
+}
+
+// F7.4: one brush at the hover (break: the hit voxel's cell; place: the cell in front of the hit face)
+bool VoxelInteractionSystem::editorAction(int size, bool place) {
+    if (!m_worldEditor) return false;
+    m_lastEditVoxels = 0;
+    if (!m_editHover.hit) return true;
+    const glm::ivec3 v = place ? m_editHover.voxel + m_editHover.normal : m_editHover.voxel;
+    m_lastEditVoxels = m_worldEditor->brush(v, size, place ? m_manipulator.currentMaterial() : std::string());
+    if (m_lastEditVoxels) {
+        auto fd = [](int a) { return a >= 0 ? a / 8 : -((-a + 7) / 8); };
+        if (m_onVoxelChanged) m_onVoxelChanged(glm::ivec3(fd(v.x), fd(v.y), fd(v.z)));   // the edit's cube
+        if (place) playPlaceSound(true, glm::ivec3(fd(v.x), fd(v.y), fd(v.z)));
+    }
+    m_editHover = WorldEditHit{};   // the world changed under the hover: re-picked next update
+    m_hasHoveredCube = false;
+    return true;
+}
+
 void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
+    if (editorAction(8, false)) return;   // F7.4
     glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
     if (m_destructionTool->breakCube(createContext())) {
         m_hasHoveredCube = false;
@@ -254,6 +282,7 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
 }
 
 void VoxelInteractionSystem::breakHoveredSubcube() {
+    if (editorAction(2, false)) return;   // F7.4
     glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
     if (m_destructionTool->breakSubcube(createContext())) {
         m_hasHoveredCube = false;
@@ -264,6 +293,7 @@ void VoxelInteractionSystem::breakHoveredSubcube() {
 }
 
 void VoxelInteractionSystem::breakHoveredMicrocube() {
+    if (editorAction(1, false)) return;   // F7.4
     glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
     if (m_destructionTool->breakMicrocube(createContext())) {
         m_hasHoveredCube = false;
@@ -285,6 +315,7 @@ void VoxelInteractionSystem::playPlaceSound(bool hadHover, const glm::ivec3& pla
 }
 
 void VoxelInteractionSystem::placeVoxelAtHover() {
+    if (editorAction(8, true)) return;   // F7.4
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeVoxel(createContext())) {
@@ -294,6 +325,7 @@ void VoxelInteractionSystem::placeVoxelAtHover() {
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
+    if (editorAction(2, true)) return;   // F7.4
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeSubcube(createContext())) {
@@ -303,6 +335,7 @@ void VoxelInteractionSystem::placeSubcubeAtHover() {
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
+    if (editorAction(1, true)) return;   // F7.4
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeMicrocube(createContext())) {

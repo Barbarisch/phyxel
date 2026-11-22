@@ -8,6 +8,7 @@
 #include "scene/interaction/DestructionTool.h"
 #include "core/AudioSystem.h"
 #include "core/SoundRegistry.h"
+#include "scene/IWorldEditor.h"
 #include <glm/glm.hpp>
 #include <climits>
 #include <functional>
@@ -127,6 +128,21 @@ public:
         m_raycaster.setDebugCaptureEnabled(enabled);
     }
 
+    /// docs/VoxelFoundationPlan.md F7.4: when set, the hover is the editor's pick (the mouse ray; the camera's forward
+    /// ray when there is no window) and break / place are its brushes -- cube / subcube / microcube = 8 / 2 / 1 voxels,
+    /// placing in the cell in front of the hit face, the material from the material provider ("Stone" without one).
+    /// nullptr = today's chunks (the default). Not owned.
+    void setWorldEditor(IWorldEditor* editor) {
+        m_worldEditor = editor;
+        m_editHover = WorldEditHit{};
+    }
+    IWorldEditor* worldEditor() const { return m_worldEditor; }
+    const WorldEditHit& worldEditHover() const { return m_editHover; }
+    /// F7.4: the hover from an explicit ray (origin metres) -- the crosshair / a test; the editor's pick when set.
+    void updateHoverFromRay(const glm::vec3& origin, const glm::vec3& dir);
+    /// F7.4: voxels the last editor action changed (0 = nothing hovered / nothing changed).
+    size_t lastEditVoxels() const { return m_lastEditVoxels; }
+
     /// Called after any interactive voxel add/remove with the affected world position.
     void setVoxelChangeCallback(std::function<void(const glm::ivec3&)> cb) {
         m_onVoxelChanged = std::move(cb);
@@ -208,6 +224,10 @@ private:
 
     // NavGrid / NPC callback — fired after any interactive voxel add/remove
     std::function<void(const glm::ivec3&)> m_onVoxelChanged;
+    IWorldEditor* m_worldEditor = nullptr;   // F7.4
+    WorldEditHit m_editHover;
+    size_t m_lastEditVoxels = 0;
+    bool editorAction(int size, bool place);   // F7.4: true when the editor handled it (set)
 
     // Dynamic furniture activation
     Core::PlacedObjectManager*    m_placedObjects   = nullptr;

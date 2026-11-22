@@ -660,8 +660,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       reads to it; nav works on it. OWED FIRST on a quiet GPU: D5 (perf_harness --ab docs/evidence/
       voxfound_f73_ab_config.json, 8 x 240 x 5 poses, VoxFoundGate port 8120) and a quiet re-run of
       VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild (3.38 vs <= 3 ms twice, contended).
-      NEXT: F7.4 (editing on the switched world: hover = RegionEdit::pick, break/place = brushes; cube / subcube /
-      micro = 8 / 2 / 1 voxels), prediction BEFORE code.
+      F7.4 done: IWorldEditor + VoxelInteractionSystem::setWorldEditor (the switch sets the region's): break / place
+      edit the new store (8/2/1 voxel brushes), reads follow, 0.44-0.68 ms per action. FOUND: an edited hole renders
+      black (GI probes trace today's hidden chunks).
+      NEXT: section 4.4 -- the light occupancy (GI probe field + light visibility) built from the new store's block
+      solidity when switched; then F7.5 (destruction). Prediction BEFORE code.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

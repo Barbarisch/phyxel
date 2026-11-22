@@ -73,6 +73,7 @@
 #include "core/WorldClock.h"
 #include "core/CampaignJournal.h"
 #include "core/NPCManager.h"
+#include "scene/IWorldEditor.h"
 #include "core/InteractionManager.h"
 #include "core/InteractionProfileManager.h"
 #include "core/InteractionHandler.h"
@@ -245,6 +246,9 @@ public:
     Core::EngineAPIServer* getAPIServer() const { return apiServer.get(); }
     Graphics::CameraManager* getCameraManager() const { return cameraManager; }
     Core::NPCManager* getNPCManager() const { return npcManager.get(); }
+    // F7.4: the editable region's pick / brush (RegionWorldEditor, the switched world's IWorldEditor)
+    WorldEditHit voxFoundPick(const glm::vec3& origin, const glm::vec3& dir, float maxMetres) const;
+    size_t voxFoundBrush(const glm::ivec3& voxel, int size, const std::string& material);
     Core::InteractionManager* getInteractionManager() const { return interactionManager.get(); }
     UI::DialogueSystem* getDialogueSystem() const { return dialogueSystem.get(); }
     Core::DynamicFurnitureManager* getDynamicFurnitureManager() const { return dynamicFurnitureManager.get(); }
@@ -307,6 +311,11 @@ private:
     // F7.3: the world switch -- the region drawn AND ChunkManager's reads routed to its stores (WorldReads)
     std::unique_ptr<Core::VoxFound::WorldReads> voxFoundWorldReads;
     bool voxFoundWorldSwitchStub = false;                               // tests: hide + draw, do not route (the red)
+    // F7.4: the region as the player's editor (IWorldEditor: RegionEdit::pick + the F2.16 / F3 brush edit path)
+    std::unique_ptr<IWorldEditor> voxFoundWorldEditor;
+    bool voxFoundEditStub = false;                                      // tests: switched, editor not set (the red)
+    bool voxFoundEditVerify = false;                                    // F7.4: the player's brushes verified (edit_verify)
+    nlohmann::json voxFoundLastEdit;                                    // the last brush's edit response
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)

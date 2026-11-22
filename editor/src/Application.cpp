@@ -181,6 +181,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #endif
 
 namespace Phyxel {
+std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app);   // F7.4 (defined with RegionWorldEditor)
 
 /**
  * Application Constructor
@@ -13576,6 +13577,44 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // the engine reads); off: both back. {"world_switch_stub":bool} (tests): hide + draw without routing (the red).
         // {"reads_check":{"n":N}}: N sampled region cubes -- ChunkManager::getVoxelTypeAt vs the region's rule.
         // {"nav_check":{"from":[x,z],"to":[x,z]}}: NPCManager::buildNavGrid + a path between the two ground points.
+        // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
+        // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
+        // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("edit_stub") || cmd.params.contains("edit_verify")) {
+            if (cmd.params.contains("edit_stub")) voxFoundEditStub = cmd.params["edit_stub"].get<bool>();
+            if (cmd.params.contains("edit_verify")) voxFoundEditVerify = cmd.params["edit_verify"].get<bool>();
+            response = {{"edit_stub", voxFoundEditStub}, {"edit_verify", voxFoundEditVerify}};
+            return;
+        }
+        if (cmd.params.contains("edit_action")) {
+            if (!voxelInteractionSystem || !camera) {
+                response = {{"error", "edit_action: no interaction system / camera"}};
+                return;
+            }
+            const auto& ea = cmd.params["edit_action"];
+            const std::string action = ea.value("action", std::string("break")), mode = ea.value("mode", std::string("cube"));
+            const glm::vec3 camPos = camera->getPosition(), camFront = camera->getFront();
+            const auto t0 = std::chrono::steady_clock::now();
+            voxelInteractionSystem->updateHoverFromRay(camPos, camFront);
+            const WorldEditHit hov = voxelInteractionSystem->worldEditHover();
+            voxFoundLastEdit = nlohmann::json::object();
+            if (action == "break") {
+                if (mode == "cube") voxelInteractionSystem->breakHoveredCube(camPos);
+                else if (mode == "subcube") voxelInteractionSystem->breakHoveredSubcube();
+                else voxelInteractionSystem->breakHoveredMicrocube();
+            } else {
+                if (mode == "cube") voxelInteractionSystem->placeVoxelAtHover();
+                else if (mode == "subcube") voxelInteractionSystem->placeSubcubeAtHover();
+                else voxelInteractionSystem->placeMicrocubeAtHover();
+            }
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            response = {{"action", action}, {"mode", mode}, {"editor_set", voxelInteractionSystem->worldEditor() != nullptr},
+                        {"hover_hit", hov.hit}, {"hover_voxel", {hov.voxel.x, hov.voxel.y, hov.voxel.z}},
+                        {"hover_normal", {hov.normal.x, hov.normal.y, hov.normal.z}}, {"hover_material", hov.material},
+                        {"voxels_changed", voxelInteractionSystem->lastEditVoxels()}, {"action_ms", ms},
+                        {"edit", voxFoundLastEdit}};
+            return;
+        }
         if (cmd.params.contains("world_switch_stub")) {
             voxFoundWorldSwitchStub = cmd.params["world_switch_stub"].get<bool>();
             if (!cmd.params.contains("world_switch") && !cmd.params.contains("reads_check") &&
@@ -13592,7 +13631,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             }
             if (chunkManager) chunkManager->setVoxFoundReads(nullptr);
             voxFoundWorldReads.reset();
+            if (voxelInteractionSystem) voxelInteractionSystem->setWorldEditor(nullptr);   // F7.4
+            voxFoundWorldEditor.reset();
             if (on) {
+                voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
+                if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());
                 voxFoundWorldReads = std::make_unique<WorldReads>(
                     [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
                 if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
@@ -13600,6 +13643,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setHideWorld(on);
             voxFoundPreview.shown = on;
             response = {{"world_switch", on}, {"reads_routed", chunkManager && chunkManager->voxFoundReads() != nullptr},
+                        {"editor_set", voxelInteractionSystem && voxelInteractionSystem->worldEditor() != nullptr},
                         {"region_chunks", voxFoundEdit.chunkCount()}, {"stub", voxFoundWorldSwitchStub}};
             if (!cmd.params.contains("reads_check") && !cmd.params.contains("nav_check")) return;
         }
@@ -14051,6 +14095,46 @@ nlohmann::json Application::loadVoxFoundSaved() {
 // brush can change). Body: {"material":"air"|name, "lo":[x,y,z], "hi":[x,y,z]} (world 1/8 m voxels, inclusive) or
 // {"material", "sphere":{"c":[x,y,z], "r":voxels}}; "verify":true also rebuilds every touched chunk fully with
 // FaceBuilderGpu and compares faces, sprigs and connectivity. The drawn lists are re-uploaded whole (item 10).
+// F7.4 (docs/VoxelFoundationPlan.md section 7 step 4): the editable region as the player's IWorldEditor -- picks are
+// RegionEdit::pick (metres -> 1/8 m voxels), brushes the preview's own edit path (handleVoxFoundEdit: RegionEdit::brush +
+// the incremental assemble), so the switched world is edited exactly as F2.16 / F3.1 measured.
+class RegionWorldEditor : public IWorldEditor {
+public:
+    explicit RegionWorldEditor(Application& app) : m_app(app) {}
+    WorldEditHit pick(const glm::vec3& origin, const glm::vec3& dir, float maxMetres) const override {
+        return m_app.voxFoundPick(origin, dir, maxMetres);
+    }
+    size_t brush(const glm::ivec3& voxel, int size, const std::string& material) override {
+        return m_app.voxFoundBrush(voxel, size, material);
+    }
+private:
+    Application& m_app;
+};
+
+WorldEditHit Application::voxFoundPick(const glm::vec3& origin, const glm::vec3& dir, float maxMetres) const {
+    using namespace Core::VoxFound;
+    WorldEditHit out;
+    if (voxFoundEdit.empty() || glm::length(dir) <= 0.0f) return out;
+    const RegionEdit::PickHit h = voxFoundEdit.pick(glm::dvec3(origin) * double(kVoxelsPerM), glm::dvec3(dir),
+                                                    double(maxMetres) * double(kVoxelsPerM));
+    out.hit = h.hit;
+    out.voxel = h.voxel;
+    out.normal = h.normal;
+    out.material = h.material < voxFoundPalette.size() ? voxFoundPalette[h.material] : std::string();
+    return out;
+}
+
+size_t Application::voxFoundBrush(const glm::ivec3& voxel, int size, const std::string& material) {
+    nlohmann::json ej = {{"brush", {{"at", {voxel.x, voxel.y, voxel.z}}, {"size", size}}},
+                         {"material", material.empty() ? std::string("air") : material}, {"verify", voxFoundEditVerify}};
+    nlohmann::json r;
+    handleVoxFoundEdit(ej, r);
+    voxFoundLastEdit = r;
+    return r.value("voxels_changed", size_t(0));
+}
+
+std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return std::make_unique<RegionWorldEditor>(app); }
+
 void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& response) {
     using namespace Core::VoxFound;
     if (voxFoundEdit.empty()) {

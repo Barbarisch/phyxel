@@ -187,3 +187,34 @@ voxel-changed callback fires with the edit's cube. The world switch sets the reg
       a 1 m brush).
 RED: the switch on with the editor not set (world_switch_stub-like knob "edit_stub") -> the action edits today's hidden
 chunks: 0 region voxels change.
+
+F7.4 RESULTS (2026-11-22; the prediction above untouched). Release; the VoxFoundGate project (port 8120), the region as
+F7.3 built it. Evidence: voxfound_f7_headless.txt (E1), voxfound_f74_live.jsonl, voxfound_f74_*.png;
+tools/voxfound_f74_live.py. Every artifact: WorldGenerator Perlin s7 + flora (today's chunks; the 1/8 m region), edited
+through VoxelInteractionSystem's own break / place calls. The other session's integration tests were running during
+the live runs (functional results only; the action costs below are CPU wall time on the main thread).
+  CONTROL (before any code): the switch on, today's break path (/api/debug/break_voxel) at cube (8132, 27, 68):
+     removed in the hidden old world (1 debris piece), the region unchanged (top cube 27, pick voxel (65060,220,548)
+     Dirt before and after).
+  RED as predicted: the switch with the editor unset (edit_stub): an edit action changes 0 region voxels.
+  E1 PASS (unit, headless, a fake editor; the red: setWorldEditor stubbed -> 5 checks fail): the hover is the editor's
+     pick on the camera's forward ray; break cube / subcube / micro = brush(hit, 8 / 2 / 1, air); place = brush(hit +
+     normal, 8 / 2 / 1, the provider's material); the callback with the edit's cube (floor division); nothing hovered
+     -> no brush; no editor -> never called. Related unit tests 45 / 45.
+  E2 PASS: at the stated pose (8132.5, 33, 60.5, yaw 90, pitch -40): break cube -> the 8^3 cell (65056..65063,
+     216..223, 528..535) all air (321 voxels: a surface cell); place cube -> the cell in front of the hit face (the
+     hole's side wall) filled, 512; every edit verified (the incremental chunks vs a full GPU rebuild): 0 face / sprig
+     / connectivity mismatches. The reads follow: 5 rounds of break / place, the engine's (routed) column top 27 -> 26
+     -> 27 each time. Screenshots: before, the hole, the cube placed back (it stands above the ground: the surface
+     cell was partly air, a whole-cell brush fills it; its material is the hotbar's selection, "Default", the
+     engine's checkered fallback).
+  E3 PASS: subcube 8 voxels, micro 1 voxel.
+  E4 PASS: break 0.44-0.47 ms, place 0.56-0.68 ms per action (pick + brush + incremental rebuild + assemble), 5 rounds,
+     verify off. With verify on an action took 59-63 ms: the synchronous full GPU rebuild of the verification (by
+     difference; the brush's own rebuild 0.05-0.22 ms).
+  FOUND (not a defect of F7.4; F7.3's stated "light occupancy not moved"): the hole renders BLACK. Debug view 11 shows
+     its walls and floor drawn (flat grey like every face); with GI off they show (dim dirt). The ambient probe field
+     traces today's hidden chunks, solid there. The plan's section 4.4 item (the occupancy pool built from block
+     solidity masks) is the fix -- it bites as soon as the switched world is edited.
+CONCLUSION: the player's hover, break and place edit the new store (brushes 8 / 2 / 1), exactly as F3's edit path,
+and the engine's reads follow each edit. Next: the light occupancy from the new store (section 4.4), then F7.5.
