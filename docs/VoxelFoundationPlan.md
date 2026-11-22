@@ -3092,6 +3092,12 @@ makes 318 pieces and 362 crumbs, the pieces fall back into their crater and bake
 drawn world = the simulated one, today's chunks untouched. Found and fixed: a bake over 32 bodies took a full-rebuild
 branch that world mode must not use. Not yet: part ids, bodies in the light occupancy, soil as its own material.
 
+**F7.6a, saving the switched world (2026-11-22).** `save_world` also writes the switched region's edited chunks (F3.3's
+codec v3); switching on loads them (`{"load_saved":false}` skips). An edited switched world (a brush, a blast and its
+bake) comes back after a relaunch with every chunk's store hash equal. MISSED: every chunk differing from the generator
+is rewritten per save (31 chunks, 208 ms), and loading the whole saved region at the switch takes ~0.7 s. Found: the
+gate scene's world.db holds F3.3's saved test edits -- comparisons with F2.19 must pass `load_saved:false`.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

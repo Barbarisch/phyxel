@@ -322,6 +322,7 @@ private:
     std::map<std::tuple<int, int, int>, uint32_t> voxFoundOccRevision;
     bool voxFoundOccStub = false;
     bool voxFoundDamageStub = false;                                    // F7.5 (tests): the destruction override ignored
+    bool voxFoundSaveStub = false;                                      // F7.6a (tests): save_world skips the region
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)

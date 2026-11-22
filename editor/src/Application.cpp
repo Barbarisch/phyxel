@@ -13580,6 +13580,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("save_stub")) {   // F7.6a (tests): save_world skips the switched region (the red)
+            voxFoundSaveStub = cmd.params["save_stub"].get<bool>();
+            response = {{"save_stub", voxFoundSaveStub}};
+            return;
+        }
         if (cmd.params.contains("damage_stub")) {   // F7.5 (tests): the next switch-on sets the override but it is ignored
             voxFoundDamageStub = cmd.params["damage_stub"].get<bool>();
             response = {{"damage_stub", voxFoundDamageStub}};
@@ -13656,6 +13661,12 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundWorldEditor.reset();
             renderCoordinator->setVoxFoundOccupancy(nullptr);   // F7.3b
             DamageSystem::setDestructionOverride(nullptr);       // F7.5
+            nlohmann::json loadReport;
+            if (on && cmd.params.value("load_saved", true)) {   // F7.6a: the world as it was saved (F3.3's blobs)
+                const auto t0 = std::chrono::steady_clock::now();
+                loadReport = loadVoxFoundSaved();
+                loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            }
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
                 if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());
@@ -13684,6 +13695,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"world_switch", on}, {"reads_routed", chunkManager && chunkManager->voxFoundReads() != nullptr},
                         {"editor_set", voxelInteractionSystem && voxelInteractionSystem->worldEditor() != nullptr},
                         {"region_chunks", voxFoundEdit.chunkCount()}, {"stub", voxFoundWorldSwitchStub}};
+            if (!loadReport.is_null()) response["loaded"] = loadReport;   // F7.6a
             if (!cmd.params.contains("reads_check") && !cmd.params.contains("nav_check")) return;
         }
         if (cmd.params.contains("reads_check") && chunkManager) {
@@ -14117,6 +14129,7 @@ nlohmann::json Application::loadVoxFoundSaved() {
         saved.remapMaterials(map);
         const auto t1 = std::chrono::steady_clock::now();
         const RegionEdit::Stats st = voxFoundEdit.loadChunk(i, saved);
+        voxFoundOccBump(std::vector<size_t>{i});   // F7.6a: the switched light occupancy repacks a loaded chunk
         const auto t2 = std::chrono::steady_clock::now();
         decodeMs += ms(t0, t1);
         writeMs += ms(t1, t2);
@@ -20386,6 +20399,15 @@ void Application::processAPICommands() {
                     }
                     response = {{"success", ok},
                                 {"mode", saveAll ? "all" : "dirty"}};
+                    // docs/VoxelFoundationPlan.md F7.6a: the switched world's edited region chunks (codec v3, F3.3)
+                    if (voxFoundWorldReads && !voxFoundSaveStub) {
+                        nlohmann::json vr;
+                        const auto t0 = std::chrono::steady_clock::now();
+                        handleVoxFoundSave(vr);
+                        vr["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                        response["voxfound"] = vr;
+                        if (vr.contains("error")) ok = false, response["success"] = false;
+                    }
                     if (ok) {
                         // Also persist placed objects
                         if (placedObjectManager) {

@@ -379,3 +379,29 @@ are not saved (stated: they are transient until baked).
   S3: cost: save_world's voxfound part <= 100 ms, the switch-on load <= 200 ms (the edited chunks only).
 RED: the save hook stubbed ({"save_stub":true}: save_world skips the region) -> after the relaunch the hashes are the
 generator's (the edits lost).
+
+F7.6a RESULTS (2026-11-22; the prediction above untouched). Release; the VoxFoundGate project (port 8120); each run =
+edit + save_world in one session, relaunch, switch on in a second. The project's worlds/default.db was backed up before
+the first run and restored before and after every run (unchanged since 2026-11-16 at the end). Evidence:
+voxfound_f76a_live.jsonl; tools/voxfound_f76a_live.py (+ the run script in the scratchpad). Every artifact: WorldGenerator
+Perlin s7 + flora (the 1/8 m region), edited through VoxelInteractionSystem (an F7.4 brush) and DamageSystem (an F7.5
+blast, its forced bake).
+  CONTROL (before any code): the brush edit changed chunk (254, 0, 2); after save_world + relaunch + switch on all 32
+     chunks were the pre-edit state again -- the edit lost. (Its blast aimed at (8150, 120) -- tree canopy, top 46 m --
+     and broke nothing: the script then moved the blast to F7.5's open ground (8132, 68).)
+  RED as predicted: save_stub -> the edits lost (all 32 chunks = the pre-edit state).
+  S1 PASS: the brush (321 voxels) + the blast (68,437 voxels, 320 bodies, all baked) -> after save_world, relaunch and
+     the switch: all 32 chunks' store hashes equal the edited state; the hit columns' tops (the routed reads) 26 / 27 /
+     27 / 27 = before.
+  FOUND: the gate project's world.db already holds F3.3's saved region blobs (31 chunks, 7.66 MB, written 2026-11-16 by
+     F3.3's gate). With the switch now loading them, a switched gate scene starts from F3.3's test edits, not the bare
+     generator: F7.3-F7.5 ran before this load existed (the generator's region); any later comparison with F2.19 must
+     pass {"load_saved":false}.
+  S2 MISSED as stated: save_world wrote 31 chunks, not only the one these edits touched -- F3.3's "edited" means
+     "differs from the generator", so every loaded chunk is rewritten on every save (correct data; a dirty-since-save
+     flag is the lever).
+  S3 MISSED: the region's save 208 ms (encode 95 + write 104; <= 100 predicted), the switch-on load 713 ms (decode 120
+     + incremental rebuild 578; <= 200) -- for 31 chunks / 7.66 MB, not the touched chunks the prediction assumed.
+CONCLUSION: the switched world now saves and comes back exactly (store hash per chunk) through the engine's own
+save_world. Costs: every edited chunk is rewritten per save, and loading the whole saved region takes ~0.7 s at the
+switch. Next F7.6b: undo.
