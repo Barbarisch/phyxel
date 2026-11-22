@@ -703,6 +703,15 @@ public:
     /// Returns the set's handle (> 0), or 0 when the volume cannot be kept (a particle volume, or not sparse and growable) - then it
     /// is destroyed as by destroyVolume. The device is idle on return (as destroyVolume), so no kept buffer is in use.
     int keepVolume(Volume* vol);
+    /// 58.3 item 1: the cold patch path built over frames. A kept set for a volume of this spec built ahead of its create, a few
+    /// buffers a call (host buffers left for the paced clear, pumpKeptClear); the create then adopts every buffer (allocates none).
+    /// beginKeptAlloc returns a pending handle (0 = refused, err says why); stepKeptAlloc allocates until budgetMs is spent (at least
+    /// one buffer) and returns the buffers left (0 = ready: the handle is a kept set; -1 = refused, the pending set given back)
+    int beginKeptAlloc(const GridSpec& spec, const BrickOptions& opts, std::string* err);
+    int stepKeptAlloc(int handle, double budgetMs, std::string* err);
+    /// 58.3 item 1: one fill-volume pipeline built into the spares (a cold first create built all 24 in one frame, ~15 ms); returns
+    /// the kernels still without a spare (0 = a create reuses every pipeline)
+    int warmPipelineStep(std::string* err);
     /// L3 (41): a kept set's held device memory, bytes (0 if no such set)
     unsigned long long keptHeldBytes(int handle) const;
     size_t keptSlots(int handle) const;
@@ -862,7 +871,7 @@ public:
     void settle(Volume& vol) { if (vol.inFlight) finishCall(vol); }
 
 private:
-    bool createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err);
+    bool createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err, bool clearHost = true);   // clearHost false: [0, zeroed) cleared later (58.3)
     void destroyBuffer(Buffer& b);
     bool createPipelines(Volume& vol, std::string* err);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags props) const;
@@ -933,6 +942,11 @@ private:
     std::chrono::steady_clock::time_point m_upT[7];   // L4 (42): uploadPrepare's part times, for uploadSubmit's split
     struct KeptSet { std::vector<Buffer> bufs; size_t slots = 0; };
     std::map<int, KeptSet> m_kept;         // L3 (41): by handle
+    struct PendingKept { KeptSet set; std::vector<std::pair<VkDeviceSize, bool>> todo; };
+    std::map<int, PendingKept> m_keptPending;   // 58.3: kept sets being built ahead (beginKeptAlloc)
+    struct BufSpec { Buffer* buf; VkDeviceSize bytes; bool host; };
+    bool layoutVolume(Volume* vol, const GridSpec& spec, bool particles, size_t particleCapacity, const BrickOptions& opts, std::string* err) const;
+    std::vector<BufSpec> bufferSpecs(Volume* vol) const;
     int m_nextKept = 1;
     std::vector<Buffer> m_releaseQueue;    // L3 (41): released kept buffers, freed by pumpRelease
     KeptSet* m_adopting = nullptr;         // L3 (41): set by createVolume while it creates buffers; createBuffer takes from it

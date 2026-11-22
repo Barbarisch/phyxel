@@ -15258,6 +15258,28 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   IDENTICAL to the old whole read's (`s_sleepReadsAllForTest`, 0 m); 0 holes / 0 doubles; books -1.1e-5 m^3; read + runs **56 -> 24
   ms** (read 44 -> 17.8, runs 12 -> 6.3; prediction "under half" met on the second build - the first, per-cell, was 29 vs 25 for half).
   Left in the read: 16 ms host for 10 tiles - each tile a full `WaterGrid` (faces too) allocated and its occupancy copied.
+- **Group 1's cold part cut (the session's first patch, design-check item 5 without keeping memory warm).** Live, the first patch of
+  a session had no spare: its staged GPU stage built every buffer and 24 pipelines in one frame (30.1 ms) and `create.0 grid` was
+  11.9 ms. Rather than pre-warming a spare near every lake (memory held ahead), the staged job now builds the cold part itself over
+  frames: stage 0 takes a grid allocated on a worker thread (pure host memory; the stage waits for it), stage 2 first builds the
+  pipelines one a step into the spares (`WaterCoreGpu::warmPipelineStep`) and the buffers a few a step into a kept set
+  (`beginKeptAlloc` / `stepKeptAlloc`; host buffers cleared 8 MB a slice there, so the adoption clears nothing), then adopts that set
+  as it adopts a spare. `createVolume`'s layout and buffer list moved into `layoutVolume` / `bufferSpecs`, used by both (a set built
+  ahead holds exactly the buffers a create asks for). TEST ONLY `s_patchColdAtOnceForTest` = the old one-stage path.
+  **Test** `TheFirstPatchOfASessionBuildsItsBuffersOverFrames` (a fresh manager, 60 m lake, push at the centre; counts, not times -
+  written while another program used the GPU): the create adopts 51 / 51 buffers and reuses 24 / 24 pipelines (RED: 0 / 0); 43
+  cold steps; 0 holes / 0 doubles; the held push applied once; books -1e-5 m^3; the record after the return identical to the at-once
+  path's (0 m). Measured under that load: the worst pump frame 43.4 -> 11.0 ms; live 126 ms after the splash vs 113 at once (in
+  frames 243 vs 6 - a headless frame with nothing live is ~0.1 ms, so frames are the wrong unit here).
+  The memory question is gone: nothing is held before a splash; after one, D9's spare as before.
+  Tests changed with it (the suite showed each): `wakeNearLive` waited 240 FRAMES for a staged patch - a cold stage 0 waits on its
+  worker and a headless frame is ~0.1 ms, so it gave up (5 tests "woke nothing"); it waits 10 s of wall time now. T3 (a splash into
+  a retiring patch) checks the retire finished when the new patch goes live (57.8's rule: before it reads the record), not the
+  frame after the splash (a cold stage 0 waits frames). `ASecondPatchTakesTheFirstPatchsBuffers`: its spare-off runs are the old
+  path's controls, so they run the cold part at once (`s_patchColdAtOnceForTest`), and S5 counts the LAST patch's grid (the worker's
+  grid is adopted through the same slot). Run while another program held the GPU at 53-100 %: P8 at 120 fps and P7's red control
+  (both depend on how many stages a frame's wall-time budget fits) failed in that run - as in the run before this change under the
+  same load; to re-run idle.
 - Not done: the cheap ripple on the record while it builds (the alternative); pre-warming the spare (item 5); the first live frame
   (item 2, (a) partly, (b)); the build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).

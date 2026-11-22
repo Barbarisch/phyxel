@@ -61,6 +61,8 @@ void WaterCoreGpu::shutdown() {
     for (Volume* v : std::vector<Volume*>(m_volumes)) destroyVolume(v);
     for (auto& [h, set] : m_kept) for (Buffer& b : set.bufs) destroyBuffer(b);   // L3 (41)
     m_kept.clear();
+    for (auto& [h, p] : m_keptPending) for (Buffer& b : p.set.bufs) destroyBuffer(b);   // 58.3
+    m_keptPending.clear();
     pumpRelease(-1.0);
     for (auto& spare : m_pipeSpare) { for (auto& p : spare) p->cleanup(); spare.clear(); }   // 39
     for (Buffer& b : m_pwTest) destroyBuffer(b);   // 31 TEST
@@ -76,7 +78,7 @@ uint32_t WaterCoreGpu::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
     return UINT32_MAX;
 }
 
-bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err) {
+bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err, bool clearHost) {
     if (m_adopting) {   // L3 (41): the smallest kept buffer of the same kind that holds the size asked
         const VkDeviceSize want = std::max<VkDeviceSize>(bytes, 16);
         auto& kb = m_adopting->bufs;
@@ -116,7 +118,7 @@ bool WaterCoreGpu::createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible,
     }
     vkBindBufferMemory(m_device, b.buf, b.mem, 0);
     b.made = b.bytes; b.held = mr.size;
-    if (hostVisible) { vkMapMemory(m_device, b.mem, 0, b.bytes, 0, &b.mapped); std::memset(b.mapped, 0, static_cast<size_t>(b.bytes)); }
+    if (hostVisible) { vkMapMemory(m_device, b.mem, 0, b.bytes, 0, &b.mapped); if (clearHost) std::memset(b.mapped, 0, static_cast<size_t>(b.bytes)); b.zeroed = clearHost ? b.made : 0; }
     return true;
 }
 
@@ -259,22 +261,22 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const WaterGrid& g, std::string
     return vol;
 }
 
-WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::string* err, bool particles, size_t particleCapacity, const BrickOptions& opts) {
-    if (!ready()) { if (err) *err = "WaterCoreGpu not initialised"; return nullptr; }
-    auto vol = std::make_unique<Volume>();
+// 58.3: createVolume's layout (the brick box, capacity, table and staging offsets) - shared with beginKeptAlloc, so a kept set built
+// ahead holds exactly the buffers a volume of that spec asks for
+bool WaterCoreGpu::layoutVolume(Volume* vol, const GridSpec& spec, bool particles, size_t particleCapacity, const BrickOptions& opts, std::string* err) const {
     vol->spec = spec;
     vol->particles = particles;
     const size_t nx = static_cast<size_t>(spec.dims.x), ny = static_cast<size_t>(spec.dims.y), nz = static_cast<size_t>(spec.dims.z);
     vol->dCells = nx * ny * nz; vol->dNu = (nx + 1) * ny * nz; vol->dNv = nx * (ny + 1) * nz; vol->dNw = nx * ny * (nz + 1);
     vol->dColumns = nx * nz;
     vol->bricked = !particles;   // 26.6: the FLIP kernels index the dense grid; every fill volume is bricked
-    if (particles && opts.sparse) { if (err) *err = "a particle (FLIP) volume cannot be sparse (26.6: the particle transport stays dense)"; return nullptr; }
+    if (particles && opts.sparse) { if (err) *err = "a particle (FLIP) volume cannot be sparse (26.6: the particle transport stays dense)"; return false; }
     if (vol->bricked) {
         vol->sparse = opts.sparse; vol->freezeForTest = opts.freezeForTest;
         vol->groundOn = opts.sparse && (opts.ground < 0 ? s_groundBricks : opts.ground != 0); vol->groundAsAir = opts.groundAsAirForTest;
         // 26.17: bricks 8 x by x 8 - a flat brick follows shallow water (and the bed under it) closer than a cube
         const int height = opts.height > 0 ? opts.height : s_brickHeight;
-        if (height != 2 && height != 4 && height != 8) { if (err) *err = "brick height " + std::to_string(height) + " is not 2, 4 or 8 (26.17)"; return nullptr; }
+        if (height != 2 && height != 4 && height != 8) { if (err) *err = "brick height " + std::to_string(height) + " is not 2, 4 or 8 (26.17)"; return false; }
         vol->by = height; vol->bly = height == 2 ? 1 : (height == 4 ? 2 : 3); vol->bc = static_cast<size_t>(64 * height);
         vol->o = glm::ivec3(floorMod(spec.origin.x, kB), floorMod(spec.origin.y, vol->by), floorMod(spec.origin.z, kB));
         // the brick box covers every cell: q = local + o in [0, n + o). A box's upper wall faces (lattice index n) lie in the
@@ -291,7 +293,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
             if (err) *err = "a bricked WaterCore volume's brick box holds at most " + std::to_string(kMaxMapEntries) + " bricks and 1023 a side ("
                             + std::to_string(vol->bn.x) + " x " + std::to_string(vol->bn.y) + " x " + std::to_string(vol->bn.z) + " requested: a "
                             + std::to_string(mapBytes) + " bytes map, " + std::to_string(fullBytes) + " bytes with every brick stored; world scale is 26.3 P5)";
-            return nullptr;
+            return false;
         }
         // slot 0 = the absent brick, slot 1 = ground (26.18). 27.23 W1d.1: a sparse volume with no fixed capacity starts with kInitialSlots
         // and grows with its water (it reserved a slot for every brick of its box: ~123 B of GPU memory per cell of the box, measured)
@@ -316,43 +318,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     // partials: two per 256-wide group (26.17: mode 0 folds per 128-cell unit), and the bricked unit map they are gathered into
     vol->groups = std::max(2 * ((std::max({vol->cells, vol->latticeMax, vol->columns}) + 255) / 256),
                            static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) + 1;
-    using CClock = std::chrono::steady_clock;   // 39: the parts' times (m_lastCreateSplit)
-    auto cms = [](CClock::time_point a, CClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
-    const auto ct0 = CClock::now();
-    m_adoptedDevice.clear();
-    if (opts.adoptKept) {   // L3 (41): the buffers below come from the kept set where one fits
-        auto it = m_kept.find(opts.adoptKept);
-        if (it != m_kept.end() && !particles) { m_adopting = &it->second; ++m_keptStats.adopted; }
-    }
     const VkDeviceSize F4 = sizeof(float);
-    bool ok = createBuffer(vol->f, vol->cells * F4, false, err) && createBuffer(vol->fLo, vol->cells * F4, false, err) && createBuffer(vol->fOrig, vol->cells * F4, false, err) && createBuffer(vol->fPrev, vol->cells * F4, false, err)
-           && createBuffer(vol->u, vol->nu * F4, false, err) && createBuffer(vol->v, vol->nv * F4, false, err) && createBuffer(vol->w, vol->nw * F4, false, err)
-           && createBuffer(vol->uOld, vol->nu * F4, false, err) && createBuffer(vol->vOld, vol->nv * F4, false, err) && createBuffer(vol->wOld, vol->nw * F4, false, err)
-           && createBuffer(vol->occ, vol->cells * 4, false, err) && createBuffer(vol->src, vol->cells * F4, false, err) && createBuffer(vol->liq, vol->cells * 4, false, err)
-           && createBuffer(vol->diag, vol->cells * F4, false, err) && createBuffer(vol->rhs, vol->cells * F4, false, err) && createBuffer(vol->p, vol->cells * F4, false, err) && createBuffer(vol->pg, vol->cells * F4, false, err) && createBuffer(vol->res, vol->cells * F4, false, err)
-           && createBuffer(vol->valA, vol->latticeMax * F4, false, err) && createBuffer(vol->valB, vol->latticeMax * F4, false, err)
-           && createBuffer(vol->knownA, vol->latticeMax * 4, false, err) && createBuffer(vol->knownB, vol->latticeMax * 4, false, err)
-           && createBuffer(vol->first, vol->latticeMax * 4, false, err) && createBuffer(vol->keep, vol->latticeMax * 4, false, err)
-           && createBuffer(vol->dropped, vol->columns * F4, false, err) && createBuffer(vol->part, vol->groups * 16, false, err) && createBuffer(vol->part2, vol->groups * 16, false, err)
-           && createBuffer(vol->out, kOutSlots * 16, false, err) && createBuffer(vol->sources, kMaxSources * sizeof(GpuSource), false, err)
-           && createBuffer(vol->surf, vol->columns * (32 + sizeof(Core::Water::SurfaceColumn)), false, err)    // Phase F: the surface field (G2: 64 B)
-           && createBuffer(vol->solid, vol->cells * 16, false, err)                                     // 20: (s, q, wake, ledger) per cell
-           && createBuffer(vol->births, vol->columns * 32, false, err) && createBuffer(vol->birthsPacked, vol->columns * 32, false, err) && createBuffer(vol->lists, 16, false, err)   // 21: droplets
-           && createBuffer(vol->bricks, vol->brickInts * 4, false, err)                                 // 26.6
-           && createBuffer(vol->momentum, kMaxMomentum * 32, true, err)                                  // 26.26: written by the host each call
-           && (!vol->bricked || createBuffer(vol->unitMap, std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16, false, err))   // 27.23 W1e
-           // 29 S1: the surface on the device - the dense field and its solid tops (wc_surface writes every volume's), the mesh (bricked)
-           && createBuffer(vol->surfDense, vol->dColumns * sizeof(Core::Water::SurfaceColumn), false, err) && createBuffer(vol->solidTopD, vol->dColumns * 4, false, err)
-           && createBuffer(vol->meshCorners, (vol->bricked ? vol->dColumns : 1) * 64, false, err) && createBuffer(vol->meshMeta, (vol->bricked ? vol->dColumns : 1) * 4, false, err)
-           && createBuffer(vol->meshList, (vol->bricked ? vol->dColumns * 4 : 1) * 4, false, err) && createBuffer(vol->meshArgs, 32, false, err)
-           && createBuffer(vol->meshArgsHost, 32, true, err)
-           && createBuffer(vol->colAgg, (vol->bricked ? static_cast<size_t>(vol->bn.x) * vol->bn.z : 1) * 8, false, err)   // 29 S2
-           && createBuffer(vol->motionRef, (vol->bricked ? vol->dColumns : 1) * 4, false, err) && createBuffer(vol->motionOut, 64, false, err)
-           && createBuffer(vol->motionOutHost, 64, true, err)
-           && createBuffer(vol->winReq, static_cast<VkDeviceSize>(DebrisShared::MAX_PRESSURE_WINDOWS) * sizeof(PressureWindowReq), true, err)   // 31
-           && (!vol->bricked || createBuffer(vol->surfUp, vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4), true, err));
-    vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
-    { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
     // staging: [f | u | v | w | occ | src | out | p | sources | surf | solid | births | bricks | particles] (51.11: - deposit)
     vol->offU = vol->cells * F4; vol->offV = vol->offU + vol->nu * F4; vol->offW = vol->offV + vol->nv * F4;
     vol->offOcc = vol->offW + vol->nw * F4; vol->offSrc = vol->offOcc + vol->cells * 4; vol->offOut = vol->offSrc + vol->cells * F4;
@@ -362,15 +328,94 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
     vol->offBirths = vol->offSolid + vol->cells * 16;
     vol->offBricks = vol->offBirths + vol->columns * 32;
     vol->offParticles = vol->offBricks + vol->brickInts * 4;
-    VkDeviceSize particleBytes = 0;
-    if (particles) {
-        vol->particleCapacity = particleCapacity > 0 ? particleCapacity : std::min<size_t>(FlipTransport::kMaxParticlesPerVolume, vol->cells * FlipTransport::kParticlesPerCell + 4096);
-        particleBytes = vol->particleCapacity * 32;
-        ok = ok && createBuffer(vol->posA, vol->particleCapacity * 16, false, err) && createBuffer(vol->velA, vol->particleCapacity * 16, false, err)
-                && createBuffer(vol->posB, vol->particleCapacity * 16, false, err) && createBuffer(vol->velB, vol->particleCapacity * 16, false, err)
-                && createBuffer(vol->pcount, vol->cells * 4, false, err) && createBuffer(vol->pstart, vol->cells * 4, false, err) && createBuffer(vol->pcursor, vol->cells * 4, false, err);
+    if (particles) vol->particleCapacity = particleCapacity > 0 ? particleCapacity : std::min<size_t>(FlipTransport::kMaxParticlesPerVolume, vol->cells * FlipTransport::kParticlesPerCell + 4096);
+    vol->meshListCap = vol->bricked ? static_cast<uint32_t>(vol->dColumns * 4) : 0u;
+    return true;
+}
+
+// 58.3: every buffer a volume of this layout asks for, in createVolume's order (beginKeptAlloc builds the same list ahead)
+std::vector<WaterCoreGpu::BufSpec> WaterCoreGpu::bufferSpecs(Volume* vol) const {
+    const VkDeviceSize F4 = sizeof(float);
+    std::vector<BufSpec> s;
+    s.push_back({&vol->f, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->fLo, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->fOrig, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->fPrev, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->u, static_cast<VkDeviceSize>(vol->nu * F4), false});
+    s.push_back({&vol->v, static_cast<VkDeviceSize>(vol->nv * F4), false});
+    s.push_back({&vol->w, static_cast<VkDeviceSize>(vol->nw * F4), false});
+    s.push_back({&vol->uOld, static_cast<VkDeviceSize>(vol->nu * F4), false});
+    s.push_back({&vol->vOld, static_cast<VkDeviceSize>(vol->nv * F4), false});
+    s.push_back({&vol->wOld, static_cast<VkDeviceSize>(vol->nw * F4), false});
+    s.push_back({&vol->occ, static_cast<VkDeviceSize>(vol->cells * 4), false});
+    s.push_back({&vol->src, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->liq, static_cast<VkDeviceSize>(vol->cells * 4), false});
+    s.push_back({&vol->diag, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->rhs, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->p, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->pg, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->res, static_cast<VkDeviceSize>(vol->cells * F4), false});
+    s.push_back({&vol->valA, static_cast<VkDeviceSize>(vol->latticeMax * F4), false});
+    s.push_back({&vol->valB, static_cast<VkDeviceSize>(vol->latticeMax * F4), false});
+    s.push_back({&vol->knownA, static_cast<VkDeviceSize>(vol->latticeMax * 4), false});
+    s.push_back({&vol->knownB, static_cast<VkDeviceSize>(vol->latticeMax * 4), false});
+    s.push_back({&vol->first, static_cast<VkDeviceSize>(vol->latticeMax * 4), false});
+    s.push_back({&vol->keep, static_cast<VkDeviceSize>(vol->latticeMax * 4), false});
+    s.push_back({&vol->dropped, static_cast<VkDeviceSize>(vol->columns * F4), false});
+    s.push_back({&vol->part, static_cast<VkDeviceSize>(vol->groups * 16), false});
+    s.push_back({&vol->part2, static_cast<VkDeviceSize>(vol->groups * 16), false});
+    s.push_back({&vol->out, static_cast<VkDeviceSize>(kOutSlots * 16), false});
+    s.push_back({&vol->sources, static_cast<VkDeviceSize>(kMaxSources * sizeof(GpuSource)), false});
+    s.push_back({&vol->surf, static_cast<VkDeviceSize>(vol->columns * (32 + sizeof(Core::Water::SurfaceColumn))), false});
+    s.push_back({&vol->solid, static_cast<VkDeviceSize>(vol->cells * 16), false});
+    s.push_back({&vol->births, static_cast<VkDeviceSize>(vol->columns * 32), false});
+    s.push_back({&vol->birthsPacked, static_cast<VkDeviceSize>(vol->columns * 32), false});
+    s.push_back({&vol->lists, static_cast<VkDeviceSize>(16), false});
+    s.push_back({&vol->bricks, static_cast<VkDeviceSize>(vol->brickInts * 4), false});
+    s.push_back({&vol->momentum, static_cast<VkDeviceSize>(kMaxMomentum * 32), true});
+    if (vol->bricked) s.push_back({&vol->unitMap, static_cast<VkDeviceSize>(std::max<size_t>(1, static_cast<size_t>(vol->bn.x) * vol->nuy * static_cast<size_t>(vol->bn.z)) * 16), false});
+    s.push_back({&vol->surfDense, static_cast<VkDeviceSize>(vol->dColumns * sizeof(Core::Water::SurfaceColumn)), false});
+    s.push_back({&vol->solidTopD, static_cast<VkDeviceSize>(vol->dColumns * 4), false});
+    s.push_back({&vol->meshCorners, static_cast<VkDeviceSize>((vol->bricked ? vol->dColumns : 1) * 64), false});
+    s.push_back({&vol->meshMeta, static_cast<VkDeviceSize>((vol->bricked ? vol->dColumns : 1) * 4), false});
+    s.push_back({&vol->meshList, static_cast<VkDeviceSize>((vol->bricked ? vol->dColumns * 4 : 1) * 4), false});
+    s.push_back({&vol->meshArgs, static_cast<VkDeviceSize>(32), false});
+    s.push_back({&vol->meshArgsHost, static_cast<VkDeviceSize>(32), true});
+    s.push_back({&vol->colAgg, static_cast<VkDeviceSize>((vol->bricked ? static_cast<size_t>(vol->bn.x) * vol->bn.z : 1) * 8), false});
+    s.push_back({&vol->motionRef, static_cast<VkDeviceSize>((vol->bricked ? vol->dColumns : 1) * 4), false});
+    s.push_back({&vol->motionOut, static_cast<VkDeviceSize>(64), false});
+    s.push_back({&vol->motionOutHost, static_cast<VkDeviceSize>(64), true});
+    s.push_back({&vol->winReq, static_cast<VkDeviceSize>(static_cast<VkDeviceSize>(DebrisShared::MAX_PRESSURE_WINDOWS) * sizeof(PressureWindowReq)), true});
+    if (vol->bricked) s.push_back({&vol->surfUp, static_cast<VkDeviceSize>(vol->dColumns * (sizeof(Core::Water::SurfaceColumn) + 4)), true});
+    if (vol->particles) {
+        s.push_back({&vol->posA, static_cast<VkDeviceSize>(vol->particleCapacity * 16), false});
+        s.push_back({&vol->velA, static_cast<VkDeviceSize>(vol->particleCapacity * 16), false});
+        s.push_back({&vol->posB, static_cast<VkDeviceSize>(vol->particleCapacity * 16), false});
+        s.push_back({&vol->velB, static_cast<VkDeviceSize>(vol->particleCapacity * 16), false});
+        s.push_back({&vol->pcount, static_cast<VkDeviceSize>(vol->cells * 4), false});
+        s.push_back({&vol->pstart, static_cast<VkDeviceSize>(vol->cells * 4), false});
+        s.push_back({&vol->pcursor, static_cast<VkDeviceSize>(vol->cells * 4), false});
     }
-    ok = ok && createBuffer(vol->staging, vol->offParticles + particleBytes, true, err);
+    s.push_back({&vol->staging, static_cast<VkDeviceSize>(vol->offParticles + (vol->particles ? vol->particleCapacity * 32 : 0)), true});
+    (void)F4;
+    return s;
+}
+
+WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::string* err, bool particles, size_t particleCapacity, const BrickOptions& opts) {
+    if (!ready()) { if (err) *err = "WaterCoreGpu not initialised"; return nullptr; }
+    auto vol = std::make_unique<Volume>();
+    if (!layoutVolume(vol.get(), spec, particles, particleCapacity, opts, err)) return nullptr;
+    using CClock = std::chrono::steady_clock;   // 39: the parts' times (m_lastCreateSplit)
+    auto cms = [](CClock::time_point a, CClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const auto ct0 = CClock::now();
+    m_adoptedDevice.clear();
+    if (opts.adoptKept) {   // L3 (41): the buffers below come from the kept set where one fits
+        auto it = m_kept.find(opts.adoptKept);
+        if (it != m_kept.end() && !particles) { m_adopting = &it->second; ++m_keptStats.adopted; }
+    }
+    bool ok = true;
+    for (const BufSpec& b : bufferSpecs(vol.get())) { ok = createBuffer(*b.buf, b.bytes, b.host, err); if (!ok) break; }
+    { static uint64_t s_serial = 0; vol->serial = ++s_serial; }
     if (m_adopting) {   // L3 (41): what the volume did not take is given up (freed by pumpRelease); the set is gone
         for (Buffer& b : m_adopting->bufs) m_releaseQueue.push_back(b);
         m_adopting = nullptr;
@@ -478,6 +523,70 @@ int WaterCoreGpu::keepVolume(Volume* vol) {
     return h;
 }
 
+int WaterCoreGpu::beginKeptAlloc(const GridSpec& spec, const BrickOptions& opts, std::string* err) {
+    if (!ready()) { if (err) *err = "WaterCoreGpu not initialised"; return 0; }
+    Volume tmp;   // the layout only (no device object): the sizes createVolume would ask for
+    if (!layoutVolume(&tmp, spec, false, 0, opts, err)) return 0;
+    PendingKept p;
+    p.set.slots = tmp.capacity;
+    for (const BufSpec& b : bufferSpecs(&tmp)) p.todo.push_back({b.bytes, b.host});
+    std::reverse(p.todo.begin(), p.todo.end());   // taken from the back, in createVolume's order
+    const int h = m_nextKept++;
+    m_keptPending.emplace(h, std::move(p));
+    return h;
+}
+
+int WaterCoreGpu::stepKeptAlloc(int handle, double budgetMs, std::string* err) {
+    auto it = m_keptPending.find(handle);
+    if (it == m_keptPending.end()) return m_kept.count(handle) ? 0 : -1;
+    using AClock = std::chrono::steady_clock;
+    const auto t0 = AClock::now();
+    auto spent = [&]() { return std::chrono::duration<double, std::milli>(AClock::now() - t0).count(); };
+    PendingKept& p = it->second;
+    bool any = false;
+    while (!p.todo.empty() && (!any || spent() < budgetMs)) {
+        Buffer b;
+        if (!createBuffer(b, p.todo.back().first, p.todo.back().second, err, false)) {   // host memory: cleared below, paced
+            for (Buffer& x : p.set.bufs) m_releaseQueue.push_back(x);
+            m_keptPending.erase(it);
+            return -1;
+        }
+        p.set.bufs.push_back(b); p.todo.pop_back(); any = true;
+    }
+    // host buffers cleared here too, 8 MB a slice - an adoption clears what is left in its frame (the staging alone is ~100 MB)
+    const VkDeviceSize kSlice = 8u << 20;
+    size_t dirty = 0;
+    for (Buffer& b : p.set.bufs) {
+        while (b.mapped && b.zeroed < b.made && spent() < budgetMs) {
+            const VkDeviceSize len = std::min(kSlice, b.made - b.zeroed);
+            std::memset(static_cast<char*>(b.mapped) + b.zeroed, 0, static_cast<size_t>(len));
+            b.zeroed += len;
+        }
+        if (b.mapped && b.zeroed < b.made) ++dirty;
+    }
+    const int left = static_cast<int>(p.todo.size() + dirty);
+    if (left == 0) { m_kept.emplace(handle, std::move(p.set)); m_keptPending.erase(it); ++m_keptStats.kept; }
+    return left;
+}
+
+int WaterCoreGpu::warmPipelineStep(std::string* err) {
+    int missing = 0;
+    bool built = false;
+    for (int k = 0; k < KernelCount; ++k) {
+        if (k >= FlipSort && k <= FlipG2p) continue;   // a fill volume's kernels only (createPipelines' rule)
+        if (!m_pipeSpare[k].empty()) continue;
+        if (built) { ++missing; continue; }
+        auto pipe = std::make_unique<Vulkan::ComputePipeline>();
+        if (!pipe->create(m_device, m_shaderDir + "/" + kKernelFiles[k], kKernelBindings[k], sizeof(WcPush), k == FlipP2g ? 3u : (k >= ExtrapU && k <= ExtrapW) ? 4u : 1u)) {
+            if (err) *err = std::string("failed to create pipeline ") + kKernelFiles[k]; return -1;
+        }
+        ++m_pipesBuilt;
+        m_pipeSpare[k].push_back(std::move(pipe));
+        built = true;
+    }
+    return missing;
+}
+
 unsigned long long WaterCoreGpu::keptHeldBytes(int handle) const {
     auto it = m_kept.find(handle);
     if (it == m_kept.end()) return 0;
@@ -492,6 +601,11 @@ size_t WaterCoreGpu::keptSlots(int handle) const {
 }
 
 void WaterCoreGpu::releaseKept(int handle) {
+    if (auto pit = m_keptPending.find(handle); pit != m_keptPending.end()) {   // 58.3: a set still being built - its buffers given back
+        for (Buffer& b : pit->second.set.bufs) m_releaseQueue.push_back(b);
+        m_keptPending.erase(pit);
+        return;
+    }
     auto it = m_kept.find(handle);
     if (it == m_kept.end()) return;
     for (Buffer& b : it->second.bufs) m_releaseQueue.push_back(b);

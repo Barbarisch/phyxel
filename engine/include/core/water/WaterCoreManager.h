@@ -22,6 +22,7 @@
 #include "core/water/RiverReach.h"         // 54.2 W5.2: the reach's edge columns
 #include "core/water/ShoreReach.h"         // 55.4 W6.2a: the shore band's follow search
 #include <unordered_map>
+#include <future>
 #include <map>
 #include <set>
 #include <glm/glm.hpp>
@@ -749,7 +750,8 @@ public:
     static inline bool s_patchPace = true;
     struct PatchPaceStats { long started = 0, live = 0, forced = 0, held = 0, applied = 0, empty = 0, refused = 0, cancelled = 0, stages = 0;
                             double maxStageMs = 0.0, lastJobMs = 0.0, maxFrameMs = 0.0; int maxStage = -1, lastFrames = 0, building = 0;
-                            double stageMaxMs[7] = {0, 0, 0, 0, 0, 0, 0}; long tilesWoken = 0; };   ///< stageMaxMs: 0 cpu, 1 occupancy rows, 2 gpu, 3 prepare, 4 submit, 5 adopt, 6 a tile / the pushes   ///< maxFrameMs: the most one frame's pump spent
+                            double stageMaxMs[7] = {0, 0, 0, 0, 0, 0, 0}; long tilesWoken = 0;
+                            long coldGrids = 0, coldSteps = 0, coldAdopted = 0; long stageFrames[7] = {0, 0, 0, 0, 0, 0, 0}; };   ///< stageFrames: frames a job began in each stage   ///< 58.3: the cold path - grids allocated on a worker, pipeline / buffer steps, kept sets adopted   ///< stageMaxMs: 0 cpu, 1 occupancy rows, 2 gpu, 3 prepare, 4 submit, 5 adopt, 6 a tile / the pushes   ///< maxFrameMs: the most one frame's pump spent
     PatchPaceStats patchPaceStats() const { PatchPaceStats s = m_patchPaced; s.building = static_cast<int>(m_patchJobs.size()); return s; }
     void resetPatchPaceStats() { m_patchPaced = PatchPaceStats{}; }
     std::vector<int> wakeSleptNear(const glm::vec3& centre, float radius);
@@ -783,6 +785,9 @@ public:
     /// out-of-memory, and at a world reset. Cost only: a patch on kept buffers is the same volume (the create zero-fills them).
     struct PatchSpare { bool on = true; };
     static inline PatchSpare s_patchSpare;
+    /// 58.3 item 1: TEST ONLY - a staged patch with no spare builds its grid, pipelines and buffers in one stage as before (the red:
+    /// the session's first patch, 30 ms in the GPU stage + 12 ms in the CPU stage, live)
+    static inline bool s_patchColdAtOnceForTest = false;
     /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
     static constexpr double kKeptFreeMsPerFrame = 1.0;
     /// L3 (41): the release rule run now (also run by update) - orphans, beyond memoryM, over the cap; then the paced free
@@ -1247,7 +1252,10 @@ private:
     struct PatchHeld { int kind = 0; glm::vec3 at{0.0f}, dir{0.0f}; float radius = 0.0f, speed = 0.0f, upBias = 0.0f; };   ///< 0 impulse, 1 radial
     struct PatchJob { glm::ivec3 parentLo{0}, parentHi{0}, lo{0}, hi{0}; SleptVolume sv; glm::vec3 centre{0.0f}; size_t slots = 0;
                       std::unique_ptr<Av> av; int id = 0, stage = 0, frames = 0; uint64_t dueTick = ~0ull; float top = 0.0f; double ms = 0.0;
-                      bool forced = false, listed = false, first = true, waiting = false; int occRow = 0; std::vector<PatchHeld> held; std::vector<std::pair<int, int>> toWake; };
+                      bool forced = false, listed = false, first = true, waiting = false; int occRow = 0; std::vector<PatchHeld> held; std::vector<std::pair<int, int>> toWake;
+                      // 58.3 item 1, the cold path (no spare): the host grid allocated on a worker, the pipelines and a kept set built a
+                      // few a stage before the GPU stage adopts them
+                      std::future<std::unique_ptr<WaterGrid>> gridAhead; bool pipesWarm = false; int coldKept = 0; };
     std::vector<PatchJob> m_patchJobs;
     PatchPaceStats m_patchPaced;
     void pumpPatchJobs(int mode = 0);   ///< 0 a frame's pump, 1 every job to live now, 2 due jobs only

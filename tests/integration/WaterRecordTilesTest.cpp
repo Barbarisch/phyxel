@@ -993,8 +993,10 @@ static std::vector<int> wakeNearLive(WaterCoreManager& mgr, const glm::vec3& c, 
     if (!ids.empty() || mgr.patchPaceStats().building == 0) return ids;
     std::set<int> before;
     for (const AvRecord& a : mgr.list()) before.insert(a.id);
+    // by wall time, not frames: a cold patch's stage 0 waits on a worker's grid (58.3) and a headless frame with nothing live is ~0.1 ms
     int k = 0;
-    for (; k < 240 && mgr.patchPaceStats().building > 0; ++k) { mgr.update(1.0f / 60.0f); if (fields) mgr.surfaceFields(); }
+    const auto t0 = std::chrono::steady_clock::now();
+    for (; mgr.patchPaceStats().building > 0 && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(10); ++k) { mgr.update(1.0f / 60.0f); if (fields) mgr.surfaceFields(); }
     if (frames) *frames = k;
     for (const AvRecord& a : mgr.list()) if (!before.count(a.id)) ids.push_back(a.id);
     return ids;
@@ -1500,7 +1502,9 @@ static HandoverRun runHandover(VkDevice device, VkPhysicalDevice pd, VkQueue que
             wasRetiring = false; o.differ = -1;
         }
         mgr.update(1.0f / 60.0f);
-        if (checkRetireNext) { o.rewokeFinished = rewakeStarted && mgr.retiringCount() == 0; checkRetireNext = false; }
+        // 58.3: checked when the new patch is built (live) - a cold build's first stage may wait on its worker grid for frames, and the
+        // rule (57.8) is that the retire is finished before the new patch reads the record
+        if (checkRetireNext && mgr.patchPaceStats().building == 0) { o.rewokeFinished = rewakeStarted && mgr.retiringCount() == 0; checkRetireNext = false; }
         mgr.surfaceFields();
         const long tb = mgr.recordDrawStats().sleepTilesBuilt;
         o.maxTiles = std::max(o.maxTiles, static_cast<int>(tb - tilesBefore)); tilesBefore = tb;
@@ -1554,7 +1558,7 @@ TEST_F(WaterRecordTilesTest, ASplashIntoARetiringPatchWakesItAtOnce) {
     std::printf("  splash while retiring: rewoke %d (retire finished at the wake %d) | sleeps %d | holes %d / doubles %d of %d frames | tiles vs fresh %ld | books %+.5f m^3\n",
                 int(t.rewoke), int(t.rewokeFinished), t.sleeps, t.holes, t.doubles, t.checked, t.differ, t.books);
     ASSERT_TRUE(t.rewoke) << "the rig never splashed into a retiring patch";
-    EXPECT_TRUE(t.rewokeFinished) << "T3: the retire not finished by the frame after the splash (before the new patch reads the record)";
+    EXPECT_TRUE(t.rewokeFinished) << "T3: the retire not finished when the new patch went live (it reads the record)";
     EXPECT_GE(t.sleeps, 2) << "T3: the second patch never returned";
     EXPECT_EQ(t.holes, 0); EXPECT_EQ(t.doubles, 0);
     EXPECT_EQ(t.differ, 0);
@@ -1572,9 +1576,12 @@ struct SpareRun { long allocFirst = -1, allocSecond = -1, adopted = 0, kept = 0,
                   int sleeps = 0; bool heldAfterLeave = true; std::map<std::pair<int, int>, double> cols; };
 static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool spareOn) {
     using M = WaterCoreManager;
-    struct Restore { M::RecordDraw d; float m; bool sp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; } }
+    struct Restore { M::RecordDraw d; float m; bool sp; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchSpare.on = sp; M::s_patchColdAtOnceForTest = false; } }
         restore{M::s_recordDraw, M::s_locality.drawM, M::s_patchSpare.on};
     M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchSpare.on = spareOn;
+    // 58.3: the spare-off runs are this test's old-path controls - the cold part built at once as before (the cold path built over
+    // frames would take the grid on a worker and the buffers ahead, and the controls would no longer see the allocation)
+    M::s_patchColdAtOnceForTest = !spareOn;
     SpareRun o;
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
@@ -1611,7 +1618,8 @@ static SpareRun runSpare(VkDevice device, VkPhysicalDevice pd, VkQueue queue, ui
         }
     }
     const auto km = mgr.keptMemoryStats();
-    o.adopted = km.patchSpareAdopted; o.kept = km.patchSpareKept; o.gridAdopted = km.gridSpareAdopted;
+    // 58.3: a cold patch's grid made on a worker is adopted through the same spare slot - counted out, so this is the LAST patch's grid
+    o.adopted = km.patchSpareAdopted; o.kept = km.patchSpareKept; o.gridAdopted = km.gridSpareAdopted - mgr.patchPaceStats().coldGrids;
     o.books = record.total() + mgr.totalMass() - placed;
     for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
     mgr.setViewPoint(glm::vec3(5000.0f, 10.0f, 5000.0f));   // S4: the viewer leaves
@@ -1783,6 +1791,97 @@ TEST_F(WaterRecordTilesTest, ASleepReadsOnlyItsTilesStillInCells) {
     EXPECT_EQ(d, 0.0) << "the record differs from the old read's";
     EXPECT_LT(std::abs(now.books), 1e-3);
     EXPECT_EQ(now.holes, 0); EXPECT_EQ(now.doubles, 0);
+}
+
+// 58.3 item 1 - the session's FIRST patch (no spare: no kept buffers, no spare pipelines, no spare grid). Live (Creek, 2026-11-21)
+// its staged GPU stage was 30.1 ms (every buffer allocated, 24 pipelines built) and `create.0 grid` 11.9 ms. Now the cold path is
+// built ahead over frames: the grid on a worker, the pipelines one a step, the buffers a few a step into a kept set the create then
+// adopts. A fresh manager (cold), a 60 m lake 2 m deep in the record, a push at its centre, the live path. Predictions (counts, not
+// times - the machine had another GPU program running when written): C1 the create adopts every buffer it asks for (adopted >= 50,
+// allocated in it 0) and reuses every pipeline; C2 the cold work spread (>= 24 pipeline steps + buffer steps, over >= 3 frames);
+// C3 0 holes / 0 doubles over the box for 60 frames, the push applied once, books exact; the record after the return identical to
+// the at-once path's. RED: s_patchColdAtOnceForTest (adopted 0, pipelines reused 0). Also printed: the worst pump frame (timing).
+struct ColdRun { long adopted = 0, allocInCreate = 0, steps = 0, grids = 0, coldAdopted = 0, applied = 0; int pipes = 0, reused = 0, framesToLive = 0, holes = 0, doubles = 0, sleeps = 0;
+                 double maxFrameMs = 0.0, books = 0.0, msToLive = 0.0; std::map<std::pair<int, int>, double> cols; };
+static ColdRun runColdPatch(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, bool atOnce) {
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; M::s_patchColdAtOnceForTest = false; } } restore{M::s_recordDraw, M::s_locality.drawM};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f; M::s_patchColdAtOnceForTest = atOnce;
+    ColdRun o;
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
+    std::string err;
+    if (!mgr.initGpu(device, pd, queue, qf, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+    const double placed = record.total();
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    if (!mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump())) { ADD_FAILURE() << "loadSlept"; return o; }
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    mgr.resetPatchPaceStats();
+    const long adopted0 = mgr.keptMemoryStats().buffersAdopted;
+    std::vector<glm::vec2> pts;
+    for (int z = 6; z <= 54; z += 2) for (int x = 6; x <= 54; x += 2) pts.push_back({x + 0.55f, z + 0.55f});
+    const auto tw = std::chrono::steady_clock::now();
+    mgr.wakeSleptNear(c, 2.0f);
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    bool live = false, wasLive = false; int after = -1;
+    for (int k = 0; k < 60 * 90 && after < 60; ++k) {
+        mgr.update(1.0f / 60.0f); mgr.surfaceFields();
+        const bool any = !mgr.list().empty();
+        if (any && !live) {
+            live = true; o.framesToLive = k + 1;
+            o.msToLive = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tw).count();
+            o.adopted = mgr.keptMemoryStats().buffersAdopted - adopted0;
+            const auto cs = mgr.gpuCreateSplitForTest(); o.pipes = cs.pipelines; o.reused = cs.pipelinesReused;
+        }
+        if (wasLive && !any) ++o.sleeps;
+        wasLive = any;
+        if (k < 60) {
+            int miss = 0, twice = 0;
+            for (const glm::vec2& p : pts) { const int n = mgr.drawnClaimsAtWorld(p.x, p.y); if (n == 0) ++miss; else if (n > 1) ++twice; }
+            if (miss) ++o.holes;
+            if (twice) ++o.doubles;
+        }
+        if (live && !any && mgr.retiringCount() == 0) ++after;
+    }
+    const auto ps = mgr.patchPaceStats();
+    o.steps = ps.coldSteps; o.grids = ps.coldGrids; o.coldAdopted = ps.coldAdopted; o.applied = ps.applied; o.maxFrameMs = ps.maxFrameMs;
+    std::printf("    stages' worst (ms): cpu %.2f occ %.2f gpu %.2f prepare %.2f submit %.2f adopt %.2f tile %.2f | kept held %.0f MB\n", ps.stageMaxMs[0], ps.stageMaxMs[1], ps.stageMaxMs[2],
+                ps.stageMaxMs[3], ps.stageMaxMs[4], ps.stageMaxMs[5], ps.stageMaxMs[6], mgr.keptMemoryStats().heldBytes / 1048576.0);
+    std::printf("    frames begun in each stage: %ld %ld %ld %ld %ld %ld %ld\n", ps.stageFrames[0], ps.stageFrames[1], ps.stageFrames[2], ps.stageFrames[3], ps.stageFrames[4], ps.stageFrames[5], ps.stageFrames[6]);
+    o.books = record.total() + mgr.totalMass() - placed;
+    for (const auto& [k, v] : record.cols) { double m = 0.0; for (const auto& r : v) m += static_cast<double>(r.topY - r.bottomY); o.cols[k] = m; }
+    return o;
+}
+
+TEST_F(WaterRecordTilesTest, TheFirstPatchOfASessionBuildsItsBuffersOverFrames) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const ColdRun now = runColdPatch(device, physicalDevice, queue, queueFamilyIndex, false);
+    const ColdRun red = runColdPatch(device, physicalDevice, queue, queueFamilyIndex, true);
+    double d = 0.0;
+    for (const auto& [k, m] : now.cols) { auto it = red.cols.find(k); d = std::max(d, std::abs(m - (it == red.cols.end() ? 0.0 : it->second))); }
+    for (const ColdRun* r : {&now, &red})
+        std::printf("  %-26s live in %d frames, %.1f ms | the create: %ld buffers adopted, pipelines %d (%d reused) | cold steps %ld, grids on a worker %ld, sets adopted %ld | worst pump frame %.2f ms | held push applied %ld | holes %d doubles %d | sleeps %d | books %+.6f\n",
+                    r == &now ? "built over frames" : "RED: all in the GPU stage", r->framesToLive, r->msToLive, r->adopted, r->pipes, r->reused, r->steps, r->grids, r->coldAdopted, r->maxFrameMs, r->applied, r->holes, r->doubles, r->sleeps, r->books);
+    std::printf("  the record after the return, column by column: built over frames vs at once %.8f m\n", d);
+    ASSERT_GE(now.sleeps, 1); ASSERT_GE(red.sleeps, 1);
+    EXPECT_GE(now.adopted, 50) << "C1: the create allocated buffers itself";
+    EXPECT_EQ(now.reused, now.pipes) << "C1: the create built pipelines itself";
+    EXPECT_EQ(now.coldAdopted, 1); EXPECT_EQ(now.grids, 1);
+    EXPECT_GE(now.steps, 25) << "C2: the cold work was not spread";
+    EXPECT_EQ(now.holes, 0); EXPECT_EQ(now.doubles, 0); EXPECT_EQ(now.applied, 1);
+    EXPECT_LT(std::abs(now.books), 1e-3);
+    EXPECT_LE(d, 1e-4) << "C3: the record differs from the at-once path's";
+    EXPECT_EQ(red.adopted, 0) << "RED: the at-once path adopted buffers";
+    EXPECT_EQ(red.reused, 0) << "RED: the at-once path reused pipelines (the metric cannot tell)";
 }
 
 TEST_F(WaterRecordTilesTest, ASecondPatchTakesTheFirstPatchsBuffers) {

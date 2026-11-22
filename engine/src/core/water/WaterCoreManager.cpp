@@ -2160,6 +2160,7 @@ void WaterCoreManager::patchSettle(Av& av, const SleptVolume& sv, const glm::vec
 }
 
 void WaterCoreManager::endPatchJob(PatchJob& j) {
+    if (j.coldKept && m_gpu) { m_gpu->releaseKept(j.coldKept); j.coldKept = 0; }   // 58.3: a set built (or building) ahead, given back
     if (j.av && j.av->gpuVol && m_gpu) { m_gpu->destroyVolume(j.av->gpuVol); j.av->gpuVol = nullptr; }
     j.av.reset();
 }
@@ -2181,13 +2182,27 @@ bool WaterCoreManager::runPatchStage(PatchJob& j) {
     const std::string transport = j.sv.transport.empty() ? "eulerian" : j.sv.transport, backend = j.sv.backend.empty() ? "auto" : j.sv.backend;
     auto refuse = [&]() { ++m_patchPaced.refused; ++m_sleptWake.refused; m_sleptWake.lastError = err; endPatchJob(j); return false; };
     switch (j.stage) {
-    case 0:   // create's CPU part: the grid (the last patch's, when its dims fit), the solver - the occupancy read is the next stage's
-        m_createKeepsSlept = true; m_gridForCreate = s_patchSpare.on; m_createSkipsOccupancy = true;
+    case 0: {  // create's CPU part: the grid (the last patch's, when its dims fit), the solver - the occupancy read is the next stage's
+        // 58.3 item 1, the cold path: no spare grid of these dims - one allocated on a worker (12 ms on the session's first patch, live)
+        // and taken as the spare once ready; this stage waits for it
+        float h = 1.0f;
+        if (!s_patchColdAtOnceForTest && snapCellSize(j.sv.cellSize, &h)) {
+            const int per = static_cast<int>(std::lround(1.0f / h));
+            const GridSpec gs{j.lo * per, (j.hi - j.lo + glm::ivec3(1)) * per, h};
+            const bool fits = m_gridSpare && m_gridSpare->spec().dims == gs.dims && m_gridSpare->spec().h == gs.h;
+            if (!fits) {
+                if (!j.gridAhead.valid()) { j.gridAhead = std::async(std::launch::async, [gs]() { return std::make_unique<WaterGrid>(gs); }); ++m_patchPaced.coldGrids; }
+                if (j.gridAhead.wait_for(std::chrono::seconds(0)) != std::future_status::ready) { j.waiting = true; return true; }
+                m_gridSpare = j.gridAhead.get(); m_gridSpareClear = true; m_gridSpareCursor = 0;   // new: all zero
+            }
+        }
+        m_createKeepsSlept = true; m_gridForCreate = s_patchSpare.on || !s_patchColdAtOnceForTest; m_createSkipsOccupancy = true;
         j.av = buildCpu(j.lo, j.hi, j.sv.cellSize, transport, &err, backend, j.sv.sweeps, 0, -1, true);
         m_gridForCreate = false; m_createKeepsSlept = false; m_createSkipsOccupancy = false;
         if (!j.av) return refuse();
         if (m_revision) j.av->occRevision = m_revision();   // read from here: a change during the read is re-read after adopt (refreshOccupancy)
         break;
+    }
     case 1: {   // the occupancy read, kPatchOccRowsPerStage cube rows a stage (the whole 60 m box was 7-13 ms in one)
         const int rows = occupancyRows(*j.av), r1 = std::min(rows, j.occRow + kPatchOccRowsPerStage);
         readOccupancyRows(*j.av, j.occRow, r1);
@@ -2197,9 +2212,36 @@ bool WaterCoreManager::runPatchStage(PatchJob& j) {
         break;
     }
     case 2: {   // the GPU volume, on the last patch's buffers where they are kept (D9's spare); its upload left to the next stages
+        // 58.3 item 1, the cold path: no spare - the pipelines built one a step and the buffers a few a step into a kept set first
+        // (the session's first patch built them all here in one frame: 30 ms, live), then adopted below like a spare
+        if (!(m_patchSpare && s_patchSpare.on) && m_gpu && !s_patchColdAtOnceForTest) {
+            if (!j.pipesWarm) {
+                const int missing = m_gpu->warmPipelineStep(&err);
+                if (missing < 0) return refuse();
+                ++m_patchPaced.coldSteps;
+                if (missing > 0) return true;
+                j.pipesWarm = true;
+                return true;
+            }
+            if (!j.coldKept) {
+                BrickOptions bo{j.av->transport != "flip", 0, false, j.av->brickHeightReq, j.av->groundBricksReq};
+                bo.initialSlots = j.slots;
+                j.coldKept = m_gpu->beginKeptAlloc(j.av->grid->spec(), bo, &err);
+                if (!j.coldKept) return refuse();
+                return true;
+            }
+            const int left = m_gpu->stepKeptAlloc(j.coldKept, 1.0, &err);
+            ++m_patchPaced.coldSteps;
+            if (left < 0) { j.coldKept = 0; return refuse(); }
+            if (left > 0) return true;
+        }
         m_keptMem.lastPatchAdopted = false;
         size_t slots = j.slots;
-        if (m_patchSpare && s_patchSpare.on && m_gpu) {
+        if (j.coldKept && m_gpu) {   // 58.3: the set built ahead - every buffer of this create
+            m_adoptForCreate = j.coldKept; j.coldKept = 0;
+            ++m_patchPaced.coldAdopted;
+            if (slots) slots = std::max(slots, m_gpu->keptSlots(m_adoptForCreate));
+        } else if (m_patchSpare && s_patchSpare.on && m_gpu) {
             m_adoptForCreate = m_patchSpare; m_patchSpare = 0;
             m_keptMem.lastPatchAdopted = true; ++m_keptMem.patchSpareAdopted;
             if (slots) slots = std::max(slots, m_gpu->keptSlots(m_adoptForCreate));
@@ -2291,7 +2333,7 @@ void WaterCoreManager::pumpPatchJobs(int mode) {
         const bool due = mode == 1 || m_physTicks >= j.dueTick;
         if (mode == 2 && !due) { ++k; continue; }
         if (due) j.forced = true;
-        if (mode == 0) ++j.frames;
+        if (mode == 0) { ++j.frames; ++m_patchPaced.stageFrames[std::min(j.stage, 6)]; }
         bool alive = true;
         while (alive && (due || !ranOne || std::chrono::duration<double, std::milli>(JClock::now() - t0).count() < s_wakeBudgetMs)) {
             const auto ts = JClock::now();
