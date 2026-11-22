@@ -99,3 +99,29 @@ F7.2 RESULTS (2026-11-21; the prediction above untouched). Release, CPU. Evidenc
   through ChunkManager's cube calls).
 CONCLUSION: the world can be generated into the new store -- terrain, flora, and a realized building -- and the
 engine's consumers read it. Next F7.3: drawing it behind a switch.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.3 PREDICTION -- drawing behind a switch, with the pixel-diff gate (plan section 7 step 3; 2026-11-21, before code).
+CONTROL: F2.19 (2026-11-15) -- the VoxFoundGate scene (game.json: WorldGenerator Perlin s7, flora, static chunks x
+254..257, y 0..1, z 2..5); A = today's store; B = the same chunks at 1/8 m by /api/debug/voxfound_preview region, today's
+world hidden ({"hide_world":true,"show_preview":true}). B was faster at all 5 poses (-2.1 .. -9.4 ms); pixels today vs
+new 46-68 % differ, every residual traced to content (leaves: cards vs sprigs, 1/9 vs 1/8 m templates, 1/8 m ground
+steps). That B is a debug A/B: the engine's reads still answer from today's chunks. Re-run first: the A/B pixel diff at
+the 5 poses on today's build (the control for this step).
+THE CHANGE: the switch -- voxfound_preview {"world_switch":true|false}. On: today's world hidden, the region drawn, AND
+ChunkManager's four reads routed to the region's own BlockStores (F7.1's WorldReads over RegionEdit's chunk stores:
+RegionEdit::chunkStore / chunkCoords, new) -- what is drawn is what the engine reads. Off: both back. A default switch
+(game.json) is F7's exit, not this step. NOT moved by it (stated): physics occupancy (queryAABB -- the character still
+stands on today's hidden chunks), light occupancy (stateAtMicro / phxOccupancySolid), every other chunkMap walker.
+  D1: the switch draws exactly F2.19's B: switch on vs {"hide_world":true,"show_preview":true} at the 5 poses -> 0 px
+      differ (debug tonemap, wind 0, GI off); switch on vs on again: 0 px (the control).
+  D2: the gate (section 4.3): A (switch off) vs B (switch on) at the 5 poses: % px differing > 8/255 recorded, predicted
+      within F2.19's 46-68 % +- 5 points at each pose (same content, same renderer); no new cause.
+  D3: the reads follow the switch: for 4,096 sampled world cubes in the region, ChunkManager::getVoxelTypeAt equals the
+      region store's rule (RegionEdit::voxelAt over the cube's 512 voxels) with the switch on, and today's chunks'
+      answer with it off (they differ somewhere: 1/9 vs 1/8 m content).
+  D4: a consumer, live: with the switch on, NPCManager::buildNavGrid (via a debug route) builds over the region's chunks
+      and a path exists between two stated ground points 20+ m apart; with it off, the nav is today's.
+  D5: cost: the switch's whole frame at the 5 poses equals F2.19's B within its CIs' width +- 0.5 ms (reads add CPU
+      only on queries) -- 8 pairs x 240 GPU frames, perf_harness, a free GPU.
+RED: a stub switch (it hides the world, does not route): D3 fails (the reads answer from today's chunks).
