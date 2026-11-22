@@ -450,3 +450,27 @@ VoxelInteractionSystem (edit_action) and the preview edit API.
 CONCLUSION: the switched world has undo / redo through the engine's /api/undo and /api/redo (and the MCP tools), exact
 per chunk store, at the cost of an edit. Next F7.6c: the voxel API (place / remove / fill / query in voxel coordinates;
 cube and subcube as brush sizes) on the switched world -- its edits then record here too.
+
+---------------------------------------------------------------------------------------------------------------------
+F7.6c PREDICTION -- the voxel API on the switched world (plan section 7 step 6: "the voxel API (JSON in voxel
+coordinates; cube and subcube become brush sizes)", section 12: the API's shape stays; 2026-11-22, before any code).
+CONTROL: with the switch on, POST /api/world/voxel (place_voxel), /api/world/voxel/remove, /api/world/subcube,
+fill_region and clear_region edit TODAY's hidden chunks; the region (what is drawn, read and simulated) does not change.
+Re-run first on the current editor: place a Stone cube in open air over the hit column -> the region's store hashes
+unchanged, today's GET /api/world/voxel there reports the cube.
+THE CHANGE: with the switch on those actions route to the region edit path (handleVoxFoundEdit, so F7.6b records each
+one for undo). Units: the same JSON; x/y/z stay metres (today's cube coordinates) by default -> a cube is the size-8
+brush at x*8; a subcube (sx, sy, sz in thirds) the size-2 brush at x*8 + floor((s+0.5)*8/3) (F7.4's mapping);
+"units":"voxel" takes 1/8 m voxel coordinates and an optional "size" (1|2|4|8). fill_region keeps hollow (a shell one
+cube -- or one voxel in voxel units -- thick) and replace (false = only air voxels change); clear_region = air.
+GET /api/world/voxel answers from the region (solid voxels of the 8^3 block, the most common material). Not routed
+(stated): place_voxels_batch, copy / paste / snapshots by name -- later or with F7.7.
+  A1: place_voxel (Stone) on air above the ground -> voxels_changed 512, the region's column top rises by one cube, the
+      GET query reports Stone with 512 solid voxels; remove_voxel -> 512 back to air; today's chunks untouched (with
+      the switch off GET answers as before the edits).
+  A2: fill_region 4x3x4 cubes of air with Stone -> 24,576 voxels; the same box hollow (replace:true, after clearing)
+      -> 22,528 (48 - 4 interior cubes) x 512; replace:false over a box cutting the terrain changes exactly its air
+      voxels (= 24,576 - the box's solid voxels counted before); clear_region -> every cube of the box reports 0 solid.
+  A3: voxel units: place size 1 -> 1 voxel; size 2 -> 8; place_subcube -> 8 voxels inside the cube's expected 2^3 cell.
+  A4: every routed call is one undo entry: undoing all of them in order returns the 32 store hashes to the start.
+RED: api_stub (routing off) -> the control's behaviour (region unchanged).
