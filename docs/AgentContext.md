@@ -680,7 +680,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       frame), assemble keeps the drawn LOD. MISSED ~200 ms per chunk refresh (recorded lever). Levels 4-7 owed.
       F7.8 done: physics occupancy from the switched region (storeBoxes + grid overrides): characters / CPU bodies
       collide with what is drawn (4,000/4,000 probes; pit, pillar, live edits).
-      NEXT: F7.7 (delete the old cube / subcube / microcube paths), then F7's exit (the default switch, the suite).
+      F7.9a done: generation 1.4 -> 9.6 chunks/s (4 workers, exact); sprint budget 15/s MISSED (levers recorded).
+      NEXT: F7.9b (the switched world streams around the player), then F7.7 (delete the old paths), then F7's exit.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

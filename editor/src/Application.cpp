@@ -15153,7 +15153,12 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                                 lo, hi, onChunk, &stored, &convErr);
         if (!convErr.empty() && err.empty()) err = convErr;
     } else {
-        rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr, onChunk, bounded ? &window : nullptr);
+        // F7.9a: {"gen_threads":n} chunk areas on n worker threads (default 4; 1 = the old serial path);
+        // {"gen_legacy":true} the per-voxel material lookup (the reference) -- both A/B knobs
+        setTerrainLegacy(cmd.params.value("gen_legacy", false));
+        rb = forEachRegionChunk(gen, lo, hi, flora ? &floraDir : nullptr, onChunk, bounded ? &window : nullptr,
+                                std::clamp(cmd.params.value("gen_threads", 4), 1, 32));   // 4: measured fastest (F7.9a)
+        setTerrainLegacy(false);
     }
     if (!err.empty()) {
         response = {{"error", err}};

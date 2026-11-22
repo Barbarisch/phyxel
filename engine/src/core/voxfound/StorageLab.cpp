@@ -1,5 +1,10 @@
 // docs/VoxelFoundationPlan.md §3 + §8 — storage lab (F0 skeleton). See StorageLab.h.
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 #include "core/voxfound/StorageLab.h"
 
 #include <array>
@@ -21,7 +26,12 @@
 
 namespace Phyxel::Core::VoxFound {
 
-VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
+namespace {
+std::atomic<bool> g_terrainLegacy{false};   // F7.9a
+}
+void setTerrainLegacy(bool on) { g_terrainLegacy = on; }
+
+VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
     VoxelArea a;
     a.originVoxel = o * kVoxelsPerM;
     a.grid.resize(sz * kVoxelsPerM);
@@ -79,6 +89,83 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
                 WorldGenerator::ColumnSample cc = c;
                 cc.surfaceY = surfaceMetre;
                 a.grid.set({vx, vy, vz}, idOf(gen.columnMaterialAt(my, cc)));
+            }
+        }
+    }
+    return a;
+}
+
+VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
+    if (g_terrainLegacy.load()) return buildTerrainAreaReference(gen, o, sz);   // F7.9a A/B
+    VoxelArea a;
+    a.originVoxel = o * kVoxelsPerM;
+    a.grid.resize(sz * kVoxelsPerM);
+    a.palette = {"air"};
+    std::map<std::string, uint8_t> ids;
+    auto idOf = [&](const std::string& name) -> uint8_t {
+        auto it = ids.find(name);
+        if (it != ids.end()) return it->second;
+        const uint8_t id = uint8_t(a.palette.size());
+        a.palette.push_back(name);
+        ids.emplace(name, id);
+        return id;
+    };
+
+    // Metre samples with a one-column margin for the bilinear interpolation.
+    const int nx = sz.x + 2, nz = sz.z + 2;
+    std::vector<WorldGenerator::ColumnSample> cols(size_t(nx) * size_t(nz));
+    for (int i = 0; i < nx; ++i)
+        for (int k = 0; k < nz; ++k) cols[size_t(i) * nz + k] = gen.sampleSurface(o.x - 1 + i, o.z - 1 + k);
+    auto col = [&](int i, int k) -> const WorldGenerator::ColumnSample& { return cols[size_t(i + 1) * nz + (k + 1)]; };
+
+    // The continuous ground: bedHeight is where today's cube terrain rounds from (surfaceY = floor(bedHeight),
+    // solid up to surfaceY + 1, i.e. on average bedHeight + 0.5). At 1/8 m the voxel whose centre lies below
+    // bedHeight + 0.5 is solid: the same mean ground level as today, followed at 1/8 m steps instead of 1 m steps
+    // (at a column centre it is within half a metre of today's cube top). Between metre column centres
+    // (m + 0.5) the height is bilinear. Road grading (which moves surfaceY, not bedHeight) is not reproduced.
+    const glm::ivec3 d = a.grid.dim;
+    std::unordered_map<uint64_t, std::vector<int16_t>> metreCache;   // F7.9a
+    for (int vx = 0; vx < d.x; ++vx) {
+        const float wx = float(o.x) + (vx + 0.5f) / kVoxelsPerM;
+        const float fx = wx - 0.5f - float(o.x);
+        const int ix = int(std::floor(fx));
+        const float tx = fx - float(ix);
+        for (int vz = 0; vz < d.z; ++vz) {
+            const float wz = float(o.z) + (vz + 0.5f) / kVoxelsPerM;
+            const float fz = wz - 0.5f - float(o.z);
+            const int iz = int(std::floor(fz));
+            const float tz = fz - float(iz);
+            const float h00 = col(ix, iz).bedHeight, h10 = col(ix + 1, iz).bedHeight;
+            const float h01 = col(ix, iz + 1).bedHeight, h11 = col(ix + 1, iz + 1).bedHeight;
+            const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+            const int ixm = int(std::floor(wx)) - o.x, izm = int(std::floor(wz)) - o.z;
+            const auto& c = col(ixm, izm);  // materials: own metre
+            // Material layers count whole metres down from the metre that holds the column's TOP voxel (the last
+            // centre below h + 0.5), so the top voxel is always the surface material, as today's top cube is, and
+            // the layer boundaries stay on metre planes (block-aligned). F2.19: counting from floor(h + 0.5)
+            // instead put the top voxels at depth 1 (Dirt) wherever the ground had just crossed a whole metre --
+            // dirt stripes along every contour line.
+            int topAbs = int(std::floor((h + 0.5f) * kVoxelsPerM - 0.5f));  // absolute voxel index, then exact
+            while ((float(topAbs) + 0.5f) / kVoxelsPerM >= h + 0.5f) --topAbs;
+            while ((float(topAbs + 1) + 0.5f) / kVoxelsPerM < h + 0.5f) ++topAbs;
+            const int surfaceMetre = int(std::floor((float(topAbs) + 0.5f) / kVoxelsPerM));
+            // F7.9a: the generator's material is a function of (metre column, surface metre, metre): looked up once
+            // per key and kept (was one string + map lookup per voxel)
+            const uint64_t key = (uint64_t(uint32_t(ixm + 1)) << 40) | (uint64_t(uint32_t(izm + 1)) << 20) |
+                                 uint64_t(uint32_t(surfaceMetre - o.y + 65536) & 0xFFFFFu);
+            std::vector<int16_t>& mats = metreCache[key];
+            if (mats.empty()) mats.assign(size_t(sz.y) + 1, int16_t(-1));
+            for (int vy = 0; vy < d.y; ++vy) {
+                const float wy = float(o.y) + (vy + 0.5f) / kVoxelsPerM;
+                if (wy >= h + 0.5f) break;
+                const int my = int(std::floor(wy));
+                int16_t& id = mats[size_t(my - o.y)];
+                if (id < 0) {
+                    WorldGenerator::ColumnSample cc = c;
+                    cc.surfaceY = surfaceMetre;
+                    id = int16_t(idOf(gen.columnMaterialAt(my, cc)));
+                }
+                a.grid.set({vx, vy, vz}, uint8_t(id));
             }
         }
     }
@@ -214,18 +301,91 @@ FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string&
 RegionBuild forEachRegionChunk(
     WorldGenerator& gen, glm::ivec3 lo, glm::ivec3 hi, const std::string* floraDir,
     const std::function<void(const RegionChunk&, const std::vector<std::string>& palette)>& each,
-    const glm::ivec4* plantWindow) {
+    const glm::ivec4* plantWindow, int threads) {
     RegionBuild rb;
     std::map<std::string, uint8_t> ids{{"air", 0}};
     const glm::ivec3 inner(kChunkM * kVoxelsPerM);
+    std::vector<glm::ivec3> order;
     for (int cx = lo.x; cx <= hi.x; ++cx)
         for (int cy = lo.y; cy <= hi.y; ++cy)
-            for (int cz = lo.z; cz <= hi.z; ++cz) {
-                const glm::ivec3 c(cx, cy, cz);
-                // the chunk plus a 1 m margin: the margin's inner voxel layer is the chunk's border
-                VoxelArea a = buildTerrainArea(gen, c * kChunkM - 1, glm::ivec3(kChunkM + 2));
+            for (int cz = lo.z; cz <= hi.z; ++cz) order.push_back({cx, cy, cz});
+    // F7.9a: chunk areas (terrain + flora) on worker threads, one generator copy each (ChunkStreamingManager's
+    // pattern), consumed here in order; at most 2 x threads areas in flight (~80 MB each)
+    struct Slot {
+        bool ready = false;
+        VoxelArea area;
+        FloraStampStats flora;
+        VoxelGrid grid;      // F7.9a: the chunk cut and its border, made on the worker (palette-independent)
+        Neighbours border;
+        std::string error;
+    };
+    const int nThreads = std::clamp(threads, 1, 32);
+    std::vector<Slot> slots(order.size());
+    std::mutex mu;
+    std::condition_variable cv;
+    size_t consumed = 0;
+    std::atomic<size_t> next{0};
+    std::atomic<bool> stop{false};
+    const size_t inFlight = size_t(nThreads) * 2;
+    auto produce = [&](WorldGenerator& g, size_t k) {
+        Slot s;
+        try {
+            s.area = buildTerrainArea(g, order[k] * kChunkM - 1, glm::ivec3(kChunkM + 2));
+            if (floraDir) s.flora = stampFlora(s.area, g, *floraDir, 24, plantWindow);
+            const glm::ivec3 off(kVoxelsPerM);
+            s.grid = subGrid(s.area.grid, off, inner);
+            s.border = neighboursOf(s.area.grid, off, inner, Outside::Air);  // the margin covers every border voxel
+        } catch (const std::exception& e) {
+            s.error = e.what();
+        }
+        s.ready = true;
+        return s;
+    };
+    std::vector<std::thread> workers;
+    if (nThreads > 1)
+        for (int t = 0; t < nThreads; ++t)
+            workers.emplace_back([&, gcopy = std::make_shared<WorldGenerator>(gen)]() mutable {
+                for (;;) {
+                    const size_t k = next.fetch_add(1);
+                    if (k >= order.size() || stop) return;
+                    {
+                        std::unique_lock<std::mutex> lk(mu);
+                        cv.wait(lk, [&] { return stop || k < consumed + inFlight; });
+                        if (stop) return;
+                    }
+                    Slot s = produce(*gcopy, k);
+                    {
+                        std::lock_guard<std::mutex> lk(mu);
+                        slots[k] = std::move(s);
+                    }
+                    cv.notify_all();
+                }
+            });
+    struct Joiner {
+        std::vector<std::thread>& w;
+        std::atomic<bool>& stop;
+        std::condition_variable& cv;
+        ~Joiner() {
+            stop = true;
+            cv.notify_all();
+            for (auto& t : w) t.join();
+        }
+    } joiner{workers, stop, cv};
+    for (size_t k = 0; k < order.size(); ++k) {
+                const glm::ivec3 c = order[k];
+                Slot s;
+                if (nThreads > 1) {
+                    std::unique_lock<std::mutex> lk(mu);
+                    cv.wait(lk, [&] { return slots[k].ready; });
+                    s = std::move(slots[k]);
+                    slots[k] = Slot{};
+                } else {
+                    s = produce(gen, k);
+                }
+                if (!s.error.empty()) throw std::runtime_error(s.error);
+                VoxelArea& a = s.area;
                 if (floraDir) {
-                    const FloraStampStats f = stampFlora(a, gen, *floraDir, 24, plantWindow);
+                    const FloraStampStats& f = s.flora;
                     rb.flora.placements += f.placements;
                     rb.flora.stamped += f.stamped;
                     rb.flora.procedural += f.procedural;
@@ -248,16 +408,21 @@ RegionBuild forEachRegionChunk(
                     remap[m] = it->second;
                 }
                 for (uint8_t& v : a.grid.mat) v = remap[v];
+                for (uint8_t& v : s.grid.mat) v = remap[v];   // F7.9a: the worker's cut, in the region palette
                 RegionChunk rc;
                 rc.chunk = c;
                 rc.originVoxel = c * kChunkM * kVoxelsPerM;
-                const glm::ivec3 off(kVoxelsPerM);
-                rc.grid = subGrid(a.grid, off, inner);
-                rc.border = neighboursOf(a.grid, off, inner, Outside::Air);  // the margin covers every border voxel
+                rc.grid = std::move(s.grid);
+                rc.border = std::move(s.border);
                 rc.area = &a.grid;
                 rc.areaMarginVoxels = kVoxelsPerM;
                 ++rb.chunks;
                 each(rc, rb.palette);
+                {
+                    std::lock_guard<std::mutex> lk(mu);
+                    consumed = k + 1;
+                }
+                cv.notify_all();
             }
     return rb;
 }

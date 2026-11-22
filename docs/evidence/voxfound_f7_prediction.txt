@@ -621,3 +621,24 @@ workers), handing them to the caller in the same order.
      section 3.5a budget of 15 per second probably MISSED with flora (stated); the serial face build stays (~85 ms per
      chunk), so the request wall >= 5.9 s.
 RED: {"gen_threads":1} + {"gen_legacy":true} reproduce the control's numbers.
+
+F7.9a RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120). Evidence:
+voxfound_f79_live.jsonl (control, two sweeps, the no-flora split); tools/voxfound_f79a_live.py;
+tests/core/TerrainGenRateTest.cpp. Every artifact: WorldGenerator Perlin s7 + flora (the 1/8 m region).
+  CONTROL / RED: the reference path (gen_threads 1 + gen_legacy) 23.2-23.7 s for the 32 chunks (1.35-1.38 chunks/s),
+     26.0-26.5 s per request -- the control's numbers.
+  G1 PASS: unit -- the per-metre lookup equals the per-voxel reference voxel for voxel and palette for palette at 3
+     places / 2 seeds; worker threads hand the same chunks, palettes and voxels as one thread. Live -- every build
+     (reference, 1 / 4 / 8 / 16 threads) has all 32 store hashes and the 477,858 faces of the reference.
+  G2 PASS: terrain alone 166-170 ms per 34^3 m area (reference 493-528), one thread.
+  G3 MISSED narrowly, in two steps: (a) workers alone gave 4.2 chunks/s at 4 threads and LESS at 8 / 16 -- the no-flora
+     split showed the cap was serial work left on the caller (the area remap + the chunk cut + its border, ~230 ms per
+     chunk); (b) the cut and the border moved onto the workers (palette-free; the caller keeps a byte-table remap):
+     4 threads 9.61 chunks/s (32 chunks generated in 3.33 s; the request 6.06 s, from 26.5); 8 threads 4.22, 16 threads
+     2.11 -- more workers are SLOWER (each chunk in flight allocates ~150 MB of zeroed grids; not profiled). Default set
+     to 4. The section 3.5a sprint budget (15 chunks/s) MISSED, as stated.
+  Levers recorded (time-box reached, owner 2026-11-21): reuse per-worker area / cut buffers instead of allocating
+     ~150 MB per chunk; drop the part / fixed channels for terrain-only areas; flora templates cached across chunks
+     (re-read from disk per chunk today); generation on the GPU (section 3.5a), which also removes the upload.
+CONCLUSION: generation is 7x faster at the default (1.4 -> 9.6 chunks/s), exact; still under the sprint budget.
+Next F7.9b: the switched world streams -- chunks join and leave the region around the player.

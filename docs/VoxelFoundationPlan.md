@@ -3124,6 +3124,13 @@ levels; `assemble` keeps the drawn LOD selection instead of dropping to level 0.
 switched. Live: overlapsTerrain = the region at 4,000 / 4,000 probes (red 3,799); a character rests on a dug pit's floor
 and on a placed pillar's top, and falls when the pillar is cleared under it. GPU debris still reads today's pool.
 
+**F7.9a, the generation rate (2026-11-22; section 3.5a's sprint budget, F1's unmeasured stop condition).** Needed for a
+default switch: a switched world larger than one region must stream. `buildTerrainArea` looks a material up once per
+(metre column, surface metre, metre) instead of per voxel; `forEachRegionChunk` builds chunk areas, their cut and border
+on worker threads (a generator copy each), in order. Exact (unit + all 32 gate hashes). 1.4 -> 9.6 chunks/s at 4
+workers (the gate request 26.5 -> 6.1 s); more workers are slower (allocation). MISSED: >= 10 narrowly, the 15/s sprint
+budget (levers: buffer reuse, no part/fixed channels for terrain, a flora template cache, GPU generation).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

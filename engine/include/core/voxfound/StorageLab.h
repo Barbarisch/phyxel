@@ -42,6 +42,11 @@ struct VoxelArea {
 
 /// Terrain of an area sizeMetres (multiples of 1 m) starting at originMetres, at 1/8 m voxels.
 VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 originMetres, glm::ivec3 sizeMetres);
+/// F7.9a: the pre-F7.9a build (one generator material lookup per voxel) -- the exactness reference for
+/// buildTerrainArea, which looks a material up once per (metre column, surface metre, metre). setTerrainLegacy(true)
+/// makes buildTerrainArea run the reference (the red / A-B knob).
+VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 originMetres, glm::ivec3 sizeMetres);
+void setTerrainLegacy(bool on);
 
 /// A template on the foundation grid (`# grid: N` + B/V lines, written by tools/voxgrid.py, e.g.
 /// tree_forge.py --grid 8). Cells are rebased to 0; bounds in cells.
@@ -99,7 +104,8 @@ struct RegionBuild {
 RegionBuild forEachRegionChunk(
     WorldGenerator& gen, glm::ivec3 chunkLo, glm::ivec3 chunkHi, const std::string* floraDir,
     const std::function<void(const RegionChunk&, const std::vector<std::string>& palette)>& each,
-    const glm::ivec4* plantWindow = nullptr);
+    const glm::ivec4* plantWindow = nullptr,
+    int threads = 1);
 
 struct BlockStats {
     size_t blocks = 0, uniformAir = 0, uniformSolid = 0, detailed = 0;
