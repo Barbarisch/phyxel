@@ -321,6 +321,7 @@ private:
     Graphics::RenderCoordinator::VoxFoundOccupancySource voxFoundOccSource;
     std::map<std::tuple<int, int, int>, uint32_t> voxFoundOccRevision;
     bool voxFoundOccStub = false;
+    bool voxFoundDamageStub = false;                                    // F7.5 (tests): the destruction override ignored
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)
     struct VoxFoundBodiesLab {
         Core::VoxFound::VoxelGrid world;                    // what stays in the world (the sim holds a reference)
@@ -384,6 +385,11 @@ private:
         std::vector<float> fluidMs;                         // fluid step + display edit per frame that ticked (ring)
         size_t fluidNext = 0, fluidEdits = 0, fluidCellsChanged = 0;
         double fluidMaxMs = 0.0;
+        // F7.5: the "world" rig -- the lab runs on a window of the switched region (no region rebuild; every change
+        // goes into the region with applyCells at originVoxel)
+        bool worldMode = false;
+        glm::ivec3 worldWindowSize{0};
+        size_t worldRemoved = 0;
     } voxFoundBodiesLab;
     std::vector<size_t> voxFoundBodiesLedger() const;   // F5.4/F5.5d: per material world + bodies + crumbs
     bool voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err);
@@ -392,6 +398,9 @@ private:
     void voxFoundFluidStep(float dt);                         // F6.5
     size_t voxFoundFluidEdit(bool all);                       // F6.5: the display rule into the preview; cells changed
     size_t voxFoundFluidCheck() const;                        // F6.5: drawn vs the rule, mismatching voxels
+    void voxFoundOccBump(const std::vector<size_t>& rebuiltChunks);   // F7.3b/F7.5: light occupancy revisions
+    bool voxFoundWorldBreak(const glm::vec3& centre, float radius, float energy, const glm::vec3& dir,
+                            nlohmann::json* report);           // F7.5: DamageSystem's override on the switched world
     void voxFoundBodiesGpuDone(int ticks);
     bool voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err);
     bool voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err);

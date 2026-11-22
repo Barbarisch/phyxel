@@ -3085,6 +3085,13 @@ LightingPipeline.md R8 + section 9 updated. **Cost (measured after, quiet):** th
 ms at the three ground poses (GI on; the probe field now traces the drawn ground) -- the price of the right ambient,
 not predicted; levers left if it bites (the switch is not the default yet).
 
+**F7.5, destruction on the switched world (2026-11-22).** `DamageSystem::setDestructionOverride`: with the switch on,
+blasts / spells / chops run the bodies lab's "world" rig on a window of the region -- F4.1 fracture, F5.1 extraction,
+BodySimGpu bodies, F6.3 rubble, F5.4 bake -- every change written into the region incrementally. Live: a blast (E/T 400)
+makes 318 pieces and 362 crumbs, the pieces fall back into their crater and bake back; ledger exact at every check, the
+drawn world = the simulated one, today's chunks untouched. Found and fixed: a bake over 32 bodies took a full-rebuild
+branch that world mode must not use. Not yet: part ids, bodies in the light occupancy, soil as its own material.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

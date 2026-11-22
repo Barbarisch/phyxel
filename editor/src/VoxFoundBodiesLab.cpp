@@ -41,6 +41,13 @@
 //    sets the D6 policy (it runs after every tick while on; the player = the camera); {"bake_now":{...same keys}} runs
 //    one pass now with those values. A bake writes the world grid, rebuilds the preview area and compacts the body
 //    faces by copying ranges (no re-meshing). Responses carry "ledger": per material world + bodies + crumbs.
+// F7.5 (docs/evidence/voxfound_f7_prediction.txt W1-W5): {"rig":"world","hit_world":[x,y,z] (world 1/8 m voxel),
+//    "window":[x,y,z] (voxels), "energy":E/T, "impulse":N s, "dir":[x,y,z]} -- the lab on a WINDOW of the switched
+//    region (voxfound_preview world_switch): the window copied in (materials = the region's palette indices; the lab's
+//    material table per palette name: Log*/Wood*/*Planks -> Wood, Glass -> Glass, *Brick* -> Bricks, else Stone; the
+//    window's side and bottom faces fixed: held by the world beyond; part ids 0), F4.1 + F5.1, the removed voxels
+//    written into the region with RegionEdit::applyCells (no rebuild); bodies, rubble, rest / bake as on any rig, every
+//    change into the region at the window's origin. {"world_check":true} (status): window voxels region vs lab grid.
 // F6.5 (docs/evidence/voxfound_f6_prediction.txt V1-V5): with the rig, {"rubble":bool} (default true) turns the crumbs
 //    into rubble in the lab's world (F6.3) stepped by a WorldFluid (F6.2, CPU, main thread) at 60 Hz while running;
 //    {"pour":{"lo":[x,y,z],"size":[x,y,z]}} fills the empty open lab voxels of that box with water (full cells);
@@ -241,6 +248,10 @@ bool Application::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, 
 bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
+    if (lab.worldMode) {   // F7.5: the region IS the switched world; a lab grid must never replace it
+        if (err) *err = "world rig: the switched region is never rebuilt from the lab's window";
+        return false;
+    }
     VoxelGrid g = lab.world;
     if (lab.fluid) {   // F6.5: fill drawn by the rule
         lab.fluidDrawn.assign(g.size(), 0);
@@ -371,7 +382,10 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
     voxFoundBodiesPublish();
     // the preview
     bool ok = true;
-    const bool incremental = lab.regionPreview && !lab.asWorld && !voxFoundEdit.empty() && baked.size() <= kIncrementalMax;
+    // F7.5: in world mode always incremental -- the region is the switched world and is never rebuilt from the window
+    // (found live: a 318-body bake took the rebuild branch, which world mode refuses, and left the region stale)
+    const bool incremental = lab.worldMode ||
+                             (lab.regionPreview && !lab.asWorld && !voxFoundEdit.empty() && baked.size() <= kIncrementalMax);
     if (incremental) {
         std::vector<size_t> changed;
         for (const BakePlan& plan : plans) {
@@ -381,6 +395,7 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
             for (const BakeCell& c : plan.cells) cells.push_back({lab.originVoxel + c.cell, lab.world.mat[lab.world.idx(c.cell)]});
             const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
             for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+            voxFoundOccBump(es.rebuilt);   // F7.5
             for (size_t i : es.changed)
                 if (std::find(changed.begin(), changed.end(), i) == changed.end()) changed.push_back(i);
         }
@@ -461,6 +476,7 @@ size_t Application::voxFoundFluidEdit(bool all) {
     }
     const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
     for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+    voxFoundOccBump(es.rebuilt);   // F7.5
     voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
     return cells.size();
 }
@@ -554,6 +570,11 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.fluid.reset();   // F6.5 (it points at lab.world)
         lab.sim.reset();
         lab.draw = {};
+        if (lab.worldMode) {   // F7.5: the region is the switched world, not the lab's: keep it
+            lab.worldMode = false;
+            response = {{"cleared", true}, {"world_kept", true}};
+            return;
+        }
         voxFoundEdit.clear();   // F5.5c
         voxFoundPreview.faces.clear();
         voxFoundPreview.chunks.clear();
@@ -603,8 +624,13 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                 for (int y = 0; y < 128; ++y)
                     for (int z = 0; z < 4; ++z) rig.grid.set({x, y, z}, kStone, 0, y == 0);
             rig.hit = {{128, 64, 0}, {0, 0, 1}, e * rig.mats[kStone].toughness, 777, 200.0f};
+        } else if (name == "world") {   // F7.5: built below from the switched region
+            if (!voxFoundWorldReads || voxFoundEdit.empty() || !p.contains("hit_world")) {
+                response = {{"error", "rig world: needs the world switch on (voxfound_preview world_switch) and hit_world"}};
+                return;
+            }
         } else {
-            response = {{"error", "unknown rig " + name + " (stone_wall, brick_wall, beam, glass, lintel, large_wall)"}};
+            response = {{"error", "unknown rig " + name + " (stone_wall, brick_wall, beam, glass, lintel, large_wall, world)"}};
             return;
         }
         const auto t0 = std::chrono::steady_clock::now();
@@ -612,10 +638,48 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         // StoneTiles), `pad` metres of floor around it, 2 m of air above
         // F5.5b: the pad is clamped per axis so the preview's one-build limit (256 voxels a side) holds -- the large
         // wall (256 wide) gets no pad along x (pieces past its ends fall to the ground plane, below the floor)
+        const bool worldRig = name == "world";   // F7.5
+        glm::ivec3 off(0), windowLo(0);
+        VoxelGrid g;
+        std::vector<FractureMaterial> mats;
+        Hit hit;
+        if (worldRig) {
+            const glm::ivec3 hw(p["hit_world"].at(0).get<int>(), p["hit_world"].at(1).get<int>(), p["hit_world"].at(2).get<int>());
+            glm::ivec3 ws(64);
+            if (p.contains("window")) ws = glm::ivec3(p["window"].at(0).get<int>(), p["window"].at(1).get<int>(), p["window"].at(2).get<int>());
+            ws = glm::clamp(ws, glm::ivec3(16), glm::ivec3(256));
+            windowLo = hw - ws / 2;
+            g.voxelM = 0.125f;
+            g.resize(ws);
+            for (int x = 0; x < ws.x; ++x)
+                for (int y = 0; y < ws.y; ++y)
+                    for (int z = 0; z < ws.z; ++z) {
+                        const uint8_t m = voxFoundEdit.voxelAt(windowLo + glm::ivec3(x, y, z));
+                        if (!m) continue;
+                        const bool held = x == 0 || z == 0 || y == 0 || x == ws.x - 1 || z == ws.z - 1;   // the world beyond
+                        g.set({x, y, z}, m, 0, held);
+                    }
+            const std::vector<FractureMaterial> lm = labMaterials();
+            mats.assign(std::max<size_t>(voxFoundPalette.size(), 1), lm[kStone]);
+            mats[0] = lm[0];
+            auto has = [](const std::string& n, const char* k) { return n.find(k) != std::string::npos; };
+            for (size_t i = 1; i < voxFoundPalette.size(); ++i) {
+                const std::string& n = voxFoundPalette[i];
+                FractureMaterial fm = lm[kStone];
+                if (has(n, "Log") || has(n, "Wood") || has(n, "Plank")) fm = lm[kWood];
+                else if (has(n, "Glass")) fm = lm[kGlass];
+                else if (has(n, "Brick")) fm = lm[kBricks];
+                fm.name = n;
+                mats[i] = fm;
+            }
+            glm::vec3 d(0.0f, -1.0f, 0.0f);
+            if (p.contains("dir")) d = glm::normalize(glm::vec3(vec3(p["dir"])));
+            hit = {glm::vec3(hw - windowLo) + 0.5f, d, e * mats[g.at(hw - windowLo) ? g.at(hw - windowLo) : 1].toughness,
+                   uint64_t(1000 + (hw.x * 73856093) ^ (hw.z * 83492791)), p.value("impulse", 200.0f)};
+        } else {
         const int pad = int(std::lround(p.value("pad", 4.0) / double(rig.grid.voxelM)));
         const int padX = std::clamp((256 - rig.grid.dim.x) / 2, 0, pad), padZ = std::clamp((256 - rig.grid.dim.z) / 2, 0, pad);
-        const glm::ivec3 off(padX, 2, padZ);
-        VoxelGrid g;
+        off = glm::ivec3(padX, 2, padZ);
         g.voxelM = rig.grid.voxelM;
         g.resize(rig.grid.dim + glm::ivec3(2 * padX, 2 + 16, 2 * padZ));
         for (int x = 0; x < g.dim.x; ++x)
@@ -629,12 +693,13 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
             g.set(q, rig.grid.mat[i], rig.grid.part[i], rig.grid.fixed[i] != 0);
             if (dmg) g.damage[g.idx(q)] = rig.grid.damage[i];
         }
-        std::vector<FractureMaterial> mats = rig.mats;
+        mats = rig.mats;
         mats.resize(kFloorMat + 1, mats[kStone]);
         mats[kFloorMat] = mats[kStone];
-        Hit hit = rig.hit;
+        hit = rig.hit;
         hit.point += glm::vec3(off);
         hit.impulse = p.value("impulse", 20.0f);
+        }
         const FractureResult r = fractureReference(g, hit, mats);
         VoxelGrid world = g;
         const Extraction ex = extractBodies(world, r, hit, mats);
@@ -645,13 +710,16 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.areaOriginM = (p.contains("at") ? vec3(p["at"]) : glm::dvec3(0.0)) - glm::dvec3(off) * double(g.voxelM);
         // F5.5c: the origin on the 1/8 m voxel grid (the region preview is drawn per world voxel; [5,20,5] is on it)
         lab.originVoxel = glm::ivec3(glm::round(lab.areaOriginM / double(g.voxelM)));
+        if (worldRig) lab.originVoxel = windowLo;   // F7.5: the window's world voxel
         lab.areaOriginM = glm::dvec3(lab.originVoxel) * double(g.voxelM);
+        lab.worldMode = worldRig;
+        lab.worldWindowSize = worldRig ? g.dim : glm::ivec3(0);
         const std::string preview = p.value("preview", std::string("region"));
         if (preview != "region" && preview != "area") {
             response = {{"error", "preview must be region or area"}};
             return;
         }
-        lab.regionPreview = preview == "region";
+        lab.regionPreview = preview == "region" || worldRig;
         lab.gpuEdit = p.value("gpu_edit", true);
         lab.fullRebuilds = lab.incrementalPasses = lab.gpuEdits = 0;
         lab.lastHitchMs = lab.maxHitchMs = lab.maxEditMs = lab.lastGpuEditMs = 0.0;
@@ -727,7 +795,19 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         lab.draw.mutate = false;
         voxFoundBodiesPublish();
         std::string err;
-        if (!voxFoundBodiesRebuildWorld(&err)) {
+        if (worldRig) {   // F7.5: the removed voxels into the region (no rebuild); rubble drawn by the fluid edit
+            std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+            for (size_t i = 0; i < g.size(); ++i)
+                if (g.mat[i] != lab.world.mat[i]) cells.push_back({lab.originVoxel + g.pos(i), lab.world.mat[i]});
+            lab.worldRemoved = cells.size();
+            const RegionEdit::Stats es = voxFoundEdit.applyCells(cells);
+            for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+            voxFoundOccBump(es.rebuilt);
+            lab.leafTex = voxFoundLeafTex;
+            voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
+            lab.fluidDrawn.assign(lab.world.size(), 0);
+            voxFoundFluidEdit(false);
+        } else if (!voxFoundBodiesRebuildWorld(&err)) {
             response = {{"error", err}};
             return;
         }
@@ -968,6 +1048,21 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
                             {"frame_max_ms", lab.frameMaxMs}, {"frame_max_at_s", lab.frameMaxAtS}};
     }
     if (pen) response["penetration_report"] = lab.sim->worstPenetrationReport();   // F5.5b
+    if (lab.worldMode) {   // F7.5
+        nlohmann::json wj = {{"window_lo", {lab.originVoxel.x, lab.originVoxel.y, lab.originVoxel.z}},
+                             {"window_size", {lab.worldWindowSize.x, lab.worldWindowSize.y, lab.worldWindowSize.z}},
+                             {"removed_at_break", lab.worldRemoved}};
+        if (p.value("world_check", false)) {   // window voxels: the region vs the lab grid (solid + rubble by the rule)
+            size_t bad = 0;
+            for (size_t i = 0; i < lab.world.size(); ++i) {
+                const uint8_t want = lab.world.mat[i] ? lab.world.mat[i]
+                                                      : (lab.world.fill.empty() ? 0 : fluidShown(lab.world.fill[i]));
+                bad += voxFoundEdit.voxelAt(lab.originVoxel + lab.world.pos(i)) != want;
+            }
+            wj["check_mismatched_voxels"] = bad;
+        }
+        response["world"] = wj;
+    }
     if (lab.fluid) {   // F6.5
         std::vector<float> v = lab.fluidMs;
         std::sort(v.begin(), v.end());

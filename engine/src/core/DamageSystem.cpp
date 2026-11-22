@@ -148,12 +148,25 @@ float DamageSystem::blastImpulse(float energy) {
     return m * BASE_SPEED * std::sqrt(energy / t);
 }
 
+namespace {
+DamageSystem::DestructionOverride g_destructionOverride;   // F7.5
+bool g_destructionOverrideStub = false;
+}  // namespace
+
+void DamageSystem::setDestructionOverride(DestructionOverride fn, bool stub) {
+    g_destructionOverride = std::move(fn);
+    g_destructionOverrideStub = stub;
+}
+bool DamageSystem::destructionOverrideActive() { return g_destructionOverride && !g_destructionOverrideStub; }
+
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
                                        float supportY, bool collapse, bool coherentFragments,
                                        const glm::vec3& radii) {
     DamageResult res;
     if (!m_cm || energy <= 0.0f) return res;
+    if (destructionOverrideActive() && g_destructionOverride(center, radius, energy, direction, res))
+        return res;   // F7.5: the switched world broke (fracture + bodies); today's carving does not run
     if (g_blastListener && m_pushExisting) {   // WaterCore E1: the water feels every blast
         const float rEff = std::max(radius, std::max(radii.x, std::max(radii.y, radii.z)));
         g_blastListener(center, rEff, energy);

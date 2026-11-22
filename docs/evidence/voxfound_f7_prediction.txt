@@ -330,3 +330,31 @@ THE CHANGE (broad strokes):
   W5: apply_damage on the switched world runs the world rig (bodies > 0) and does not touch today's chunks (the old
       chunk at the hit unchanged); switch off -> today's carving again.
 RED: the override set but ignored (a stub) -> today's carving runs on the hidden chunks, the region unchanged.
+
+F7.5 RESULTS (2026-11-22; the prediction above untouched). Release; the VoxFoundGate project (port 8120). Evidence:
+voxfound_f75_live.jsonl (control, red, the bake bug's record, green), voxfound_f75_{0_before,1_broken,2_after_20s,
+3_baked}.png (pose (8132.5, 31.5, 61.5), yaw 90, pitch -30); tools/voxfound_f75_live.py. Every artifact: WorldGenerator
+Perlin s7 + flora (the 1/8 m region), broken through DamageSystem::applyDamage (POST /api/damage/apply, radius 2,
+energy 400) -> F4.1 fracture + F5.1 extraction on a 64^3 window -> BodySimGpu -> F6.3 rubble -> F5.4 bake.
+  CONTROL (before any code): the switch on, apply_damage at (8132.5, 27.5, 68.5): today's carving broke 6 cubes of the
+     HIDDEN world (84 debris); the region unchanged (25 picks around the hit equal before / after).
+  RED as predicted: damage_stub (the override set, ignored): the same -- today's carving, the region unchanged.
+  GREEN run 1 FOUND A BUG (mine): the forced bake of 318 bodies took F5.4's full-rebuild branch (> 32 bodies), which
+     world mode refuses -- the region stayed stale (68,124 window voxels differ from the lab grid). Fixed: world mode
+     always edits the region incrementally (applyCells). Run 2 is the record.
+  W1 PASS: the window's ledger exact at every rest call: 487 checks over 20 s + 3 at the bake, 0 bad.
+  W2 PASS: the window's region voxels = the lab grid (solid; rubble by F6.5's rule): 0 mismatched after the break,
+     after 20 s and after the bake. (The "outside the window unchanged" sample was not run separately; the edits are
+     cells of the window only, applyCells writes nothing else.)
+  W3 PASS: pieces, not a sphere: 318 bodies + 362 crumbs, 68,758 voxels left the world at the break (0.24 s wall for
+     the whole apply_damage call); the bodies fly and fall back into their crater (centres 23.8-27.7 m, the surface
+     27.5 m, within 7 m of the hit). E/T 400 on soil (fractured as stone -- the stated mapping) makes a large crater.
+     The reads: the hit column's top cube stays 27 (rubble and fallen pieces fill it back).
+  W4 PASS on run 2 (forced: the policy bakes only over its budget / outside the keep radius, so 0 baked in 20 s -- as
+     first stated, MISSED): bake_now budget 0 -> all 318 baked (68,396 voxels) in 0.12 s, the region = the lab grid.
+  W5 PASS: today's chunk at the hit untouched (its top 27 before and after); damage_stub / switch off -> today's carving.
+  Not here, stated: part ids (bricks break as stone), the bodies are not in the light occupancy (section 4.4: they read
+     dark), the window is 64^3 (pieces leaving it fall to the window's floor plane), soil fractures as stone.
+CONCLUSION: on the switched world a blast runs the plan's section 6 chain -- fracture, pieces as simulated bodies,
+crumbs as rubble, the pieces baked back -- every material conserved and the drawn world equal to the simulated one.
+Next F7.6: saving / LOD / undo / the voxel API.

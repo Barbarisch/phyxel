@@ -64,6 +64,13 @@ public:
     /// centre, the effective radius and the energy - the hook that lets the water feel it. Fired only
     /// when the Phase 4 push is on (push:false is the pre-push control, for the water too).
     using BlastListener = std::function<void(const glm::vec3& centre, float radius, float energy)>;
+    /// docs/VoxelFoundationPlan.md F7.5 (section 7 step 5): while set, applyDamage first offers the event here; true =
+    /// handled (the switched world's fracture + bodies ran), so today's carving does NOT run. `stub` (tests): set but
+    /// never called (the red).
+    using DestructionOverride = std::function<bool(const glm::vec3& centre, float radius, float energy,
+                                                   const glm::vec3& direction, DamageResult& res)>;
+    static void setDestructionOverride(DestructionOverride fn, bool stub = false);
+    static bool destructionOverrideActive();
     static void setBlastListener(BlastListener l);
     static constexpr float IMPULSE_RADIUS_SCALE = 1.5f;
     static constexpr float IMPULSE_UP_BIAS      = 0.3f;

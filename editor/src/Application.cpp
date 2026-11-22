@@ -13580,6 +13580,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("damage_stub")) {   // F7.5 (tests): the next switch-on sets the override but it is ignored
+            voxFoundDamageStub = cmd.params["damage_stub"].get<bool>();
+            response = {{"damage_stub", voxFoundDamageStub}};
+            return;
+        }
         if (cmd.params.contains("occ_stub")) {   // F7.3b (tests): the next switch-on sets the source but the pass ignores it
             voxFoundOccStub = cmd.params["occ_stub"].get<bool>();
             response = {{"occ_stub", voxFoundOccStub}};
@@ -13650,6 +13655,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (voxelInteractionSystem) voxelInteractionSystem->setWorldEditor(nullptr);   // F7.4
             voxFoundWorldEditor.reset();
             renderCoordinator->setVoxFoundOccupancy(nullptr);   // F7.3b
+            DamageSystem::setDestructionOverride(nullptr);       // F7.5
             if (on) {
                 voxFoundWorldEditor = makeRegionWorldEditor(*this);   // F7.4
                 if (voxelInteractionSystem && !voxFoundEditStub) voxelInteractionSystem->setWorldEditor(voxFoundWorldEditor.get());
@@ -13660,6 +13666,15 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     return 1u + (it == voxFoundOccRevision.end() ? 0u : it->second);   // never 0 (today's revisions start there)
                 };
                 renderCoordinator->setVoxFoundOccupancy(&voxFoundOccSource, voxFoundOccStub);
+                DamageSystem::setDestructionOverride(   // F7.5: blasts / spells / chops break the switched world
+                    [this](const glm::vec3& c, float radius, float energy, const glm::vec3& dir, DamageResult& res) {
+                        nlohmann::json rep;
+                        if (!voxFoundWorldBreak(c, radius, energy, dir, &rep)) return false;
+                        res.voxelsBroken = int(voxFoundBodiesLab.worldRemoved);
+                        res.debrisSpawned = rep.value("bodies", 0);
+                        return true;
+                    },
+                    voxFoundDamageStub);
                 voxFoundWorldReads = std::make_unique<WorldReads>(
                     [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
                 if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
@@ -14159,6 +14174,36 @@ size_t Application::voxFoundBrush(const glm::ivec3& voxel, int size, const std::
 
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(Application& app) { return std::make_unique<RegionWorldEditor>(app); }
 
+void Application::voxFoundOccBump(const std::vector<size_t>& rebuiltChunks) {   // F7.3b / F7.5
+    for (size_t i : rebuiltChunks) {
+        const auto& rc = voxFoundEdit.chunk(i).chunk;
+        ++voxFoundOccRevision[{rc.x, rc.y, rc.z}];
+    }
+}
+
+// F7.5: DamageSystem's override while the world is switched -- the event runs the bodies lab's "world" rig on a window
+// of the region (fracture + extraction + bodies + rubble), running; today's carving does not run.
+bool Application::voxFoundWorldBreak(const glm::vec3& centre, float radius, float energy, const glm::vec3& dir,
+                                     nlohmann::json* report) {
+    if (!voxFoundWorldReads) return false;
+    const glm::ivec3 hw(glm::floor(centre * float(Core::VoxFound::kVoxelsPerM)));
+    const int side = std::clamp(int(std::ceil(std::max(8.0f, 4.0f * radius) * Core::VoxFound::kVoxelsPerM)), 16, 256);
+    nlohmann::json body = {{"rig", "world"}, {"hit_world", {hw.x, hw.y, hw.z}}, {"window", {side, side, side}},
+                           {"energy", energy}, {"run", true}, {"ledger_every", true}};
+    if (glm::length(dir) > 0.0f) body["dir"] = {dir.x, dir.y, dir.z};
+    Core::APICommand cmd;
+    cmd.params = body;
+    nlohmann::json r;
+    handleVoxFoundBodies(cmd, r);
+    if (report) *report = r;
+    if (r.contains("error")) return false;
+    Core::APICommand rest;   // rest on, as the lab's live gates run it
+    rest.params = {{"rest", {{"on", true}}}};
+    nlohmann::json rr;
+    handleVoxFoundBodies(rest, rr);
+    return true;
+}
+
 void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& response) {
     using namespace Core::VoxFound;
     if (voxFoundEdit.empty()) {
@@ -14243,10 +14288,7 @@ void Application::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json& r
         st = voxFoundEdit.apply(lo, hi, inside, mat, rowsGpu, &rowsErr);
     else
         st = voxFoundEdit.applyBox(lo, hi, mat, rowsGpu, &rowsErr);   // F3.2b: covered blocks written whole
-    for (size_t i : st.rebuilt) {   // F7.3b: the switched light occupancy repacks these chunks
-        const auto& rc = voxFoundEdit.chunk(i).chunk;
-        ++voxFoundOccRevision[{rc.x, rc.y, rc.z}];
-    }
+    voxFoundOccBump(st.rebuilt);   // F7.3b: the switched light occupancy repacks these chunks
     // the CPU executor changed these chunks' voxels behind any resident device copy: forget them (a later device edit
     // would otherwise re-mesh stale voxels next to its own box -- 12 face mismatches, live, before this)
     if (!ej.value("device", false) && voxFoundBuilder)
