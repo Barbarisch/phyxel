@@ -745,3 +745,22 @@ materials refused. Seat / building templates are not seated (stated: the structu
   Q3: snap from 6 m above the ground: the template's lowest voxel = the ground's top voxel + 1 at its footprint.
   Q4: one undo restores all 32 store hashes.
 RED: template_stub -> the control (today's chunks written, the region unchanged).
+
+F7.10 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate (port 8120); flora_window open,
+load_saved false. Evidence: voxfound_f710_live.jsonl; tools/voxfound_f710_live.py. Every artifact: WorldGenerator
+Perlin s7 + flora (the region); the templates barrel and bed_single from resources/templates_g8 (tools/regen_furniture.py
+--grid 8, FC step 4), placed through POST /api/world/template.
+  CONTROL (the F7.9c editor, before the code): switched, a barrel at (8132, 30, 68) -> 0 region chunks changed; today's
+     hidden chunk holds it (GET after the switch off: exists).
+  RED as predicted (template_stub): the same.
+  Q1 PASS: the barrel in open air: 147 voxels = the template's 147 cells, 0 read-back mismatches, the GET sum over its
+     cubes 147; one region chunk changed; today's chunk untouched (GET after the switch off: air).
+  Q2 PASS: rotation 1 keeps the count and swaps the x / z extents -- the barrel is square in x / z (trivial), so it
+     was re-checked on bed_single: 6 x 14 -> 14 x 6, 325 = 325 cells both ways, 0 mismatches.
+  Q3 PASS: snapped from 34 m: the lowest voxel at 349 = the highest solid voxel under the footprint (348) + 1 (that
+     column's top is canopy at 43.5 m: snap lands on whatever is highest under the footprint, as stated).
+  Q4 PASS: 3 undos (one per spawn) -> 32 / 32 store hashes back to the start.
+  Not here, stated: building templates are not seated (the seater is old-grid code); placed-object records
+     (PlacedObjectManager) are not written for region spawns.
+CONCLUSION: static templates land in the switched world from their 1/8 m versions, exact and undoable, through one
+shared placer path (voxFoundPaintCells) the next placers (structures, settlements) can use.

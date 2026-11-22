@@ -3143,6 +3143,15 @@ generated (4 threads, off the main thread), one entering chunk is prepared per f
 Exact against a fresh build with the same edit (32/32 chunks: voxels, faces, sprigs); a 256 m walk at sprint speed stays
 on the world. MISSED narrowly: a 278 ms prepare slice (<= 250); coarse LOD levels are dropped by a shift.
 
+**F7.7a, what still uses the old paths (2026-11-22, measured).** 55 engine/editor files (394 sites) name `Subcube` /
+`Microcube`; 15 files walk `chunkMap`. Deleting needs the writers moved first: template placement, structures /
+settlements, the water span grid, the outliner, the editor's residency hash. Order: the placers (F7.10+), then the
+walkers, then the deletion.
+
+**F7.10, templates on the switched world (2026-11-22).** A static `spawn_template` paints the template's 1/8 m version
+(`resources/templates_g8`) into the region as one undoable edit (`voxFoundPaintCells`, the shared placer path):
+exact cells (147 / 147, 325 / 325), rotation, snap to the region's ground, undo exact. Buildings are not seated yet.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

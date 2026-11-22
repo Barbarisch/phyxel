@@ -347,6 +347,10 @@ private:
     nlohmann::json voxFoundRegionRequest;   // the last editable region build's request
     bool voxFoundStreamOn = false, voxFoundStreamStub = false;
     bool voxFoundSwitchLoadSaved = true;
+    bool voxFoundTemplateStub = false;   // F7.10 (tests): spawn_template not routed
+    /// F7.10: one undoable edit of listed cells (world voxels, palette ids) on the region -- what placers write through
+    nlohmann::json voxFoundPaintCells(const std::string& label, const std::vector<std::pair<glm::ivec3, uint8_t>>& cells);
+    nlohmann::json voxFoundSpawnTemplate(const nlohmann::json& params);
     // F7.9c: background shifts -- the entering chunks generated off-thread, prepared one per frame, swapped in one
     struct VoxFoundStreamJob {
         glm::ivec3 lo{0}, hi{0};

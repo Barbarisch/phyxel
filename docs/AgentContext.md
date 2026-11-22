@@ -685,7 +685,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       streaming needs flora_window:"open". A shift = 4.5-7.2 s hitch (full rebuild).
       F7.9c done: background incremental shifts (4-thread generation, one chunk prepared per frame, a one-frame swap);
       exact vs a fresh build; sprint-speed walk stays on the world; worst slice 278 ms.
-      NEXT: F7.7 (delete the old cube / subcube / microcube paths), then F7's exit (default switched, the suite).
+      F7.10 done: spawn_template on the switched world paints the 1/8 m template (voxFoundPaintCells, undoable).
+      NEXT: F7.11 structures / settlements on the switched world (StructureRealizer's 1/8 m canvas through
+      voxFoundPaintCells), then the chunkMap walkers, then the F7.7 deletion, then F7's exit.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

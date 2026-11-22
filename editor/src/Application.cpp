@@ -13594,6 +13594,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         // F7.4: {"edit_stub":bool} (tests: the next switch-on leaves the editor unset -- the red);
         // {"edit_action":{"action":"break"|"place","mode":"cube"|"subcube"|"micro"}}: a hover update on the camera's
         // forward ray, then the SAME VoxelInteractionSystem call the B / C keys make for that mode.
+        if (cmd.params.contains("template_stub")) {   // F7.10 (tests): spawn_template not routed (the red)
+            voxFoundTemplateStub = cmd.params["template_stub"].get<bool>();
+            response = {{"template_stub", voxFoundTemplateStub}};
+            return;
+        }
         if (cmd.params.contains("stream") || cmd.params.contains("stream_stub") || cmd.params.value("stream_status", false) ||
             cmd.params.contains("stream_shift")) {   // F7.9b
             if (cmd.params.contains("stream")) {
@@ -14483,6 +14488,102 @@ nlohmann::json Application::voxFoundLodCheck() {
     }
     return {{"chunks", chunks}, {"mismatched_by_level", bad}, {"faces_by_level", total},
             {"dirty", voxFoundLodDirty.size()}};
+}
+
+// F7.10: listed cells written as ONE edit -- recorded for undo over their box (EditHistory), applyCells (the exact
+// incremental path), then the light occupancy, coarse levels, resident device copies and drawn lists as an edit.
+nlohmann::json Application::voxFoundPaintCells(const std::string& label,
+                                               const std::vector<std::pair<glm::ivec3, uint8_t>>& cells) {
+    using namespace Core::VoxFound;
+    if (cells.empty()) return {{"voxels_changed", 0}, {"undo", "no_change"}};
+    glm::ivec3 lo(std::numeric_limits<int>::max()), hi(std::numeric_limits<int>::min());
+    for (const auto& [p, m] : cells) lo = glm::min(lo, p), hi = glm::max(hi, p);
+    const auto read = [this](glm::ivec3 p) { return voxFoundEdit.voxelAt(p); };
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool pending = voxFoundHistory.begin(label, lo, hi, read);
+    std::string err;
+    RegionEdit::Stats st = voxFoundEdit.applyCells(cells, nullptr, &err);
+    voxFoundOccBump(st.rebuilt);
+    voxFoundLodMark(st);
+    const bool recorded = pending && voxFoundHistory.commit(read);
+    if (voxFoundBuilder)
+        for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
+    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
+    size_t bad = 0;   // read back: every listed cell holds its material
+    for (const auto& [p, m] : cells) bad += voxFoundEdit.voxelAt(p) != m;
+    return {{"voxels_changed", st.voxelsChanged}, {"lo", {lo.x, lo.y, lo.z}}, {"hi", {hi.x, hi.y, hi.z}},
+            {"undo", recorded ? "recorded" : (pending ? "no_change" : "too_large")}, {"verify_bad", bad},
+            {"error", err},
+            {"wall_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()}};
+}
+
+// F7.10 (docs/VoxelFoundationPlan.md F7's "other placers"): a static template on the switched world -- its 1/8 m version
+// (resources/templates_g8, by stem or relative path), min corner at floor(position * 8), rotation = quarter turns about
+// +Y, snap (default) = its lowest layer on the region's ground (the highest solid voxel under its footprint + 1).
+nlohmann::json Application::voxFoundSpawnTemplate(const nlohmann::json& params) {
+    using namespace Core::VoxFound;
+    namespace fs = std::filesystem;
+    const std::string name = params.value("name", "");
+    if (name.empty()) return {{"error", "Template name required"}};
+    std::string path;
+    const fs::path root = "resources/templates_g8";
+    if (fs::exists(root / (name + ".voxel"))) path = (root / (name + ".voxel")).string();
+    else if (fs::exists(root))
+        for (const auto& e : fs::recursive_directory_iterator(root))
+            if (e.is_regular_file() && e.path().stem().string() == name && e.path().extension() == ".voxel") {
+                path = e.path().string();
+                break;
+            }
+    if (path.empty()) return {{"success", false}, {"world", "voxfound"}, {"error", "no 1/8 m template " + name}};
+    const GridTemplate t = loadGridTemplate(path);
+    if (!t.error.empty()) return {{"success", false}, {"world", "voxfound"}, {"error", t.error}};
+    if (t.cellsPerM != kVoxelsPerM)
+        return {{"success", false}, {"world", "voxfound"}, {"error", "template grid is not 8 per metre"}};
+    const int rot = ((params.value("rotation", 0) % 4) + 4) % 4;
+    const glm::ivec3 B = t.bounds;
+    auto rotate = [&](glm::ivec3 p) {   // quarter turns about +Y inside the bounds
+        for (int r = 0; r < rot; ++r) p = glm::ivec3((r % 2 == 0 ? B.z : B.x) - 1 - p.z, p.y, p.x);
+        return p;
+    };
+    std::vector<std::pair<glm::ivec3, uint8_t>> local;
+    for (const auto& b : t.boxes) {
+        std::string err;
+        const int m = voxFoundMaterial(b.material, &err);
+        if (m < 0) return {{"success", false}, {"world", "voxfound"}, {"error", err}};
+        for (int x = 0; x < b.size.x; ++x)
+            for (int y = 0; y < b.size.y; ++y)
+                for (int z = 0; z < b.size.z; ++z) local.push_back({rotate(b.pos + glm::ivec3(x, y, z)), uint8_t(m)});
+    }
+    glm::vec3 pos(0.0f);
+    if (params.contains("position"))
+        pos = {params["position"].value("x", 0.0f), params["position"].value("y", 0.0f), params["position"].value("z", 0.0f)};
+    glm::ivec3 origin(glm::floor(pos * float(kVoxelsPerM)));
+    int groundTop = std::numeric_limits<int>::min();
+    if (params.value("snap", true)) {   // the highest solid voxel under the footprint, searched down from origin + 16 m
+        int minY = std::numeric_limits<int>::max();
+        for (const auto& [p, m] : local) minY = std::min(minY, p.y);
+        std::set<std::pair<int, int>> cols;
+        for (const auto& [p, m] : local) cols.insert({p.x, p.z});
+        for (const auto& [x, z] : cols)
+            for (int y = origin.y + 16 * kVoxelsPerM; y > origin.y - 64 * kVoxelsPerM; --y)
+                if (voxFoundEdit.voxelAt({origin.x + x, y, origin.z + z})) {
+                    groundTop = std::max(groundTop, y);
+                    break;
+                }
+        if (groundTop != std::numeric_limits<int>::min()) origin.y = groundTop + 1 - minY;
+    }
+    std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+    cells.reserve(local.size());
+    for (const auto& [p, m] : local) cells.push_back({origin + p, m});
+    nlohmann::json r = voxFoundPaintCells("spawn_template:" + name, cells);
+    r["success"] = r.value("error", std::string()).empty();
+    r["world"] = "voxfound";
+    r["template"] = path;
+    r["template_cells"] = local.size();
+    r["origin"] = {origin.x, origin.y, origin.z};
+    r["rotation"] = rot;
+    if (groundTop != std::numeric_limits<int>::min()) r["snap_ground_top"] = groundTop;
+    return r;
 }
 
 // F7.9b: the switched world streams. A shift keeps every edited region chunk (codec v3, F3.3) in voxFoundStreamCache,
@@ -21543,6 +21644,8 @@ void Application::processAPICommands() {
                     response = {{"success", true}, {"placed", placed}, {"failed", failed}};
                 }
 
+            } else if (cmd.action == "spawn_template" && voxFoundWorldReads && !voxFoundTemplateStub) {
+                response = voxFoundSpawnTemplate(cmd.params);   // docs/VoxelFoundationPlan.md F7.10
             } else if (cmd.action == "spawn_template") {
                 std::string name = cmd.params.value("name", "");
                 if (name.empty()) {
