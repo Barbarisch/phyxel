@@ -1,0 +1,25 @@
+F7 exit -- the full suites, quiet (2026-11-22, Release, the F7.17 build 49e22ea8; no engine or other test running).
+
+UNIT (phyxel_tests): 4,758 tests in 606 suites, 1,718 s. 4,734 passed, 4 failed, 20 not run (disabled / skipped).
+  AtlasManagerTest.BuildAtlasFromSourcePNGs -- a STANDING failure, documented before this work
+    (AnimationSystemV3Plan.md: "the two standing failures"); texture atlas, untouched here.
+  FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes -- the other standing failure (same entry);
+    the old greedy mesher, untouched here.
+  WaterCouplingTest.BlastBesideThePondMovesItAndItSettles -- documented ORDER-DEPENDENT (WaterCore.md: fails after a
+    test loads materials.json, Stone's real toughness weakens the blast); alone: PASS (re-run, 1.0 s).
+  VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild -- its per-body / per-pass TIMING guards (<= 0.5 / 3 ms) under the
+    suite's load (it read 3.38 ms in F7.3, contended); alone: PASS (re-run, 347 s).
+
+INTEGRATION (phyxel_integration_tests): 247 tests in 25 suites, 1,161 s. 240 passed, 7 failed.
+  SceneIntegrationTest.{ReentryStateRestoresOnReturn, MultiHopTransition_A_B_C_A, AddSceneThenTransitionToIt} --
+    PRE-EXISTING (AgentContext.md, DebrisInteractionPlan.md, PhysicsRestOverhaul.md, SubcubeCollisionPlan.md: the
+    fixture / loader, order-sensitive since April).
+  WaterCoreGpuParityTest.GpuFlipBulkParityAndRunup -- run-up 1.19 h0 vs > 1.22: the documented OPEN parity row
+    (WaterCore.md: the splash is the most solver-sensitive quantity); the water core, untouched here.
+  WaterTallCellTest.ShortWaveMatchesAllFineAndTheBooksAreExact -- eta3 ratio 0.114 off vs <= 0.10; the water core's
+    solver, untouched here (re-run alone: still fails -- recorded as not this work's, not investigated).
+  VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads and F55mPrimalSplit -- fail in the suite, PASS alone (re-run:
+    2.4 s / 8.5 s): order / GPU-load sensitive (the lab's GPU solver shares the device with the suite's earlier
+    GPU tests).
+VERDICT: no failure traces to this F7 work; "full suite green" is NOT met literally -- 2 standing + 3 pre-existing
+scene + 2 water-core solver tolerances fail in any order, and 4 more fail only in the suite's order / load.
