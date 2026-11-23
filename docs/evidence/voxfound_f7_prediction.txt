@@ -1718,3 +1718,32 @@ the editor reaches it through `vfw->` (53 references rewritten). No behaviour ch
   M2: the six projects boot by default exactly as D2 (switched, 0 of today's chunks, stored_check 0).
   M3: the unit suite's switched-world tests unchanged (they link phyxel_core).
 Part 2 (next): GameShell hosts VoxFoundWorld -- a packaged game boots switched.
+
+D3-core RESULTS, parts 1 + 2 (2026-11-23; the prediction above untouched). Release.
+  M1 PASS (the move, part 1): the F7.26 battery on the moved code -- G1 census diff {} / {}, 0 lost, max apply 0.454 s;
+     G2 12 / 12 exact, 12 / 12 standable, T3 0; G3 nav both ways; G4 20 pieces; today's resident chunks 0 throughout.
+  M2 PASS: six projects boot switched (0 of today's chunks, stored_check 0), opted out they load today's world.
+  M3: the switched-world unit tests: 168 pass; WorldReads.Cost (the timing guard) and VoxFoundBodyRest.F55c failed in a
+     run that shared the machine with six engine runs + a package build; F55c ALONE passes (0 mismatches both modes,
+     358 s). Re-check in a quiet full suite before D3b.
+  PART 2 -- GameShell hosts VoxFoundWorld: main() calls GameShell::voxFoundPreInit("game.json") before the runtime
+     initializes; onUpdate calls voxFoundTick (the editor's per-frame block, now VoxFoundWorld::tick, shared); the test
+     API gains voxfound_status and render stats voxfound_clusters / voxfound_faces; the standalone smoke check counts
+     either world. Packaged TavernTest (produce_game on a fresh project from the UNMODIFIED TavernTest game.json, under
+     build/vfpkg -- %TEMP% was cleaned mid-build twice): all 5 stages pass; the game reports hosted, switched,
+     today_world_disabled, 0 of today's chunks, 32 region chunks, booted (generator) in 3.6 s; in play it draws the
+     1/8 m terrain with grass (d3core_package_playing.png). A first package run booted today's world -- MY input was
+     the opt-out copy (the F7.27 driver had just written enabled:false into it), the standalone honoured it correctly.
+  TWO D2 REGRESSIONS FOUND BY LOOKING (D2's gate measured data only; every gate now carries screenshots):
+   (a) BLACK WORLD: RenderCoordinator drew the 1/8 m world, characters, debris, grass and far terrain inside
+       `if (chunkManager && !chunks.empty())` -- with today's world never loaded (D2) none of it drew. Fixed (gate on
+       chunkManager only; renderStaticGeometry guards its own empty set). Before: TavernTest / VillageChat /
+       WaterBench_Coast default black; after: all render (f727_*_default.png).
+   (b) PLAYER CLAMPED: GameDefinitionLoader's D2 return came AFTER it authored play bounds; a streaming world with no
+       range got chunk (0,0,0)'s box -- WaterBench_Coast's player pinned at (31.8, 31.8) instead of (165, 660). Fixed
+       (the D2 return precedes the bounds; the switched world sets its own). After: (165, 18, 660), as opted out.
+  Not defects of this work (both worlds identical): WorldForgeTest's authored spawn is underground (surface y 50, player
+  y 40 -- black in both); VillageChat's stored chunks are Cork (magenta in both). Pre-existing, logged: the loader's
+  world-type check is case-sensitive ("flat" fails validate, aborting the rest of TavernTest's definition); packaging
+  omits resources/templates and humanoid.anim for this game.
+REMAINING in D3-core: the asset editor's floor on the 1/8 m grid.

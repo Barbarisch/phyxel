@@ -1,3 +1,6 @@
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 // docs/VoxelFoundationPlan.md F5.3 -- POST /api/debug/voxfound_bodies: the live check of breaking + bodies drawn with
 // one transform (prediction: docs/evidence/voxfound_f53_prediction.txt, G1-G5).
 //
@@ -56,7 +59,7 @@
 //    half a cell is drawn as its material -- rubble as its world material, water as Glass (a STAND-IN: no water
 //    material in the lab). The ledger then counts rubble units / 256 instead of the crumbs; water is reported apart.
 
-#include "Application.h"
+#include "core/voxfound/VoxFoundWorld.h"
 
 #include <algorithm>
 #include <chrono>
@@ -85,7 +88,7 @@ uint8_t fluidShown(uint32_t c) {
 
 }  // namespace
 
-void Application::voxFoundBodiesPublish() {
+void VoxFoundWorld::voxFoundBodiesPublish() {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     lab.draw.poses.clear();
@@ -98,7 +101,7 @@ void Application::voxFoundBodiesPublish() {
 }
 
 // F5.5b: (re)load the GPU solver with the lab's world and bodies (made lazily on the async compute queue)
-bool Application::voxFoundBodiesGpuLoad(std::string* err) {
+bool VoxFoundWorld::voxFoundBodiesGpuLoad(std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     if (!lab.gpu) {
@@ -120,7 +123,7 @@ bool Application::voxFoundBodiesGpuLoad(std::string* err) {
 
 // F5.5b: a GPU step of `ticks` landed in lab.sim's bodies: the rest policy once (the CPU path runs it after every tick),
 // then the poses
-void Application::voxFoundBodiesGpuDone(int ticks) {
+void VoxFoundWorld::voxFoundBodiesGpuDone(int ticks) {
     auto& lab = voxFoundBodiesLab;
     lab.tick += ticks;
     if (lab.gpu->lastGpuMs() >= 0.0) lab.gpuMsPerTick = lab.gpu->lastGpuMs() / ticks;
@@ -131,7 +134,7 @@ void Application::voxFoundBodiesGpuDone(int ticks) {
 
 // F5.5b, the live GPU path, once per frame: take the step in flight if it finished, then submit the ticks owed (<= 4,
 // as the CPU path; time beyond 4 ticks is dropped -- slower than real time if the solver cannot keep up)
-void Application::voxFoundBodiesGpuStep(float dt) {
+void VoxFoundWorld::voxFoundBodiesGpuStep(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.gpu) return;
     const auto t0 = std::chrono::steady_clock::now();
@@ -185,7 +188,7 @@ void Application::voxFoundBodiesGpuStep(float dt) {
 // F5.5c: the lab's world as a RegionEdit -- 256^3 chunks on the engine's 32 m chunk grid (lab voxel p is world 1/8 m
 // voxel originVoxel + p), so the chunk cull and the occlusion walk see real chunk coordinates and the texture phase
 // follows world position. A bake then edits it incrementally (voxFoundBodiesRest).
-bool Application::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err) {
+bool VoxFoundWorld::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     const glm::ivec3 cBase(glm::floor(glm::dvec3(lab.originVoxel) / double(kChunkM * kVoxelsPerM)));
@@ -246,7 +249,7 @@ bool Application::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g, 
 
 // The preview: what stays in the world, plus (as_world) the bodies' voxels written back at their rest place. A full
 // build -- the region (F5.5c, default) or F5.5b's whole-area path ({"preview":"area"}, the control).
-bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
+bool VoxFoundWorld::voxFoundBodiesRebuildWorld(std::string* err) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     if (lab.worldMode) {   // F7.5: the region IS the switched world; a lab grid must never replace it
@@ -287,7 +290,7 @@ bool Application::voxFoundBodiesRebuildWorld(std::string* err) {
 }
 
 // F5.4 / F5.5d: the conservation ledger, per material: world + bodies + crumbs
-std::vector<size_t> Application::voxFoundBodiesLedger() const {
+std::vector<size_t> VoxFoundWorld::voxFoundBodiesLedger() const {
     const auto& lab = voxFoundBodiesLab;
     std::vector<size_t> perMat(lab.mats.size(), 0);
     if (!lab.sim) return perMat;
@@ -308,7 +311,7 @@ std::vector<size_t> Application::voxFoundBodiesLedger() const {
     return perMat;
 }
 
-bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
+bool VoxFoundWorld::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
     auto& lab = voxFoundBodiesLab;
     const bool ok = voxFoundBodiesRestPass(force, override, err);
     if (lab.sim && lab.ledgerEvery && (force || lab.restOn)) {   // F5.5d X1: after every rest call, timed apart
@@ -328,7 +331,7 @@ bool Application::voxFoundBodiesRest(bool force, const Core::VoxFound::RestParam
 // baked. F5.5c: the preview is edited per baked body (RegionEdit::applyCells, then one assemble) when the pass bakes at
 // most kIncrementalMax bodies (incremental cost is per body; past that, one full build is cheaper); the GPU solver is
 // edited (BodySimGpu::edit: changed cells + survivors) instead of reloaded. lastHitchMs = the whole call.
-bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
+bool VoxFoundWorld::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestParams* override, std::string* err) {
     using namespace Core::VoxFound;
     constexpr size_t kIncrementalMax = 32;
     auto& lab = voxFoundBodiesLab;
@@ -449,7 +452,7 @@ bool Application::voxFoundBodiesRestPass(bool force, const Core::VoxFound::RestP
 
 // F6.5: the display rule into the region preview -- the voxels whose drawn fill material changed (all = the whole
 // world, else the fluid's box), through RegionEdit::applyCells (or a full rebuild on the area path). Returns cells changed.
-size_t Application::voxFoundFluidEdit(bool all) {
+size_t VoxFoundWorld::voxFoundFluidEdit(bool all) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     if (!lab.fluid || !lab.fluidDisplay) return 0;
@@ -487,7 +490,7 @@ size_t Application::voxFoundFluidEdit(bool all) {
 // F8.2: a world rig's rubble settled into WHOLE voxels in the region -- per world material, its units / 256 voxels (a
 // whole number by construction) in the fullest rubble cells, the rest of its rubble cells air; the units consumed. The
 // region's store is binary, so rubble drawn by the half-fill rule lost every under-half cell (~270 voxels a blast).
-nlohmann::json Application::voxFoundSettleRubble() {
+nlohmann::json VoxFoundWorld::voxFoundSettleRubble() {
     using namespace Core::VoxFound;
     namespace MS = Core::MatSim;
     auto& lab = voxFoundBodiesLab;
@@ -534,7 +537,7 @@ nlohmann::json Application::voxFoundSettleRubble() {
 }
 
 // F6.5: drawn vs the rule over every lab voxel (status {"fluid_check":true})
-size_t Application::voxFoundFluidCheck() const {
+size_t VoxFoundWorld::voxFoundFluidCheck() const {
     const auto& lab = voxFoundBodiesLab;
     const auto& w = lab.world;
     if (voxFoundEdit.empty() || lab.asWorld) return size_t(-1);
@@ -547,7 +550,7 @@ size_t Application::voxFoundFluidCheck() const {
 }
 
 // F6.5: the fluid at 60 Hz on its own accumulator while running (<= 4 ticks a frame), then the display edit
-void Application::voxFoundFluidStep(float dt) {
+void VoxFoundWorld::voxFoundFluidStep(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.fluid || !lab.running) return;
     const double h = 1.0 / 60.0;
@@ -569,7 +572,7 @@ void Application::voxFoundFluidStep(float dt) {
     lab.fluidMaxMs = std::max(lab.fluidMaxMs, double(ms));
 }
 
-void Application::stepVoxFoundBodies(float dt) {
+void VoxFoundWorld::stepVoxFoundBodies(float dt) {
     auto& lab = voxFoundBodiesLab;
     if (!lab.sim) return;
     voxFoundFluidStep(dt);   // F6.5
@@ -606,7 +609,7 @@ void Application::stepVoxFoundBodies(float dt) {
     }
 }
 
-void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response) {
+void VoxFoundWorld::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::json& response) {
     using namespace Core::VoxFound;
     auto& lab = voxFoundBodiesLab;
     const auto& p = cmd.params;

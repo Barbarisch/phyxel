@@ -578,6 +578,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     // Pre-baked / previously saved worlds: the DB already holds the terrain, so stop
     // here — config above (recipe, params, streaming generation, radii) is applied,
     // but regeneration would overwrite saved edits and is very slow.
+    // docs/VoxelFoundationPlan.md step 7 D2: a project that boots switched never loads today's world -- and authors no
+    // play bounds here either (the switched world sets its own at switch-on: none while streaming, else its region;
+    // an authored box here clamped WaterBench_Coast's player to chunk (0,0,0)'s edge, D3-core run).
+    if (ChunkStreamingManager::todayWorldDisabled()) {
+        LOG_INFO("GameDefinitionLoader", "World: today's world disabled (the project boots switched) -- not loaded");
+        return;
+    }
     if (sub.skipTerrainGeneration) {
         LOG_INFO("GameDefinitionLoader", "World: config applied; terrain generation skipped (chunks already in DB)");
         return;
@@ -618,13 +625,6 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
             static_cast<float>(minCX * 32), static_cast<float>(minCZ * 32),
             static_cast<float>((maxCX + 1) * 32), static_cast<float>((maxCZ + 1) * 32)));
         sub.chunkManager->setRegionChunkCoords(chunkCoords);   // the exact block, all levels (G-181)
-    }
-
-    // docs/VoxelFoundationPlan.md step 7 stage D2: a project that boots switched never loads today's world -- the play
-    // bounds above stand (the switched world replaces them at its switch-on); no chunk is loaded or generated here.
-    if (ChunkStreamingManager::todayWorldDisabled()) {
-        LOG_INFO("GameDefinitionLoader", "World: today's world disabled (the project boots switched) -- not loaded");
-        return;
     }
 
     // NEVER regenerate over saved chunks by accident. An inline `world` block on a

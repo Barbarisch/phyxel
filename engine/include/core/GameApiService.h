@@ -80,6 +80,8 @@ public:
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;
     /// The host's latest WorldHealth report (WorldHealth::check on scene ready), or null.
     std::function<nlohmann::json()> worldHealthProvider;
+    /// docs/VoxelFoundationPlan.md D3-core: the switched world's state (GameShell), or null.
+    std::function<nlohmann::json()> voxFoundStatusProvider;
     /// HUD layout lint over the screens visible right now (UISystem::lintLayout), or null.
     std::function<nlohmann::json()> uiLintProvider;
     // Turn-based combat (all-or-nothing trio; null = combat endpoints report

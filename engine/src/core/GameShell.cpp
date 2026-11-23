@@ -1,4 +1,5 @@
 #include "core/GameShell.h"
+#include "core/voxfound/VoxFoundWorld.h"
 #include "ui/DialogueSystem.h"
 #include "ui/UISystem.h"
 #include "graphics/RenderCoordinator.h"
@@ -30,6 +31,34 @@
 namespace Phyxel {
 namespace Core {
 
+// docs/VoxelFoundationPlan.md step 7 D3-core: the switched world in a standalone game.
+namespace {
+std::unique_ptr<VoxFoundWorld> s_vfwPending;   // created by voxFoundPreInit (before the runtime), adopted by the shell
+}
+
+GameShell::GameShell() = default;
+GameShell::~GameShell() = default;
+
+bool GameShell::voxFoundPreInit(const std::string& gameJsonPath) {
+    s_vfwPending = std::make_unique<VoxFoundWorld>();
+    const bool switched = s_vfwPending->preInit(gameJsonPath);
+    LOG_INFO("VoxFound", std::string("standalone boot mode: ") + (switched ? "switched (1/8 m)" : "today's world"));
+    return switched;
+}
+
+void GameShell::voxFoundTick(EngineRuntime& engine, Graphics::RenderCoordinator* renderer, float dt) {
+    if (!vfw_ && s_vfwPending) vfw_ = std::move(s_vfwPending);
+    if (!vfw_) return;
+    vfw_->runtime = &engine;
+    vfw_->vulkanDevice = engine.getVulkanDevice();
+    vfw_->camera = engine.getCamera();
+    vfw_->chunkManager = engine.getChunkManager();
+    vfw_->physicsWorld = engine.getPhysicsWorld();
+    vfw_->renderCoordinator = renderer;
+    vfw_->npcManager = apiNPCManager();
+    vfw_->tick(dt);
+}
+
 bool GameShell::initDebris(EngineRuntime& engine, Graphics::RenderCoordinator* renderer,
                            const DebrisRuntime::Config& config) {
     const bool ok = debris_.initialize(engine.getVulkanDevice(), renderer, engine.getChunkManager(),
@@ -52,6 +81,18 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.entityRegistry   = apiEntityRegistry();
     gameApi_.playerProvider   = [this]() { return apiPlayer(); };
     gameApi_.worldHealthProvider = [this]() { return apiWorldHealth(); };
+    gameApi_.voxFoundStatusProvider = [this]() -> nlohmann::json {   // D3-core: the switched world's state
+        auto* cm = gameApi_.runtime ? gameApi_.runtime->getChunkManager() : nullptr;
+        nlohmann::json r = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
+                            {"today_chunks_resident", cm ? cm->chunkMap.size() : 0}};
+        if (!vfw_) { r["hosted"] = false; return r; }
+        r["hosted"] = true;
+        r["boot_pending"] = vfw_->voxFoundBootPending;
+        r["boot_report"] = vfw_->voxFoundBootReport;
+        r["switched"] = vfw_->voxFoundWorldReads != nullptr;
+        r["region_chunks"] = vfw_->voxFoundEdit.chunkCount();
+        return r;
+    };
     gameApi_.uiLintProvider = [this]() -> nlohmann::json {
         auto* rc = apiRenderCoordinator();
         auto* ui = rc ? rc->getUISystem() : nullptr;

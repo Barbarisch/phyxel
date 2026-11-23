@@ -5578,8 +5578,10 @@ void RenderCoordinator::drawFrame() {
     // Bind descriptor sets (uniform buffers)
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
     
-    // Draw using dual rendering system
-    if (chunkManager && !chunkManager->chunks.empty()) {
+    // Draw using dual rendering system. docs/VoxelFoundationPlan.md step 7: NOT gated on today's chunks -- a switched
+    // world (D2) has none, and this block also draws the 1/8 m world, characters, debris, grass and far terrain
+    // (renderStaticGeometry handles an empty chunk set itself). Gating it here drew a black world from D2 to D3-core.
+    if (chunkManager) {
         // Render static geometry first and capture how many chunks were actually rendered
         size_t actuallyRenderedChunks = 0;
         if (useDepthPrepass) {

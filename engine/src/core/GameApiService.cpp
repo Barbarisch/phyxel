@@ -191,6 +191,11 @@ void GameApiService::registerCommands() {
              // harness can make, rather than a human squinting at a screenshot.
              {"camera_owner_hidden", renderCoordinator->cameraOwnerHidden()},
              {"characters_drawn_main", renderCoordinator->getCharacterRenderStats().drawnMain}};
+        // docs/VoxelFoundationPlan.md D3-core: the switched (1/8 m) world draws through its own path -- its clusters
+        // and faces drawn, read back from the last completed frame (0 when nothing switched is drawn)
+        const auto vf = renderCoordinator->voxFoundCullStats();
+        r["voxfound_clusters"] = vf[0];
+        r["voxfound_faces"] = vf[2];
     });
 
     // Audio observability: listener pose + pool counts, straight from the real
@@ -362,6 +367,12 @@ void GameApiService::registerCommands() {
         json rep = worldHealthProvider();
         if (rep.is_null()) { r = {{"error", "no WorldHealth report yet (no world scene ready)"}}; return; }
         r = rep;
+        r["success"] = true;
+    });
+
+    reg.on("voxfound_status", [this](const APICommand&, json& r) {   // D3-core
+        if (!voxFoundStatusProvider) { r = {{"error", "no switched-world host"}}; return; }
+        r = voxFoundStatusProvider();
         r["success"] = true;
     });
 

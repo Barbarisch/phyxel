@@ -35,9 +35,13 @@ def evaluate_probe(project: dict, screen: dict, render: dict) -> list[str]:
         errors.append("screen state is unavailable")
     if render.get("error"):
         errors.append(f"render stats failed: {render['error']}")
-    if render.get("visible_chunk_count", 0) <= 0:
+    # docs/VoxelFoundationPlan.md D3-core: a switched game (the 1/8 m world, the default) draws through its own path
+    # -- its clusters / faces count as the world; today's chunk counters are 0 there by design.
+    chunks = render.get("visible_chunk_count", 0) + render.get("voxfound_clusters", 0)
+    faces = render.get("total_visible_faces", 0) + render.get("voxfound_faces", 0)
+    if chunks <= 0:
         errors.append("no visible chunks were rendered")
-    if render.get("total_visible_faces", 0) <= 0:
+    if faces <= 0:
         errors.append("no visible world faces were rendered")
     return errors
 

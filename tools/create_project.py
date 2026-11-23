@@ -484,6 +484,10 @@ def create_project(
                 Phyxel::DebrisRuntime::handleArg(a);   // --disable-gpu-debris (tests the loud-off path)
             }}
 
+            // docs/VoxelFoundationPlan.md step 7 D3-core: the switched world (1/8 m) -- read game.json's boot
+            // mode BEFORE the runtime initializes (a switched game never loads today's chunks).
+            Phyxel::Core::GameShell::voxFoundPreInit("game.json");
+
             Phyxel::Core::EngineRuntime engine;
             if (!engine.initialize(config)) {{
                 LOG_ERROR("main", "Failed to initialize engine");
@@ -3285,6 +3289,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (engine.getConfig().testApiEnabled && !testApiRunning())
                 startTestApi(engine, engine.getConfig().apiPort, "{class_name}");
             pumpTestApi();
+            voxFoundTick(engine, renderCoordinator_.get(), dt);   // D3-core: the switched world (no-op when opted out)
 
             // Pump scene transitions every frame, in EVERY screen state — menu-scene
             // buttons and triggers set the transition; this advances it.

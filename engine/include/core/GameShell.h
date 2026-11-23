@@ -6,9 +6,11 @@
 #include "core/GameplayCameraController.h"
 #include "core/GameApiService.h"
 
+#include <memory>
 #include <string>
 
 namespace Phyxel {
+class VoxFoundWorld;   // docs/VoxelFoundationPlan.md step 7 D3-core
 namespace Graphics { class RenderCoordinator; }
 namespace Scene { class AnimatedVoxelCharacter; }
 namespace UI { class GameScreen; }
@@ -50,6 +52,17 @@ public:
         return fallback;
     }
     GameplayCameraController& gameplayCamera() { return cameraController_; }
+
+    // docs/VoxelFoundationPlan.md step 7 D3-core: the switched world (1/8 m) in a standalone game, the same
+    // VoxFoundWorld the editor hosts. main() calls voxFoundPreInit("game.json") BEFORE EngineRuntime::initialize (it
+    // sets today's-world switch: a switched game never loads today's chunks); the game calls voxFoundTick every
+    // onUpdate (boot after the first frames, stream, LOD, grass, bodies). Opt-out (world.voxfound.enabled:false):
+    // both are no-ops and the game runs on today's world.
+    static bool voxFoundPreInit(const std::string& gameJsonPath);
+    void voxFoundTick(EngineRuntime& engine, Graphics::RenderCoordinator* renderer, float dt);
+    VoxFoundWorld* voxFoundWorld() const { return vfw_.get(); }
+    GameShell();             // out of line: unique_ptr<VoxFoundWorld> is incomplete here
+    ~GameShell() override;
 
 protected:
     // Per-frame gameplay camera + character control — call from onUpdate while
@@ -173,6 +186,7 @@ protected:
     DebrisRuntime& debris() { return debris_; }
 
 private:
+    std::unique_ptr<VoxFoundWorld> vfw_;   // D3-core (adopted from voxFoundPreInit)
     bool journalOpen_ = false;        // G-168 quest journal window
     bool journalKeyDown_ = false;     // for rising-edge detection
     GameplayCameraController cameraController_;
