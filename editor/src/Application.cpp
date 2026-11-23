@@ -9976,6 +9976,11 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         response = {{"success", true}, {"visible", m_assetRefCharVisible}};
         return true;
 
+    } else if (action == "asset_save") {   // D3-core part 3 (tests): Ctrl+S through the API
+        if (!m_assetEditorMode) { response = {{"error", "Not in asset editor mode"}}; return true; }
+        response = saveAssetTemplateGrid8();
+        response["spawn"] = m_assetEditorLastSpawn;
+        return true;
     } else if (action == "reload_asset") {
         if (!m_assetEditorMode) {
             response = {{"error", "Not in asset editor mode"}};
@@ -22136,20 +22141,12 @@ void Application::initAssetEditorScene() {
     // calling it again is a safe no-op. When called at startup it's the only cleanup.
     chunkManager->cleanup();
 
-    // Create the chunk that will hold the floor (origin 0,0,0 covers Y=0..31)
-    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
-
-    // Build a clean flat platform: Y=15 floor, 32Ãƒâ€”32 slab of Stone
-    for (int x = 0; x < 32; ++x) {
-        for (int z = 0; z < 32; ++z) {
-            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                glm::ivec3(x, 15, z), "Stone");
-        }
+    // D3-core part 3: the stage is the switched world (1/8 m); today's chunk floor is not built
+    if (vfw) {
+        vfwBind();
+        const nlohmann::json st = vfw->buildEditorStage();
+        LOG_INFO("Application", "Asset Editor: switched stage " + st.dump());
     }
-
-    // Rebuild faces and voxel maps now that the floor is placed
-    chunkManager->rebuildAllChunkFaces();
-    chunkManager->initializeAllChunkVoxelMaps();
 
     // Spawn the template being edited at the asset origin
     // Protect the floor from being broken
@@ -22157,13 +22154,14 @@ void Application::initAssetEditorScene() {
         voxelInteractionSystem->setMinBreakableY(15);
     }
 
-    if (objectTemplateManager && !m_assetEditorFile.empty()) {
+    if (vfw && !m_assetEditorFile.empty()) {   // D3-core part 3: painted into the switched world from the FILE
         namespace fs = std::filesystem;
-        // Load the template file, then spawn by its stem name
-        objectTemplateManager->loadTemplate(m_assetEditorFile);
-        std::string stemName = fs::path(m_assetEditorFile).stem().string();
-        objectTemplateManager->spawnTemplate(stemName,
-            glm::vec3(m_assetTemplateOrigin), true /*static*/);
+        const nlohmann::json r = vfw->voxFoundSpawnTemplate(
+            {{"name", fs::path(m_assetEditorFile).stem().string()}, {"path", m_assetEditorFile}, {"snap", false},
+             {"position", {{"x", float(m_assetTemplateOrigin.x)}, {"y", float(m_assetTemplateOrigin.y)},
+                           {"z", float(m_assetTemplateOrigin.z)}}}});
+        m_assetEditorLastSpawn = r;
+        LOG_INFO("Application", "Asset Editor: template painted " + r.dump());
     }
 
     // Position camera with a clear view of the editing area
@@ -22259,7 +22257,29 @@ void Application::renderAssetEditorUI() {
     ImGui::End();
 }
 
+// D3-core part 3: the asset editor saves the switched world's cells as a `# grid: 8` template -- a grid-8 file in
+// place; a C/S/M file's version to resources/templates_g8/<category>/<stem>.voxel (never over the legacy file).
+nlohmann::json Application::saveAssetTemplateGrid8() {
+    namespace fs = std::filesystem;
+    if (!vfw || !vfw->voxFoundWorldReads) return {{"success", false}, {"error", "the switched stage is not up"}};
+    std::ifstream in(m_assetEditorFile);
+    std::string head((std::istreambuf_iterator<char>(in)), {});
+    const bool grid8 = head.find("# grid: 8") != std::string::npos;
+    const fs::path src(m_assetEditorFile);
+    std::string out = m_assetEditorFile;
+    if (!grid8) out = (fs::path("resources/templates_g8") / src.parent_path().filename() / src.filename()).string();
+    constexpr int kHalf = 8, kV = 8;   // the old 16 x 16 x 16 m box around the origin (floor excluded), in 1/8 m
+    const glm::ivec3 o = m_assetTemplateOrigin * kV;
+    nlohmann::json r = vfw->saveGrid8Template(out, o - glm::ivec3(kHalf * kV, 0, kHalf * kV),
+                                              o + glm::ivec3(kHalf * kV, 16 * kV, kHalf * kV), src.stem().string());
+    r["from"] = m_assetEditorFile;
+    r["legacy_source"] = !grid8;
+    LOG_INFO("Application", "Asset Editor: saved " + r.dump());
+    return r;
+}
+
 void Application::saveAssetTemplate() {
+    if (vfw && vfw->voxFoundWorldReads) { saveAssetTemplateGrid8(); return; }   // D3-core part 3
     if (!chunkManager) return;
 
     // Determine bounding box: scan a generous area around the template origin
@@ -22343,23 +22363,10 @@ void Application::initAnimEditorScene() {
     // Clear any world loaded by EngineRuntime startup
     chunkManager->cleanup();
 
-    // Create one chunk and lay a Stone floor at Y=15
-    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
-    for (int x = 0; x < 32; ++x) {
-        for (int z = 0; z < 32; ++z) {
-            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(x, 15, z), "Stone");
-        }
-    }
-    chunkManager->rebuildAllChunkFaces();
-    chunkManager->initializeAllChunkVoxelMaps();
-
-    // Force-rebuild physics occupancy grids AFTER floor voxels are in place.
-    // createChunk registered the grid when the chunk was empty; the incremental
-    // addCollisionEntity calls inside addCubeWithMaterial should already populate
-    // it, but rebuilding from scratch here guarantees the grid is correct before
-    // the character spawns and its kinematic controller queries findGroundY.
-    for (auto& chunk : chunkManager->chunks) {
-        chunk->forcePhysicsRebuild();
+    // D3-core part 3: the stage is the switched world (1/8 m); today's chunk floor is not built
+    if (vfw) {
+        vfwBind();
+        LOG_INFO("Application", "initAnimEditorScene: switched stage " + vfw->buildEditorStage().dump());
     }
 
     // Spawn the animated character from the .anim file
@@ -24002,13 +24009,10 @@ void Application::initInteractionEditorScene() {
     // Clear the default world
     chunkManager->cleanup();
 
-    // Create one chunk with a Stone floor at Y=15
-    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
-    for (int x = 0; x < 32; ++x) {
-        for (int z = 0; z < 32; ++z) {
-            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                glm::ivec3(x, 15, z), "Stone");
-        }
+    // D3-core part 3: the stage is the switched world (1/8 m); today's chunk floor is not built
+    if (vfw) {
+        vfwBind();
+        LOG_INFO("Application", "initInteractionEditorScene: switched stage " + vfw->buildEditorStage().dump());
     }
     chunkManager->rebuildAllChunkFaces();
     chunkManager->initializeAllChunkVoxelMaps();

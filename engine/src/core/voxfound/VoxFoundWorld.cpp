@@ -1757,6 +1757,14 @@ nlohmann::json VoxFoundWorld::voxFoundSpawnTemplate(const nlohmann::json& params
                     break;
                 }
     }
+    if (params.contains("path")) {   // D3-core part 3 (the asset editor): this file, whatever library it is in
+        const std::string pth = params["path"].get<std::string>();
+        std::ifstream pin(pth);
+        std::string head((std::istreambuf_iterator<char>(pin)), {});
+        path.clear();
+        legacyPath.clear();
+        (head.find("# grid: 8") != std::string::npos ? path : legacyPath) = pth;
+    }
     if (path.empty() && legacyPath.empty())
         return {{"success", false}, {"world", "voxfound"}, {"error", "no 1/8 m template " + name}};
     CsmTemplateStats csm;
@@ -3710,6 +3718,69 @@ bool VoxFoundWorld::preInit(const std::string& gameJsonPath) {
     const bool off = voxFoundBootPending && !voxFoundTodayKeep;
     ChunkStreamingManager::setTodayWorldDisabled(off);
     return off;
+}
+
+// docs/VoxelFoundationPlan.md step 7 D3-core part 3: the special editors' stage -- an editable region over chunk
+// (0,0,0) from the Flat generator (top at 16 m, like the old Stone floor at y 15), no flora, switched on. Today's
+// chunks are the caller's to clear.
+nlohmann::json VoxFoundWorld::buildEditorStage() {
+    Core::APICommand c;
+    nlohmann::json r = nlohmann::json::object(), on = nlohmann::json::object();
+    c.params = {{"type", "Flat"}, {"seed", 1}, {"flora", false}, {"editable", true}, {"hide_world", false},
+                {"region", {{"from", {0, 0, 0}}, {"to", {0, 0, 0}}}}};
+    handleVoxFoundPreview(c, r);
+    if (r.contains("error")) return {{"success", false}, {"build", r}};
+    c.params = {{"world_switch", true}, {"load_saved", false}};
+    handleVoxFoundPreview(c, on);
+    // the old floor's top was exactly 16 m (a Stone cube at y 15): clear the generator's surface layer above it (the
+    // Flat surface is half a metre of Grass over 16 m) so templates stand on 16 m and the save box holds only edits
+    std::vector<std::pair<glm::ivec3, uint8_t>> carve;
+    constexpr int kVpm = Core::VoxFound::kVoxelsPerM, kTop = 16 * kVpm;
+    for (int x = 0; x < 32 * kVpm; ++x)
+        for (int z = 0; z < 32 * kVpm; ++z)
+            for (int y = kTop; y < kTop + kVpm; ++y)
+                if (voxFoundEdit.voxelAt({x, y, z})) carve.push_back({{x, y, z}, 0});
+    const nlohmann::json cr = carve.empty() ? nlohmann::json{{"voxels_changed", 0}} : voxFoundPaintCells("editor_stage", carve);
+    voxFoundHistory.clear();   // the stage is not an undoable edit
+    return {{"success", !on.contains("error")}, {"build_ms", r.value("build_ms", 0.0)}, {"switch", on},
+            {"carved", cr.value("voxels_changed", 0)}};
+}
+
+nlohmann::json VoxFoundWorld::saveGrid8Template(const std::string& outPath, glm::ivec3 lo, glm::ivec3 hi,
+                                                const std::string& name) {
+    struct Run { glm::ivec3 p; int len; uint8_t m; };
+    std::vector<Run> runs;
+    glm::ivec3 mn(std::numeric_limits<int>::max());
+    std::map<std::string, size_t> perMat;
+    size_t cells = 0;
+    for (int x = lo.x; x < hi.x; ++x)
+        for (int y = lo.y; y < hi.y; ++y)
+            for (int z = lo.z; z < hi.z; ++z) {
+                const uint8_t m = voxFoundEdit.voxelAt({x, y, z});
+                if (!m) continue;
+                ++cells;
+                mn = glm::min(mn, glm::ivec3(x, y, z));
+                const std::string mat = m < voxFoundPalette.size() ? voxFoundPalette[m] : "Default";
+                ++perMat[mat];
+                if (!runs.empty() && runs.back().m == m && runs.back().p.x == x && runs.back().p.y == y &&
+                    runs.back().p.z + runs.back().len == z)
+                    ++runs.back().len;
+                else
+                    runs.push_back({{x, y, z}, 1, m});
+            }
+    if (!cells) return {{"success", false}, {"error", "nothing to save in the box"}};
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(outPath).parent_path(), ec);
+    std::ofstream f(outPath, std::ios::binary);
+    if (!f) return {{"success", false}, {"error", "cannot write " + outPath}};
+    f << "# grid: 8\n# name: " << name << "\n# saved by the asset editor (docs/VoxelFoundationPlan.md D3-core)\n";
+    for (const Run& r : runs) {
+        const glm::ivec3 p = r.p - mn;
+        const std::string mat = r.m < voxFoundPalette.size() ? voxFoundPalette[r.m] : "Default";
+        if (r.len == 1) f << "V " << p.x << ' ' << p.y << ' ' << p.z << ' ' << mat << '\n';
+        else f << "B " << p.x << ' ' << p.y << ' ' << p.z << " 1 1 " << r.len << ' ' << mat << '\n';
+    }
+    return {{"success", true}, {"path", outPath}, {"cells", cells}, {"boxes", runs.size()}, {"per_material", perMat}};
 }
 
 }  // namespace Phyxel

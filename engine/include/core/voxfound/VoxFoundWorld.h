@@ -149,6 +149,11 @@ public:
     std::function<void()> processAPICommands;                     // the host's API pump (long jobs keep it alive)
     void tick(float dt);                                          // D3-core: per frame (every host)
     bool preInit(const std::string& gameJsonPath);                 // D3-core: before EngineRuntime::initialize
+    // D3-core part 3: the special editors (asset / anim / interaction) on the switched world
+    nlohmann::json buildEditorStage();   // an editable region over chunk (0,0,0): Flat, no flora, switched on
+    /// the cells in [loVox, hiVox) (1/8 m voxels) as a `# grid: 8` template (z runs as B lines), rebased to 0
+    nlohmann::json saveGrid8Template(const std::string& outPath, glm::ivec3 loVox, glm::ivec3 hiVox,
+                                     const std::string& name);
 
     WorldEditHit voxFoundPick(const glm::vec3& origin, const glm::vec3& dir, float maxMetres) const;
     size_t voxFoundBrush(const glm::ivec3& voxel, int size, const std::string& material);

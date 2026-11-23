@@ -1763,3 +1763,22 @@ overwritten).
   S3: --asset-editor resources/templates/furniture/chair_wood.voxel (C/S/M) converts, draws, and its save lands in
       templates_g8/furniture/chair_wood.voxel; the legacy file is byte-identical after.
   S4: --anim-editor <a rig> boots switched with the character standing on the floor (screenshot).
+
+D3-core RESULTS, part 3 (2026-11-23; the prediction above untouched). Release; raw voxfound_d3c3_live.jsonl. Inputs
+were COPIES under build/d3c3 (the in-place grid-8 save must not touch the library); the converted chair's save in
+templates_g8 was deleted after each run.
+  RUN 1 found two defects: (1) the Flat generator's surface is half a metre of Grass ABOVE 16 m -- the template sat
+     buried and the save box swept up 65,452 Grass voxels; fixed: buildEditorStage clears the stage above 16 m (the old
+     floor's top) and drops that edit from the undo history; (2) MY S2 check compared the saved copy with itself (the
+     in-place save overwrote its input before the count) -- fixed to compare with the pristine library file.
+  S1 PASS: the stage is switched (0 of today's chunks), floor cube y 15 full (512, Dirt -- the old floor was Stone:
+     cosmetic, recorded), y 16 empty -> top at 16 m.
+  S2 PASS: barrel (grid 8) painted 147 cells, verify 0; Ctrl+S (POST /api/asset-editor/save) wrote 147 cells, per
+     material equal to the library original (WoodWalnut 123, Metal 24).
+  S3 PASS: chair_wood (C/S/M, 138 microcubes) converted to 79 voxels, drawn (d3c3_chair_wood.png -- camera aimed at
+     the origin: the editor's default camera at (20, 22, 10) yaw -135 frames AWAY from the template origin (13, 16, 13),
+     pre-existing framing, d3c3_chair_wood_editorcam.png); saved to templates_g8/furniture/chair_wood.voxel (79
+     cells); the legacy file byte-identical.
+  S4 PASS: --anim-editor humanoid.anim: switched stage, the character stands at y 16.0 with its shadow
+     (d3c3_anim_editor.png). The interaction editor shares buildEditorStage but was NOT run (untested).
+D3-core DONE (asset / anim editors run on the switched world; packaged games and the editor host VoxFoundWorld).

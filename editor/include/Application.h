@@ -764,7 +764,9 @@ private:
     // ============================================================================
     bool m_assetEditorMode = false;
     std::string m_assetEditorFile;                          // Full path to the .voxel template being edited
-    glm::ivec3 m_assetTemplateOrigin{13, 16, 13};          // World position where the template is placed
+    glm::ivec3 m_assetTemplateOrigin{13, 16, 13};
+    nlohmann::json m_assetEditorLastSpawn;   // D3-core part 3
+    nlohmann::json saveAssetTemplateGrid8();          // World position where the template is placed
     std::string m_assetEditorMaterial{"Wood"};              // Currently selected placement material
     bool m_assetRefCharVisible = false;                     // Whether the humanoid reference char is spawned
     Scene::AnimatedVoxelCharacter* m_assetRefChar = nullptr;// Non-owning pointer into entities list

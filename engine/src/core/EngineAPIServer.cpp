@@ -1395,6 +1395,13 @@ void EngineAPIServer::setupRoutes() {
     // Body: { "path": "<optional new .voxel path>" }
     // Returns: { "success": true, "file": "<path>" }
     // ====================================================================
+    // POST /api/asset-editor/save -- docs/VoxelFoundationPlan.md D3-core part 3: Ctrl+S (the switched world's cells as a
+    // `# grid: 8` template). Returns {success, path, cells, per_material, from, legacy_source, spawn}.
+    srv.Post("/api/asset-editor/save", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("asset_save", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
     srv.Post("/api/asset-editor/reload", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = req.body.empty() ? json::object() : json::parse(req.body);
