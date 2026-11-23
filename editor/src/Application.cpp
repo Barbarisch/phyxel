@@ -15111,7 +15111,10 @@ void Application::registerWaterCommands() {
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         if (cmd.params.contains("on")) waterCore->setRealtime(cmd.params.value("on", false));
-        r = {{"realtime", waterCore->realtime()}};
+        // 58.10: max_ticks (1..4, default 4) - the ticks a frame's water call may take; echoed with the ticks dropped so far
+        if (cmd.params.contains("max_ticks") && cmd.params["max_ticks"].is_number())
+            Core::Water::WaterCoreManager::s_maxTicksPerFrame = std::clamp(cmd.params["max_ticks"].get<int>(), 1, Core::Water::WaterCoreManager::kMaxTicksPerFrame);
+        r = {{"realtime", waterCore->realtime()}, {"max_ticks", Core::Water::WaterCoreManager::s_maxTicksPerFrame}, {"ticks_dropped", waterCore->ticksDropped()}};
     });
 
     // The bake's sea-level configuration + the §2e closed-basin detector, queryable at runtime.

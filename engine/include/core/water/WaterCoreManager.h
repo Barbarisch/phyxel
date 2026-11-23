@@ -490,6 +490,10 @@ public:
     static constexpr float kFixedTickDefaultS = 1.0f / 60.0f;
     static inline float s_fixedTickS = kFixedTickDefaultS;
     static constexpr int kMaxTicksPerFrame = 4;
+    /// 58.10 (item 1): the ticks a frame's call may take, 1..kMaxTicksPerFrame (default 4 = before) - a lower cap bounds a call's device
+    /// time in a splash's burst (a long frame stepped 2-3 ticks x 6 substeps: 28-41 ms) at the cost of the water running slower than
+    /// real time while frames are long (the backlog dropped, counted in ticksDropped). A BEHAVIOUR trade: the owner's call from a clip.
+    static inline int s_maxTicksPerFrame = kMaxTicksPerFrame;
     long ticksDropped() const { return m_ticksDropped; }
     void setRealtime(bool on) { m_realtime = on; }
     bool realtime() const { return m_realtime; }

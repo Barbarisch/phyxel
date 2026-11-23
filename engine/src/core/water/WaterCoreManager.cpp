@@ -562,7 +562,8 @@ void WaterCoreManager::update(float dt) {
     if (s_fixedTickS > 0.0f) {
         m_tickAccum += dt;
         ticks = static_cast<int>(std::floor(m_tickAccum / s_fixedTickS));
-        if (ticks > kMaxTicksPerFrame) { m_ticksDropped += ticks - kMaxTicksPerFrame; ticks = kMaxTicksPerFrame; m_tickAccum = 0.0; }
+        const int cap = std::clamp(s_maxTicksPerFrame, 1, kMaxTicksPerFrame);   // 58.10
+        if (ticks > cap) { m_ticksDropped += ticks - cap; ticks = cap; m_tickAccum = 0.0; }
         else m_tickAccum -= ticks * static_cast<double>(s_fixedTickS);
         tickDt = s_fixedTickS;
     }

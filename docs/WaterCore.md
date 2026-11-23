@@ -15555,6 +15555,13 @@ substeps); 85-111 frames over 33 ms in 4 s, ~25 fps through the splash. It feeds
 cost:** (a) cap the ticks a call (the water runs briefly slower than real time, catching up after), (b) fewer sweeps in the burst
 (20 is owner-signed, 26.35), (c) a cheaper solve (MG preconditioning on the patch: 53.x). By the owner's rule ("test, do not ask
 feel") the next step builds (a) behind a switch, measures the gate, and shows both in a clip.
+**(a) built and measured - it does not move the gate:** `WaterCoreManager::s_maxTicksPerFrame` (1-4, default 4 = before; API
+`water_av_realtime {max_ticks}`, echoed with `ticks_dropped`). The 57.6 rig, idle GPU, one session each, 2 runs (`s58_ticks_{4,2,1}
+.json`): the first 2.5 s worst **24.3 / 24.6 ms (4), 26.5 / 35.4 (2), 23.0 / 23.2 (1)**; windows over 15 ms 10-12 / 8-9 / 10 of ~58.
+In these runs the worst frame is the first 0.3 s (the tile wakes), not the GPU-bound calls - the 108-119 ms frames of
+`s58_windows_now.json` did not recur (run-to-run: the burst's device time varies with where the waves meet the recorded tiles).
+The knob stays at 4 (no behaviour change shipped). What is left for item 1: the first 0.3 s (tile wakes ~10-12 ms, ripples ~5,
+the collect) and the burst's device time when it occurs (b, c above).
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
