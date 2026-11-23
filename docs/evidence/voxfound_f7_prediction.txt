@@ -1341,3 +1341,18 @@ Release.
   B4 PASS: a 16 x 23 x 16 m area across the bridge (12,800 Wood voxels) = its two halves built separately (0 differing).
   Regression: VoxFoundTerrainGenRate (FastAreaEqualsReference) / VoxFoundStorageLab / VoxFoundRoadGrade / RoadFieldSeam /
      WorldForge / Flora: 89 pass, 1 skipped.
+
+F7.24 PREDICTION -- step-7 port: the rest of the voxel API on the switched world (F7.6c left place_voxels_batch,
+copy / paste / move and named snapshots on TODAY's hidden chunks; 2026-11-22, the change built, NOT yet run).
+THE CHANGE: voxFoundApiRegion -- with the switch on, those calls edit the switched world: cube units by default (a box
+x1..x2 = voxels x1*8 .. x2*8+7), "units":"voxel" for 1/8 m voxels; copy / create_snapshot capture the box's 1/8 m
+voxels (sub-cube detail kept); paste writes the clip's solid voxels, rotated in 90 degree steps by SnapshotManager::
+rotateY90's convention; move = clear + paste in one edit; restore_snapshot writes the box exactly. One undo entry each.
+Live, VoxFoundBoot (switched, streaming off), an air box above the ground; a shape S of 2 x 2 x 2 cubes built with
+place_voxel at mixed sizes (a Stone cube, size-2 Bricks, size-1 Glass voxels -- sub-cube detail).
+  CONTROL / RED (api_stub): place_voxels_batch / copy / paste change nothing in the region (today's chunks take them).
+  P1: place_voxels_batch of 10 cubes -> 5,120 voxels; one undo returns the box to 0 solid voxels.
+  P2: copy S, paste at +10 m x -> the destination box's solid voxels equal S's voxel for voxel (offsets + materials).
+  P3: paste rotate 90 -> equals S rotated by x' = 15 - z, z' = x (the box is 16 voxels deep).
+  P4: move S by +20 m z -> the source box 0 solid; the destination = S.
+  P5: create_snapshot of S's box, clear it, restore -> the box = S again.
