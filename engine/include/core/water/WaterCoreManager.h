@@ -800,6 +800,10 @@ public:
     /// 58.3: a record tile's rise is found when it is BUILT (against its field before), not by takeMotion scanning every record field
     /// (the first live frame after a lake's tiles were built scanned ~560k columns, ~4 ms). TEST ONLY: takeMotion scans them as before
     static inline bool s_recordMotionScanForTest = false;
+    /// 58.3: TEST ONLY - a ripple layer's mask by the float lookup per lattice cell (the reference for buildRippleMask's integer walk)
+    static inline bool s_rippleMaskByFloatForTest = false;
+    /// 58.3 TEST: lattice cells where volume id's ripple mask by the integer walk differs from the float lookup (-1 = no layer)
+    long rippleMaskDiffersForTest(int id, long* dryCells = nullptr);   ///< dryCells: the reference mask's dry cells (the edges it holds)
     static constexpr float kRecordMotionMoveM = 0.015f;   ///< takeMotion's default threshold (a record tile is not passed one)
     /// L3 (41): how long a frame may spend freeing given-up kept buffers (ms); 41.4 item 3
     static constexpr double kKeptFreeMsPerFrame = 1.0;
@@ -1278,6 +1282,7 @@ private:
     PatchPaceStats m_patchPaced;
     void pumpPatchJobs(int mode = 0);   ///< 0 a frame's pump, 1 every job to live now, 2 due jobs only
     bool runPatchStage(PatchJob& j);   ///< false = the job ended (live, empty, refused, cancelled)
+    void buildRippleMask(const RippleLayer& L, const WaterSurfaceField& f, const std::vector<uint8_t>& wet, std::vector<uint8_t>& mask) const;   // 58.3
     void endPatchJob(PatchJob& j);
     bool holdForPatchJobs(const PatchHeld& h);   ///< a push into a box still building: kept for its live frame
     void patchSettle(Av& av, const SleptVolume& sv, const glm::vec3& c);   ///< wakePatch's settings + adopt of the recorded tiles

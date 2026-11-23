@@ -15332,7 +15332,18 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   scans no record field. Record tiles' current no longer counts in `water_motion`'s flow stats (debug only). TEST ONLY
   `s_recordMotionScanForTest`. **Test** `ARecordTilesRiseIsFoundWhenItIsBuilt` (CPU, a 32 m recorded lake, one tile raised 0.5 m):
   one sphere at (12.00, 2.50, 12.00), none before or again, record columns scanned 0; the old scan (reference): the same sphere,
-  165,888 columns scanned. Live: not yet re-measured.
+  165,888 columns scanned. **Live** (`s58_windows_ripplemask.json`): `motion.1` gone from the first window's top phases; the host
+  scans only the patch's own field (129,600 columns, was ~560-695k).
+- **A ripple layer's mask by integer rows, a fix that did not pay live.** The mask rebuild (when a column gains or loses water - every
+  frame of a patch's first second) looked each lattice cell up through two float divides; the lattice pitch divides the field's cell,
+  so it is `floorDiv(origin + x, per)` a row at a time now (`buildRippleMask`; the float walk kept, `s_rippleMaskByFloatForTest`).
+  **Test** `ARippleMaskByRowsEqualsTheFloatLookup` (a 60 m lake with a dry island, a patch pushed, 6 checks): 0 cells differ; CONTROL
+  the reference mask holds >= 53,460 dry cells (the comparison can fail). **Live: `ripples.2` still 7.4-10.2 ms** in the first window
+  - the mask was not its cost; the layer's step / impulses are (not split yet).
+- Seen in the full suite while ANOTHER checkout's integration suite ran on the GPU (63-100 %): `WaterRecordedPondTest.
+  ARippleLayerBeyondTheReachHoldsNoDeviceState` failed 1 run in 4 (a dropped ripple layer's device state still held 6 frames after the
+  drop - freed through a 3-deep ring once the GPU finishes, late under load); it passed in every earlier run today. Re-run idle before
+  merging.
 - P8 restated a fourth time: with another checkout's engine on the GPU the two immediate runs at 120 fps read 20.05 / 23.15 ms - its
   +2 ms bound sat inside the measured noise; the tolerance is now + 2 ms + the spread of the two immediate runs at that frame rate.
   P7's red control read 0 in a loaded full-suite run and 8 alone (it depends on how many stages a frame's wall-time budget fits).

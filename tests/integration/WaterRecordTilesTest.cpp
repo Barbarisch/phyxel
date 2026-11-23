@@ -536,6 +536,50 @@ TEST_F(WaterRecordTilesTest, ASleepingPatchsWokenTileIsDrawnByTheNextCall) {
     EXPECT_GE(uRed, 9) << "RED: without the surface-only call the tile must stay undrawn";
 }
 
+// 58.3 item 1 - a ripple layer's mask by integer rows equals the float lookup per lattice cell it replaced (3.6-8 ms a call in a
+// patch's first live frames). A 60 m lake 2 m deep in the record with a dry 4 x 5 m island inside the patch's box (the mask has
+// edges), a patch woken and pushed, 60 frames; every 10 frames the layer's mask both ways. Prediction: 0 cells differ, every check.
+TEST_F(WaterRecordTilesTest, ARippleMaskByRowsEqualsTheFloatLookup) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    using M = WaterCoreManager;
+    struct Restore { M::RecordDraw d; float m; ~Restore() { M::s_recordDraw = d; M::s_locality.drawM = m; } } restore{M::s_recordDraw, M::s_locality.drawM};
+    M::s_recordDraw.on = true; M::s_locality.drawM = 48.0f;
+    auto state = [](const glm::ivec3& m) -> int { return (m.y < 0 || (m.x >= 34 * 9 && m.x < 38 * 9 && m.z >= 26 * 9 && m.z < 31 * 9 && m.y < 27)) ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+    mgr.setDroplets(false);
+    mgr.setRealtime(true);
+    FakeRecord record; record.install(mgr);
+    const int W = 60;
+    for (int z = 0; z < W; ++z) for (int x = 0; x < W; ++x) {
+        if (x >= 34 && x < 38 && z >= 26 && z < 31) continue;   // the island: no water
+        ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r);
+    }
+    nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                          {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", M::s_tallBandDefault}};
+    ASSERT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+    const glm::vec3 c(30.0f, 1.9f, 30.0f);
+    mgr.setViewPoint(c + glm::vec3(0.0f, 6.0f, 10.0f));
+    for (int k = 0; k < 120; ++k) { mgr.update(1.0f / 60.0f); mgr.surfaceFields(); }
+    const std::vector<int> ids = wakeNearLive(mgr, c, 2.0f);
+    ASSERT_FALSE(ids.empty());
+    mgr.addImpulse(c, 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+    long worst = 0, dryMin = -1; int checks = 0;
+    for (int k = 0; k < 60; ++k) {
+        mgr.update(1.0f / 60.0f); mgr.surfaceFields();   // update steps the ripples (stepRipples)
+        if (k % 10 != 9) continue;
+        long dry = 0;
+        const long dif = mgr.rippleMaskDiffersForTest(ids[0], &dry);
+        if (dif < 0) continue;
+        ++checks; worst = std::max(worst, dif); dryMin = dryMin < 0 ? dry : std::min(dryMin, dry);
+    }
+    std::printf("  ripple mask, integer rows vs the float lookup: %d checks, worst %ld cells differ (the reference's dry cells, fewest: %ld)\n", checks, worst, dryMin);
+    EXPECT_GT(checks, 0) << "the patch never had a ripple layer";
+    EXPECT_GE(dryMin, 4L * 9 * 5 * 9) << "CONTROL: the mask holds the island's edges (else the comparison could not fail)";
+    EXPECT_EQ(worst, 0);
+}
+
 // 58.3 item 1 - a record tile's motion found when it is built, not scanned. Live (Creek) the first frame after a patch went live
 // scanned every record tile built since the last live volume (takeMotion runs only while a volume holds cells): 108-110 fields, ~560k
 // columns, 3.7-4.1 ms. Now buildRecordTile compares the new tops with the field before it (takeMotion's rule, kRecordMotionMoveM) and

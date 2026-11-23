@@ -3575,6 +3575,49 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
     t.field.look = packLook(lookAt(tx * T + T / 2, tz * T + T / 2));
 }
 
+// 58.3 item 1: a ripple layer's mask from its field's wet columns. The lattice pitch divides the field's cell (per = h / pitch, 1 at
+// 1/9 m): lattice cell x lies in field column floorDiv(origin + x, per) - the float lookup per cell (two divides and floors, the
+// +0.5 never crossing a column edge) gave the same and was 3.6-8 ms a call in a patch's first live frames (a new field each step, its
+// wet columns changing as the tiles seeded). The float walk is kept as the reference (s_rippleMaskByFloatForTest)
+void WaterCoreManager::buildRippleMask(const RippleLayer& L, const WaterSurfaceField& f, const std::vector<uint8_t>& wet, std::vector<uint8_t>& mask) const {
+    const float d = RippleLayer::kPitch;
+    const int per = static_cast<int>(std::lround(f.h / d));
+    if (s_rippleMaskByFloatForTest || per < 1 || std::abs(per * d - f.h) > 1e-6f || wet.size() != f.cols.size()) {
+        for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
+            const float wx = (L.origin().x + x + 0.5f) * d, wz = (L.origin().y + z + 0.5f) * d;
+            const int cx = static_cast<int>(std::floor(wx / f.h)) - f.origin.x, cz = static_cast<int>(std::floor(wz / f.h)) - f.origin.z;
+            const bool in = !(cx < 0 || cz < 0 || cx >= f.nx || cz >= f.nz);
+            mask[L.idx(x, z)] = (in && f.cols[static_cast<size_t>(cx) + static_cast<size_t>(f.nx) * cz].runs >= 0.5f) ? 1 : 0;
+        }
+        return;
+    }
+    auto fd = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    for (int z = 0; z < L.nz(); ++z) {
+        const int cz = fd(L.origin().y + z, per) - f.origin.z;
+        const bool rowIn = cz >= 0 && cz < f.nz;
+        const size_t row = rowIn ? static_cast<size_t>(f.nx) * cz : 0;
+        for (int x = 0; x < L.nx(); ++x) {
+            const int cx = fd(L.origin().x + x, per) - f.origin.x;
+            mask[L.idx(x, z)] = (rowIn && cx >= 0 && cx < f.nx && wet[static_cast<size_t>(cx) + row]) ? 1 : 0;
+        }
+    }
+}
+
+long WaterCoreManager::rippleMaskDiffersForTest(int id, long* dryCells) {
+    for (auto& a : m_avs) {
+        if (a->id != id || !a->ripple) continue;
+        const RippleLayer& L = *a->ripple;
+        std::vector<uint8_t> wet(a->field.cols.size()), m1(static_cast<size_t>(L.nx()) * L.nz()), m2(m1.size());
+        for (size_t i = 0; i < wet.size(); ++i) wet[i] = a->field.cols[i].runs >= 0.5f ? 1 : 0;
+        buildRippleMask(L, a->field, wet, m1);
+        s_rippleMaskByFloatForTest = true; buildRippleMask(L, a->field, wet, m2); s_rippleMaskByFloatForTest = false;
+        long n = 0, dry = 0; for (size_t i = 0; i < m1.size(); ++i) { n += m1[i] != m2[i]; dry += m2[i] == 0; }
+        if (dryCells) *dryCells = dry;
+        return n;
+    }
+    return -1;
+}
+
 std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {
     auto hp = WaterHostProfile::Clock::now();   // 27.28
     struct Lap { WaterHostProfile::Clock::time_point& t; ~Lap() { WaterHostProfile::lap("motion.1 takeMotion scan", t); } } lapAtExit{hp};
@@ -4075,10 +4118,7 @@ void WaterCoreManager::stepRipples(float dt) {
         if (wetChanged || av.rippleMaskKey != maskKey || mask.size() != static_cast<size_t>(L.nx()) * L.nz()) {
             av.rippleWet.resize(f.cols.size());
             for (size_t i = 0; i < f.cols.size(); ++i) av.rippleWet[i] = f.cols[i].runs >= 0.5f ? 1 : 0;
-            for (int z = 0; z < L.nz(); ++z) for (int x = 0; x < L.nx(); ++x) {
-                const SurfaceColumn* c = column((L.origin().x + x + 0.5f) * d, (L.origin().y + z + 0.5f) * d);
-                mask[L.idx(x, z)] = (c && c->runs >= 0.5f) ? 1 : 0;
-            }
+            buildRippleMask(L, f, av.rippleWet, mask);
             av.rippleMaskVersion = f.version; av.rippleMaskKey = maskKey;
         }
         m_updateCpu.rMask += rms(tMask);
