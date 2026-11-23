@@ -1,3 +1,4 @@
+#include "core/voxfound/WorldReads.h"   // F7.25
 #include "core/ItemPropManager.h"
 
 #include "core/ItemEffectSystem.h"
@@ -524,7 +525,16 @@ ItemPropManager::PropGeometry ItemPropManager::buildPropGeometry(
     g.boxes = buildCoarseCollider(g.voxels, lo, hi, com, totalMass, kMaxColliderBoxes);
 
     glm::vec3 pos = position;
-    if (snapToGround && m_chunks) {
+    const auto* vfReads = (snapToGround && m_chunks && !m_voxFoundSnapStub) ? m_chunks->voxFoundReads() : nullptr;
+    if (vfReads) {
+        // docs/VoxelFoundationPlan.md F7.25: the switched world's ground is 1/8 m voxels -- rest on the top voxel's face
+        // in the item's column (the cube scan below put the item on the top of the cube holding the ground: up to
+        // 7/8 m above it)
+        const int vx = (int)std::floor(pos.x * 8.0f), vz = (int)std::floor(pos.z * 8.0f);
+        int vy = (int)std::floor(pos.y * 8.0f);
+        for (int i = 0; i < 32 * 8; ++i, --vy)
+            if (vfReads->voxel(glm::ivec3(vx, vy, vz))) { pos.y = float(vy + 1) / 8.0f; break; }
+    } else if (snapToGround && m_chunks) {
         int x = (int)std::floor(pos.x), z = (int)std::floor(pos.z);
         int y = (int)std::floor(pos.y);
         for (int i = 0; i < 32; ++i, --y) {

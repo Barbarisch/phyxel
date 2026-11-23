@@ -220,6 +220,10 @@ private:
     ObjectTemplateManager*  m_templates = nullptr;
     KinematicVoxelManager*  m_kinematic = nullptr;
     ChunkManager*           m_chunks    = nullptr;
+    bool                    m_voxFoundSnapStub = false;   // F7.25 (tests): the cube scan on the switched world too
+public:
+    void setVoxFoundSnapStub(bool on) { m_voxFoundSnapStub = on; }
+private:
     ItemEffectSystem*       m_effects   = nullptr;
     Physics::VoxelDynamicsWorld* m_dynamics = nullptr;
     uint64_t m_dynamicSeq = 0;   ///< Monotonic counter for Prop::dynamicSeq.

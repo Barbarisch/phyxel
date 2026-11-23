@@ -3227,6 +3227,10 @@ generated, furnished house through its door.
 snapshots edit the switched world (cube units by default, 1/8 m voxels with "units":"voxel"; one undo entry each); a
 pasted / moved / restored box equals its source voxel for voxel, sub-cube detail included.
 
+**F7.25, items' units (2026-11-22).** Snapped items rest on the switched world's 1/8 m ground (today's cube scan
+floated them up to 1.75 m: the top of the cube holding the ground). The LOD template chain (today's distant tree tier)
+is not used inside the switched region -- recorded for the switch's render tier, not ported.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

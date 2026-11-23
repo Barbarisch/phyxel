@@ -10648,6 +10648,9 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
                         {"dynamic", prop && prop->dynamic}};
             if (!instanceUuid.empty()) response["instance_uuid"] = instanceUuid;
             if (obj) response["position"] = {{"x", obj->position.x}, {"y", obj->position.y}, {"z", obj->position.z}};
+            // F7.25: the placed object's position is an integer cube; the prop's resting base is its render pose's
+            // lowest point (the COM pose + the render AABB's bottom)
+            if (prop) response["base_y"] = prop->lastTransform[3].y + prop->localLo.y;
         }
         return true;
     }
@@ -13602,6 +13605,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         if (cmd.params.contains("struct_stub")) {   // F7.11 (tests): build_structure not routed (the red)
             voxFoundStructStub = cmd.params["struct_stub"].get<bool>();
             response = {{"struct_stub", voxFoundStructStub}};
+            return;
+        }
+        if (cmd.params.contains("item_snap_stub")) {   // F7.25 (tests): items snap by today's cube scan (the red)
+            if (itemPropManager) itemPropManager->setVoxFoundSnapStub(cmd.params["item_snap_stub"].get<bool>());
+            response = {{"item_snap_stub", cmd.params["item_snap_stub"]}};
             return;
         }
         if (cmd.params.contains("box_voxels")) {   // F7.24 (tests): the solid 1/8 m voxels of a box [lo, hi] (voxel units)

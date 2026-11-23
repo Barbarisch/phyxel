@@ -1386,3 +1386,18 @@ Live, VoxFoundBoot: spawn_item (snap) at 8 open-ground columns in the region.
   I1: every item's base within 1e-3 m of its column's 1/8 m ground top (the pick read-back). CONTROL / RED (the cube
       scan): the bases sit at the next whole metre -- up to 7/8 m above the ground.
   I2: a snapped item on a 1/8 m step (a size-2 brush on the ground) rests on the brush's top, not the cube above.
+
+F7.25 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot on the restored boot DB (restored
+again afterwards); tools/voxfound_f725_live.py, raw voxfound_f725_live.jsonl. Every artifact: WorldGenerator Perlin s7
++ flora + goblets spawned through /api/items/spawn (+ one size-2 Stone brush, I2).
+  RUN 1 MISREAD (instrument): the driver read the reply's position.y -- the placed object's position is an INTEGER cube
+     (ivec3), so every base read as a whole metre in both modes. The reply now carries base_y (the prop's render pose
+     bottom); run 2 is the record. (Seen, not investigated: a placed object persists an integer position.)
+  CONTROL / RED (item_snap_stub, today's cube scan): bases 0.253 - 1.753 m above the 1/8 m ground (8 columns; I2
+     0.503 m above the brush's top) -- the item rests on the cube holding the ground.
+  I1 MISSED AS WRITTEN (1e-3 m): every one of the 8 bases is EXACTLY 0.003 m above its column's 1/8 m ground top -- the
+     spawnProp anti-z-fight lift, which today's path adds too (the red's bases are whole metres + 0.003). Net of that
+     shared constant: 0 on all 8.
+  I2: on the size-2 brush (ground 24.25 -> 24.5) the item rests at 24.503 = the brush's top + the same 3 mm lift.
+  Recorded, not ported: TemplateLodChain (the distant-instanced tree tier over today's 1/9 m templates) -- the switched
+     world does not use it inside its region; what draws beyond the region is a render-tier question for the switch.
