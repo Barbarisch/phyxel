@@ -33,8 +33,22 @@ FarTerrainManager::~FarTerrainManager() {
     m_graveyard.clear();
 }
 
+void FarTerrainManager::unconfigure() {
+    stopWorker();
+    for (auto& [key, tile] : m_tiles) retireTile(tile);
+    m_tiles.clear();
+    m_draws.clear();
+    m_mesher.reset();
+    m_hasRefreshed = false;
+}
+
 void FarTerrainManager::configure(const WorldGenerator& generator) {
     stopWorker();
+    // 58 item 3: a reconfigure is a new world - the last one's tiles go (they drew its terrain: WaterBench_Scenes' 'dry' grass
+    // plain stayed drawn inside 'pond''s pond after a scene change)
+    for (auto& [key, tile] : m_tiles) retireTile(tile);
+    m_tiles.clear();
+    m_draws.clear();
 
     // Private copy: WorldGenerator::sampleColumn is non-const and runs on the worker —
     // the streaming generator must never be shared.

@@ -238,6 +238,7 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     // generator snapshot can't outlive the world it belongs to.
     m_streamingManager.stopAsyncGeneration();
     m_streamingGenerationEnabled = enabled;
+    ++m_streamingGenEpoch;   // 58 item 3: far terrain re-checks its snapshot
     if (enabled) {
         m_worldGenerator = std::make_unique<WorldGenerator>(type, seed);
     }

@@ -368,6 +368,12 @@ void SceneManager::executeLoad() {
             // If the scene definition has no inline "world" generation,
             // load pre-baked chunks from the database file.
             if (!scene->definition.contains("world")) {
+                // WaterCore 58 item 3: a DB-only scene generates nothing. The streaming generator a previous scene's "world" configured
+                // stayed on (the loader only touches it when a world block is present), so every chunk this DB lacks was GENERATED
+                // with the last scene's terrain - WaterBench_Scenes' 'pond' after a visit to 'dry' (a Flat grass world) showed ~20 of
+                // 'dry''s grass chunks round the pond (the A2i clip's "green in the pond"; pond.db itself untouched: 7 chunks before
+                // and after). The loader's explicit streaming:false opt-out had already fixed the same stickiness for that case.
+                cm->configureStreamingGeneration(false);
                 cm->loadAllChunksFromDatabase();
                 cm->rebuildAllChunkFaces();
                 // Build collision + register occupancy grids for the loaded terrain,

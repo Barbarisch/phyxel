@@ -117,6 +117,7 @@ public:
     std::function<void(Chunk&, const glm::ivec3&)> m_floraDecorator;
     bool m_hasWorkerFlora = false;
     bool m_streamingGenerationEnabled = false;
+    uint64_t m_streamingGenEpoch = 0;   // 58 item 3
 
     // Play bounds (G-169)
     Core::PlayBounds m_authoredPlayBounds;
@@ -190,6 +191,8 @@ public:
                                       WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin,
                                       uint32_t seed = 0);
     bool isStreamingGenerationEnabled() const { return m_streamingGenerationEnabled; }
+    /// 58 item 3: bumped by every configureStreamingGeneration - a consumer that snapshots the generator (far terrain) re-checks
+    uint64_t streamingGenerationEpoch() const { return m_streamingGenEpoch; }
 
     // --- Play bounds (G-169, core/PlayBounds.h): the horizontal extent every kinematic character
     // is clamped to, so nobody walks off the edge of a fixed-size world. ---

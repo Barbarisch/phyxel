@@ -15502,6 +15502,31 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
 54.2's falling stored level (the owner: "idk" - the recommendation stands) is item 4's second half - built since (item 5 in the
 list above, 9b852cfa).
 
+### 58.6 Item 3: the A2i clip remade - no camera jump, a splash that reads, no grass left over (2026-11-23). Status: BUILT, not signed off
+
+The owner on the first cut: *"sweep_a2i_scenes.mp4 i dont see waves or splashes and part way the camera changes to random
+location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py --item scenes --crop 954:560:243:60`, WaterBench_Scenes):
+- **The camera jump:** a scene load places the camera at the scene's own pose, and the tool re-posed it only after the load - the
+  frames between were the "random location". The camera is now held on the pond every 50 ms while the scene loads. Seen: every
+  frame across both transitions at the same pose.
+- **No splash seen:** the camera was ~9 m up and 9 m back from a 4 x 4 m pond; 1/3 m wood. Now ~5 m off and 3 m up, a stone dropped
+  from 2 m higher beside the wood (the wood floats, the stone sinks). The water's numbers unchanged (24.000004 m^3 back, 0 volumes in
+  'dry', the pond back once and asleep).
+- **FOUND + FIXED (blocked the clip - 56.4's "grass left over", logged then as not water):** after a visit to 'dry' the pond in
+  'pond' was drawn GREEN. Measured (`/api/world/chunks` now echoes each chunk's `grassCount`): fresh 'pond' 0 grass chunks; back
+  in 'pond' ~20 chunks carrying 'dry''s exact grass counts; pond.db itself untouched (7 chunks before and after). Two causes, both
+  scene-change stickiness: (1) a DB-only scene (no `world` block) never turned off the streaming generator the last scene's world
+  configured, so every chunk its DB lacks was GENERATED as 'dry''s Flat grass - `SceneManager` now turns streaming generation off
+  for a DB-only scene (the loader's explicit `streaming:false` had fixed the same stickiness for that case); (2) far terrain
+  configured itself once from the first streaming generator and never again - its tiles of 'dry''s grass plain stayed drawn
+  inside the pond hole: `ChunkManager::streamingGenerationEpoch()` bumps on every reconfigure, `RenderCoordinator` unconfigures
+  the far field when it changes (`FarTerrainManager::unconfigure`: worker stopped, tiles retired frame-deferred) and configures
+  again only while generation is ON; `configure()` retires the last world's tiles too. After: 0 grass chunks back in 'pond', the
+  pond blue in the clip. Unit scene / far-terrain / streaming / chunk / game-definition 364 / 364; integration Scene* 13 / 16 - the
+  same 3 fail with the fix reverted (camera re-entry + an added scene - `ReentryStateRestoresOnReturn`, `MultiHopTransition_A_B_C_A`,
+  `AddSceneThenTransitionToIt`; not water, not this change - logged here).
+- A4 (wading): not re-made yet - its item asks to MEASURE the bow wave's size first.
+
 ### 58.7 Item 7 (Track B): references gathered, targets proposed (2026-11-23). Status: PROPOSED - the owner adds or replaces
 
 The owner: *"7. i need you to find stuff to reference. if you still need something, i will find something later."* What shipped

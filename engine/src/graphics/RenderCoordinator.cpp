@@ -1423,10 +1423,16 @@ void RenderCoordinator::renderFarTerrain() {
         return;
     }
 
+    // 58 item 3: the streaming generation changed (a scene change: off, or another world's) - the far field built from the old
+    // snapshot is unconfigured (its tiles retired) and, if a generator is on now, configured again below
+    if (chunkManager && chunkManager->streamingGenerationEpoch() != m_farTerrainGenEpoch) {
+        m_farTerrainGenEpoch = chunkManager->streamingGenerationEpoch();
+        if (farTerrainManager->isConfigured()) farTerrainManager->unconfigure();
+    }
     // Auto-configure from the world's streaming generator the first time far terrain
     // is enabled on a procedural world (game.json wiring lands with the config phase).
     if (farTerrainManager->params().enabled && !farTerrainManager->isConfigured() &&
-        chunkManager && chunkManager->getStreamingGenerator()) {
+        chunkManager && chunkManager->isStreamingGenerationEnabled() && chunkManager->getStreamingGenerator()) {
         farTerrainManager->setChunkCoverageFn(
             [cm = chunkManager](const glm::ivec2& minXZ, const glm::ivec2& maxXZ) {
                 // True iff EVERY 32x32 column in the rect actually RENDERS near-field

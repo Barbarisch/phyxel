@@ -127,6 +127,9 @@ public:
     /// worker thread. Texture indices resolve through MaterialRegistry (read-only
     /// after startup, so cross-thread reads are safe).
     void configure(const WorldGenerator& generator);
+    /// 58 item 3: the world it was configured for is gone (a scene change): the worker stopped, every tile retired (frame-deferred:
+    /// a frame in flight may still draw them), the mesher dropped - isConfigured() false until configure() again
+    void unconfigure();
     bool isConfigured() const { return m_mesher != nullptr; }
 
     void setChunkCoverageFn(ChunkCoverageFn fn) { m_chunkCoverage = std::move(fn); }

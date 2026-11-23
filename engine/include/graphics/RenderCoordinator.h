@@ -877,6 +877,7 @@ private:
     /// pass (the shadow pass records BEFORE renderFarTerrain assembles this frame's lists;
     /// one frame of staleness is invisible at 0.9 u/texel).
     std::vector<FarTerrainRenderPipeline::TileDraw> m_cachedFarTileDraws;
+    uint64_t m_farTerrainGenEpoch = 0;   // 58 item 3: the streaming generation the far field was built for
     std::vector<TreeLodRenderPipeline::MeshDraw>    m_cachedTreeMeshDraws;
 
     // ---- Character batching (docs/CharacterPipelineScaling.md Tier 1) --------------

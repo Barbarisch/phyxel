@@ -124,9 +124,12 @@ def item_wade(api, ff, a):
 
 # ---------------------------------------------------------------- A2i scenes
 # above the grass of the dry scene (a flat Grass world: at 1.4 m its blades fill the frame), the pond still in view
-POND_CAM = {"x": 102.0, "y": 22.5, "z": 22.5, "yaw": -90.0, "pitch": -38.0}
+# 58 item 3 (the owner on the first cut: "i dont see waves or splashes and part way the camera changes to random location"): ~5 m
+# from the pond, 3 m over it (was ~9 m up and 9 m back: a 1/3 m block's splash was a few pixels)
+POND_CAM = {"x": 102.0, "y": 20.5, "z": 19.0, "yaw": -90.0, "pitch": -32.0}
 PLAYER_AWAY = {"x": 92.0, "y": 17.0, "z": 30.0}   # a scene load spawns the player under the camera: moved out of the shot
 DROPS = [(101.2, 13.2), (102.8, 14.0)]
+STONE = (102.0, 13.6)   # 58 item 3: a stone dropped from higher beside the wood - a splash that reads (the wood floats, the stone sinks)
 
 
 def scene_go(api, sid, limit=60):
@@ -134,9 +137,13 @@ def scene_go(api, sid, limit=60):
     if not r.get("success"): raise SystemExit(f"transition {sid}: {r}")
     t0 = time.time()
     while time.time() - t0 < limit:
+        # 58 item 3: the camera held on the pond every 50 ms while the scene loads - a load places the camera at the scene's own
+        # pose (the first cut's "camera changes to random location" was that pose, shown until this loop ended)
+        try: camera_set(api, POND_CAM)
+        except Exception: pass
         s = api.get("/api/scene/active")
         if s.get("id", s.get("scene_id")) == sid and not s.get("transitioning", False): break
-        time.sleep(0.3)
+        time.sleep(0.05)
     api.post("/api/entity/move", {"id": "player", "position": PLAYER_AWAY})
     camera_set(api, POND_CAM)
 
@@ -153,6 +160,7 @@ def water_state(api):
 def drop(api, y):
     for (x, z) in DROPS:
         api.debug("spawn_gpu_particle", {"x": x, "y": y, "z": z, "material": "Wood", "scale": 1.0 / 3.0, "lifetime": 60.0, "spin": 0.0})
+    api.debug("spawn_gpu_particle", {"x": STONE[0], "y": y + 2.0, "z": STONE[1], "material": "Stone", "scale": 1.0 / 3.0, "lifetime": 60.0, "spin": 0.0})
 
 
 def item_scenes(api, ff, a):
@@ -167,7 +175,7 @@ def item_scenes(api, ff, a):
     def at(): return round(time.time() - t0, 2)
     cues.append((0.0, "scene 'pond': a 4 x 4 m pond, asleep (drawn from the record)"))
     time.sleep(3.0)
-    drop(api, 19.5); cues.append((at(), "wood dropped - the pond wakes, splashes, the wood floats"))
+    drop(api, 19.5); cues.append((at(), "wood and a stone dropped - the pond wakes, splashes, the wood floats, the stone sinks"))
     time.sleep(6.0)
     ev["pond_awake"] = water_state(api)
     cues.append((at(), f"scene change to 'dry' with the pond AWAKE ({ev['pond_awake']['volumes']} live volume)"))
@@ -180,10 +188,9 @@ def item_scenes(api, ff, a):
     scene_go(api, "pond"); time.sleep(1.0)
     ev["pond_back"] = water_state(api)
     cues.append((at(), f"back in 'pond': the pond is there once, asleep ({ev['pond_back']['volumes']} live volumes, "
-                       f"{len(ev['pond_back']['slept_boxes'] or [])} slept box)\n"
-                       f"the GREEN in it is 'dry''s grass-blade layer left over (same chunk) - not water: grass off shows it blue (logged)"))
+                       f"{len(ev['pond_back']['slept_boxes'] or [])} slept box) - and nothing of 'dry' left in it (58 item 3 fix)"))
     time.sleep(4.0)
-    drop(api, 19.5); cues.append((at(), "wood dropped again - it wakes and splashes as before"))
+    drop(api, 19.5); cues.append((at(), "wood and a stone dropped again - it wakes and splashes as before"))
     while rec.poll() is None: time.sleep(0.2)
     ev["end"] = water_state(api)
     srt = EV / f"{a.tag}.srt"

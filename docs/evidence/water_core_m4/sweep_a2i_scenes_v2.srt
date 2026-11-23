@@ -1,0 +1,28 @@
+1
+00:00:00,000 --> 00:00:03,060
+scene 'pond': a 4 x 4 m pond, asleep (drawn from the record)
+
+2
+00:00:03,060 --> 00:00:09,130
+wood and a stone dropped - the pond wakes, splashes, the wood floats, the stone sinks
+
+3
+00:00:09,130 --> 00:00:10,890
+scene change to 'dry' with the pond AWAKE (1 live volume)
+
+4
+00:00:10,890 --> 00:00:15,890
+scene 'dry' (same place, no water): 0 live volumes - no water followed
+GPU debris live here: 3 (the wood - debris crossing a scene is NOT the water's: logged)
+
+5
+00:00:15,890 --> 00:00:18,930
+scene change back to 'pond'
+
+6
+00:00:18,930 --> 00:00:23,000
+back in 'pond': the pond is there once, asleep (0 live volumes, 1 slept box) - and nothing of 'dry' left in it (58 item 3 fix)
+
+7
+00:00:23,000 --> 00:00:34,000
+wood and a stone dropped again - it wakes and splashes as before

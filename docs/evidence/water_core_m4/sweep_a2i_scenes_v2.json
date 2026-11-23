@@ -1,0 +1,220 @@
+{
+ "bench": "WaterBench_Scenes",
+ "camera": {
+  "x": 102.0,
+  "y": 20.5,
+  "z": 19.0,
+  "yaw": -90.0,
+  "pitch": -32.0
+ },
+ "drops": [
+  [
+   101.2,
+   13.2
+  ],
+  [
+   102.8,
+   14.0
+  ]
+ ],
+ "cues": [
+  [
+   0.0,
+   "scene 'pond': a 4 x 4 m pond, asleep (drawn from the record)"
+  ],
+  [
+   3.06,
+   "wood and a stone dropped - the pond wakes, splashes, the wood floats, the stone sinks"
+  ],
+  [
+   9.13,
+   "scene change to 'dry' with the pond AWAKE (1 live volume)"
+  ],
+  [
+   10.89,
+   "scene 'dry' (same place, no water): 0 live volumes - no water followed\nGPU debris live here: 3 (the wood - debris crossing a scene is NOT the water's: logged)"
+  ],
+  [
+   15.89,
+   "scene change back to 'pond'"
+  ],
+  [
+   18.93,
+   "back in 'pond': the pond is there once, asleep (0 live volumes, 1 slept box) - and nothing of 'dry' left in it (58 item 3 fix)"
+  ],
+  [
+   23.0,
+   "wood and a stone dropped again - it wakes and splashes as before"
+  ]
+ ],
+ "events": {
+  "start": {
+   "volumes": 0,
+   "mass": 0.0,
+   "slept_boxes": [
+    [
+     99,
+     14,
+     11,
+     104,
+     19,
+     16
+    ]
+   ],
+   "debris": 0,
+   "world_last": {
+    "bodies_dropped": 0,
+    "bodies_restored": 2,
+    "debris_tiles_dropped": 16,
+    "error": "",
+    "kept_released": 0,
+    "reason": "scene",
+    "record_tiles_dropped": 141,
+    "reset_ms": 0.0404,
+    "restored": true,
+    "slept_dropped": 0,
+    "slept_restored": 1,
+    "slept_skipped": 0,
+    "volumes_dropped": 0,
+    "wakes_cancelled": 0,
+    "written_back": {
+     "error": "",
+     "failed": 0,
+     "held_lost_m3": 0.0,
+     "stored_m3": 0.0,
+     "unwritten_columns": 0,
+     "volumes": 0
+    }
+   }
+  },
+  "pond_awake": {
+   "volumes": 1,
+   "mass": 24.00000359500861,
+   "slept_boxes": [],
+   "debris": 3,
+   "world_last": {
+    "bodies_dropped": 0,
+    "bodies_restored": 2,
+    "debris_tiles_dropped": 16,
+    "error": "",
+    "kept_released": 0,
+    "reason": "scene",
+    "record_tiles_dropped": 141,
+    "reset_ms": 0.0404,
+    "restored": true,
+    "slept_dropped": 0,
+    "slept_restored": 1,
+    "slept_skipped": 0,
+    "volumes_dropped": 0,
+    "wakes_cancelled": 0,
+    "written_back": {
+     "error": "",
+     "failed": 0,
+     "held_lost_m3": 0.0,
+     "stored_m3": 0.0,
+     "unwritten_columns": 0,
+     "volumes": 0
+    }
+   }
+  },
+  "dry": {
+   "volumes": 0,
+   "mass": 0.0,
+   "slept_boxes": [],
+   "debris": 3,
+   "world_last": {
+    "bodies_dropped": 2,
+    "bodies_restored": 0,
+    "debris_tiles_dropped": 1024,
+    "error": "",
+    "kept_released": 1,
+    "reason": "scene",
+    "record_tiles_dropped": 140,
+    "reset_ms": 24.5974,
+    "restored": true,
+    "slept_dropped": 1,
+    "slept_restored": 0,
+    "slept_skipped": 0,
+    "volumes_dropped": 0,
+    "wakes_cancelled": 0,
+    "written_back": {
+     "error": "",
+     "failed": 0,
+     "held_lost_m3": 0.0,
+     "stored_m3": 24.000003814697266,
+     "unwritten_columns": 0,
+     "volumes": 1
+    }
+   }
+  },
+  "pond_back": {
+   "volumes": 0,
+   "mass": 0.0,
+   "slept_boxes": [
+    [
+     99,
+     14,
+     11,
+     104,
+     19,
+     16
+    ]
+   ],
+   "debris": 3,
+   "world_last": {
+    "bodies_dropped": 0,
+    "bodies_restored": 2,
+    "debris_tiles_dropped": 1024,
+    "error": "",
+    "kept_released": 0,
+    "reason": "scene",
+    "record_tiles_dropped": 140,
+    "reset_ms": 16.4555,
+    "restored": true,
+    "slept_dropped": 0,
+    "slept_restored": 1,
+    "slept_skipped": 0,
+    "volumes_dropped": 0,
+    "wakes_cancelled": 0,
+    "written_back": {
+     "error": "",
+     "failed": 0,
+     "held_lost_m3": 0.0,
+     "stored_m3": 0.0,
+     "unwritten_columns": 0,
+     "volumes": 0
+    }
+   }
+  },
+  "end": {
+   "volumes": 1,
+   "mass": 24.00000359500861,
+   "slept_boxes": [],
+   "debris": 6,
+   "world_last": {
+    "bodies_dropped": 0,
+    "bodies_restored": 2,
+    "debris_tiles_dropped": 1024,
+    "error": "",
+    "kept_released": 0,
+    "reason": "scene",
+    "record_tiles_dropped": 140,
+    "reset_ms": 16.4555,
+    "restored": true,
+    "slept_dropped": 0,
+    "slept_restored": 1,
+    "slept_skipped": 0,
+    "volumes_dropped": 0,
+    "wakes_cancelled": 0,
+    "written_back": {
+     "error": "",
+     "failed": 0,
+     "held_lost_m3": 0.0,
+     "stored_m3": 0.0,
+     "unwritten_columns": 0,
+     "volumes": 0
+    }
+   }
+  }
+ }
+}

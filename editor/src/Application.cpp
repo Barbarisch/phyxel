@@ -18310,7 +18310,8 @@ void Application::processAPICommands() {
                             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
                             {"cubeCount", cubeCount},
                             {"subcubeCount", chunk->getStaticSubcubeCount()},
-                            {"microcubeCount", chunk->getStaticMicrocubeCount()}
+                            {"microcubeCount", chunk->getStaticMicrocubeCount()},
+                            {"grassCount", chunk->getGrassCount()}   // 58 item 3: the A2i clip's grass left over after a scene change
                         });
                     }
 
