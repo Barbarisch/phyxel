@@ -13864,6 +13864,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"canvas_cells", voxFoundLastCanvasCells.size()}};
             return;
         }
+        if (cmd.params.contains("legacy_template_stub")) {   // D3a (tests): no C/S/M conversion (the red)
+            voxFoundLegacyTemplateStub = cmd.params["legacy_template_stub"].get<bool>();
+            response = {{"legacy_template_stub", voxFoundLegacyTemplateStub}};
+            return;
+        }
         if (cmd.params.contains("template_stub")) {   // F7.10 (tests): spawn_template not routed (the red)
             voxFoundTemplateStub = cmd.params["template_stub"].get<bool>();
             response = {{"template_stub", voxFoundTemplateStub}};
@@ -14953,8 +14958,22 @@ nlohmann::json Application::voxFoundSpawnTemplate(const nlohmann::json& params) 
                 path = e.path().string();
                 break;
             }
-    if (path.empty()) return {{"success", false}, {"world", "voxfound"}, {"error", "no 1/8 m template " + name}};
-    const GridTemplate t = loadGridTemplate(path);
+    // step 7 D3a: no 1/8 m version -> today's C / S / M template, converted (the PXB2 resampler)
+    std::string legacyPath;
+    if (path.empty() && !voxFoundLegacyTemplateStub) {
+        const fs::path lroot = "resources/templates";
+        if (fs::exists(lroot / (name + ".voxel"))) legacyPath = (lroot / (name + ".voxel")).string();
+        else if (fs::exists(lroot))
+            for (const auto& e : fs::recursive_directory_iterator(lroot))
+                if (e.is_regular_file() && e.path().stem().string() == name && e.path().extension() == ".voxel") {
+                    legacyPath = e.path().string();
+                    break;
+                }
+    }
+    if (path.empty() && legacyPath.empty())
+        return {{"success", false}, {"world", "voxfound"}, {"error", "no 1/8 m template " + name}};
+    CsmTemplateStats csm;
+    const GridTemplate t = path.empty() ? loadCsmTemplate(legacyPath, &csm) : loadGridTemplate(path);
     if (!t.error.empty()) return {{"success", false}, {"world", "voxfound"}, {"error", t.error}};
     if (t.cellsPerM != kVoxelsPerM)
         return {{"success", false}, {"world", "voxfound"}, {"error", "template grid is not 8 per metre"}};
@@ -14997,7 +15016,11 @@ nlohmann::json Application::voxFoundSpawnTemplate(const nlohmann::json& params) 
     nlohmann::json r = voxFoundPaintCells("spawn_template:" + name, cells);
     r["success"] = r.value("error", std::string()).empty();
     r["world"] = "voxfound";
-    r["template"] = path;
+    r["template"] = path.empty() ? legacyPath : path;
+    if (path.empty())
+        r["converted"] = {{"from", "C/S/M (loadCsmTemplate)"}, {"cubes", csm.cubes}, {"subcubes", csm.subcubes},
+                          {"microcubes", csm.microcubes}, {"tints_dropped", csm.tintsDropped},
+                          {"other_lines", csm.otherLines}, {"rescued", csm.rescued}, {"voxels", t.cells}};
     r["template_cells"] = local.size();
     r["origin"] = {origin.x, origin.y, origin.z};
     r["rotation"] = rot;

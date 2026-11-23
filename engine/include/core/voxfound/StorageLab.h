@@ -67,6 +67,19 @@ struct GridTemplate {
 };
 GridTemplate loadGridTemplate(const std::string& path);
 
+/// Step 7 D3a: a LEGACY template (today's C / S / M lines) on the 1/8 m grid -- cubes whole (512 voxels), subdivided
+/// cubes through the same ninths -> eighths resampler as convertPxb2. Tints / states are dropped (the 1/8 m palette
+/// is material-only), counted; other lines (interaction points, parts, metadata) are ignored, counted. A `# grid:`
+/// template (a fine item) is refused. Cells rebased to 0 like loadGridTemplate.
+struct CsmTemplateStats {
+    size_t cubes = 0, subcubes = 0, microcubes = 0, tintsDropped = 0, otherLines = 0, rescued = 0;
+    std::map<std::string, double> volumeIn;   // m^3 per material (a cube = 1, a subcube = 1/27, a microcube = 1/729)
+    std::map<std::string, size_t> voxelsOut;  // 1/8 m voxels per material (512 = 1 m^3)
+};
+GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats = nullptr);
+/// One subdivided cube: 9^3 ninths (index a * 81 + b * 9 + d, a = x) -> 8^3 voxels (index x * 64 + y * 8 + z).
+int resampleNinths(const uint8_t* ninths, uint8_t* voxels);
+
 /// Today's flora decoration (ObjectTemplateManager::decorateChunk), on the 1/8 m area: the ENGINE's
 /// planFlora over the area's columns (plus `marginM` so canopies rooted outside reach in), each pool placement
 /// stamped from `<templateDir>/<templateName>.voxel` (grid 8), footprint centred on the column centre, trunk

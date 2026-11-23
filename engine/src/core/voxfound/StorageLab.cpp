@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <stdexcept>
@@ -247,6 +248,124 @@ GridTemplate loadGridTemplate(const std::string& path) {
     }
     if (t.cellsPerM != kVoxelsPerM && t.error.empty())
         t.error = "grid " + std::to_string(t.cellsPerM) + " is not the world grid (" + std::to_string(kVoxelsPerM) + ")";
+    return t;
+}
+
+GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats) {
+    GridTemplate t;
+    CsmTemplateStats st;
+    std::ifstream in(path);
+    if (!in) {
+        t.error = "cannot open " + path;
+        return t;
+    }
+    struct IV3Less {
+        bool operator()(const glm::ivec3& a, const glm::ivec3& b) const {
+            return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z);
+        }
+    };
+    std::vector<std::string> pal{""};
+    auto mat = [&](const std::string& n) {
+        for (size_t k = 1; k < pal.size(); ++k)
+            if (pal[k] == n) return uint8_t(k);
+        if (pal.size() >= 256) throw std::runtime_error("over 255 materials");
+        pal.push_back(n);
+        return uint8_t(pal.size() - 1);
+    };
+    std::map<glm::ivec3, uint8_t, IV3Less> cubes;
+    std::map<glm::ivec3, std::vector<uint8_t>, IV3Less> grids;
+    auto grid = [&](const glm::ivec3& c) -> std::vector<uint8_t>& {
+        auto& g = grids[c];
+        if (g.empty()) g.assign(729, 0);
+        return g;
+    };
+    std::string line;
+    try {
+        while (std::getline(in, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty()) continue;
+            if (line.rfind("# grid:", 0) == 0) {
+                t.error = "a fine-grid template (an item: spawn_item), not C/S/M";
+                return t;
+            }
+            if (line[0] == '#') continue;
+            std::istringstream ss(line);
+            std::string kind;
+            ss >> kind;
+            if (kind != "C" && kind != "S" && kind != "M") {
+                ++st.otherLines;
+                continue;
+            }
+            if (line.find("tint=") != std::string::npos || line.find("state=") != std::string::npos) ++st.tintsDropped;
+            glm::ivec3 c, s3(0), m3(0);
+            std::string name;
+            ss >> c.x >> c.y >> c.z;
+            if (kind != "C") ss >> s3.x >> s3.y >> s3.z;
+            if (kind == "M") ss >> m3.x >> m3.y >> m3.z;
+            ss >> name;
+            if (!ss || name.empty() || glm::any(glm::lessThan(s3, glm::ivec3(0))) || glm::any(glm::greaterThan(s3, glm::ivec3(2))) ||
+                glm::any(glm::lessThan(m3, glm::ivec3(0))) || glm::any(glm::greaterThan(m3, glm::ivec3(2)))) {
+                t.error = "malformed line: " + line;
+                return t;
+            }
+            const uint8_t m = mat(name);
+            if (kind == "C") {
+                cubes[c] = m;
+                ++st.cubes;
+                st.volumeIn[name] += 1.0;
+            } else if (kind == "S") {
+                auto& g = grid(c);
+                for (int a = 0; a < 3; ++a)
+                    for (int b = 0; b < 3; ++b)
+                        for (int d = 0; d < 3; ++d) g[size_t((3 * s3.x + a) * 81 + (3 * s3.y + b) * 9 + 3 * s3.z + d)] = m;
+                ++st.subcubes;
+                st.volumeIn[name] += 1.0 / 27.0;
+            } else {
+                grid(c)[size_t((3 * s3.x + m3.x) * 81 + (3 * s3.y + m3.y) * 9 + 3 * s3.z + m3.z)] = m;
+                ++st.microcubes;
+                st.volumeIn[name] += 1.0 / 729.0;
+            }
+        }
+    } catch (const std::exception& e) {
+        t.error = e.what();
+        return t;
+    }
+    // the cells (a present cube wins over a grid at the same cell, as convertPxb2)
+    std::map<glm::ivec3, uint8_t, IV3Less> cells;
+    for (const auto& [c, m] : cubes)
+        for (int i = 0; i < 512; ++i) cells[c * 8 + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7)] = m;
+    for (const auto& [c, g] : grids) {
+        if (cubes.count(c)) continue;
+        uint8_t out[512];
+        st.rescued += size_t(resampleNinths(g.data(), out));
+        for (int i = 0; i < 512; ++i)
+            if (out[i]) cells[c * 8 + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7)] = out[i];
+    }
+    t.cellsPerM = kVoxelsPerM;
+    if (cells.empty()) {
+        t.error = "no C / S / M geometry";
+        return t;
+    }
+    glm::ivec3 lo(std::numeric_limits<int>::max());
+    for (const auto& [p, m] : cells) lo = glm::min(lo, p);
+    // z runs of one material -> boxes (the map is ordered x, y, z)
+    for (auto it = cells.begin(); it != cells.end();) {
+        GridTemplate::Box b;
+        b.pos = it->first - lo;
+        b.size = glm::ivec3(1);
+        b.material = pal[it->second];
+        auto nx = std::next(it);
+        while (nx != cells.end() && nx->first == it->first + glm::ivec3(0, 0, b.size.z) && nx->second == it->second) {
+            ++b.size.z;
+            ++nx;
+        }
+        st.voxelsOut[b.material] += size_t(b.size.z);
+        t.bounds = glm::max(t.bounds, b.pos + b.size);
+        t.cells += size_t(b.size.z);
+        t.boxes.push_back(std::move(b));
+        it = nx;
+    }
+    if (stats) *stats = std::move(st);
     return t;
 }
 
@@ -880,6 +999,86 @@ void BlockStore::remapMaterials(const std::vector<uint8_t>& map) {
 }
 
 // ---- F3.4: the converter from PXB2 (§3.6, §7a) --------------------------------------------------------------------
+// One subdivided cube of today's store: its 9^3 grid of ninths (index a * 81 + b * 9 + d, a = x) -> 8^3 voxels
+// (index x * 64 + y * 8 + z). The vote + section 7a step 4 "no detail vanishes"; returns the rescued count. Shared by
+// convertPxb2 (chunks) and loadCsmTemplate (templates, step 7 D3a): one rule for both.
+int resampleNinths(const uint8_t* g, uint8_t* cellOut) {
+    int rescued = 0;
+    // overlap of voxel i (1/8) and ninth n (1/9) along one axis, in 1/72 of a cube
+    int ov[8][9];
+    for (int i = 0; i < 8; ++i)
+        for (int n = 0; n < 9; ++n) ov[i][n] = std::max(0, std::min(9 * i + 9, 8 * n + 8) - std::max(9 * i, 8 * n));
+    // 1. the vote: each voxel takes the material with the most volume inside it (air counted)
+    auto votes = [&](int x, int y, int z, int* vol, uint8_t* seen) {
+        int nSeen = 0;
+        for (int a = x * 9 / 8; a <= std::min(8, (x * 9 + 8) / 8); ++a)
+            for (int b = y * 9 / 8; b <= std::min(8, (y * 9 + 8) / 8); ++b)
+                for (int d = z * 9 / 8; d <= std::min(8, (z * 9 + 8) / 8); ++d) {
+                    const int w = ov[x][a] * ov[y][b] * ov[z][d];
+                    if (!w) continue;
+                    const uint8_t m = g[size_t(a * 81 + b * 9 + d)];
+                    int k = 0;
+                    while (k < nSeen && seen[k] != m) ++k;
+                    if (k == nSeen) {
+                        seen[nSeen++] = m;
+                        vol[m] = 0;
+                    }
+                    vol[m] += w;
+                }
+        return nSeen;
+    };
+    int count[256] = {};
+    for (int i = 0; i < 512; ++i) {
+        int vol[256];
+        uint8_t seen[8];
+        const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
+        uint8_t best = seen[0];
+        for (int k = 1; k < nSeen; ++k) {
+            const uint8_t m = seen[k];
+            if (vol[m] > vol[best] ||
+                (vol[m] == vol[best] && ((m != 0 && best == 0) || (m != 0 && best != 0 && m < best))))
+                best = m;
+        }
+        cellOut[i] = best;
+        ++count[best];
+    }
+    // 2. §7a step 4, "no detail vanishes": a material present in the ninths with no voxel left takes the voxel
+    // where it has the most volume (ties: lower x, y, z), skipping the last voxel of another material and voxels
+    // already taken; materials in ascending palette order
+    bool present[256] = {};
+    for (int k = 0; k < 729; ++k) present[g[k]] = true;
+    bool taken[512] = {};
+    for (int m = 1; m < 256; ++m) {
+        if (!present[m] || count[m] > 0) continue;
+        int bestI = -1, bestV = 0;
+        // candidates in index order, best volume first: two passes keep the tie rule (lower index wins)
+        std::vector<std::pair<int, int>> cand;   // (volume, voxel)
+        for (int i = 0; i < 512; ++i) {
+            int vol[256];
+            uint8_t seen[8];
+            const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
+            for (int k = 0; k < nSeen; ++k)
+                if (seen[k] == m) cand.push_back({vol[m], i});
+        }
+        std::stable_sort(cand.begin(), cand.end(), [](const auto& l, const auto& r) { return l.first > r.first; });
+        for (const auto& c : cand) {
+            const uint8_t cur = cellOut[c.second];
+            if (taken[c.second] || (cur != 0 && count[cur] == 1)) continue;
+            bestI = c.second;
+            bestV = c.first;
+            break;
+        }
+        (void)bestV;
+        if (bestI < 0) continue;   // nowhere to put it (counted below as lost: it is not in the output)
+        --count[cellOut[bestI]];
+        cellOut[bestI] = uint8_t(m);
+        count[m] = 1;
+        taken[bestI] = true;
+        ++rescued;
+    }
+    return rescued;
+}
+
 bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
                  Pxb2ConvertStats* stats, std::string* err) {
     auto fail = [&](const std::string& why) {
@@ -971,84 +1170,13 @@ bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<
     BlockStore s(glm::ivec3(256));
     for (int ci = 0; ci < kCubes; ++ci)
         if (cube[size_t(ci)]) s.fillBlock({ci / 1024, (ci / 32) % 32, ci % 32}, cube[size_t(ci)]);
-    // overlap of voxel i (1/8) and ninth n (1/9) along one axis, in 1/72 of a cube
-    int ov[8][9];
-    for (int i = 0; i < 8; ++i)
-        for (int n = 0; n < 9; ++n) ov[i][n] = std::max(0, std::min(9 * i + 9, 8 * n + 8) - std::max(9 * i, 8 * n));
     for (int ci = 0; ci < kCubes; ++ci) {
         if (gridOf[size_t(ci)] < 0 || cube[size_t(ci)]) continue;   // a present cube wins (a subdivided cube is absent)
         const auto& g = grids[size_t(gridOf[size_t(ci)])];
         const glm::ivec3 base = glm::ivec3(ci / 1024, (ci / 32) % 32, ci % 32) * 8;
         ++st.cellsResampled;
-        // 1. the vote: each voxel takes the material with the most volume inside it (air counted)
-        auto votes = [&](int x, int y, int z, int* vol, uint8_t* seen) {
-            int nSeen = 0;
-            for (int a = x * 9 / 8; a <= std::min(8, (x * 9 + 8) / 8); ++a)
-                for (int b = y * 9 / 8; b <= std::min(8, (y * 9 + 8) / 8); ++b)
-                    for (int d = z * 9 / 8; d <= std::min(8, (z * 9 + 8) / 8); ++d) {
-                        const int w = ov[x][a] * ov[y][b] * ov[z][d];
-                        if (!w) continue;
-                        const uint8_t m = g[size_t(a * 81 + b * 9 + d)];
-                        int k = 0;
-                        while (k < nSeen && seen[k] != m) ++k;
-                        if (k == nSeen) {
-                            seen[nSeen++] = m;
-                            vol[m] = 0;
-                        }
-                        vol[m] += w;
-                    }
-            return nSeen;
-        };
         uint8_t cellOut[512];
-        int count[256] = {};
-        for (int i = 0; i < 512; ++i) {
-            int vol[256];
-            uint8_t seen[8];
-            const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
-            uint8_t best = seen[0];
-            for (int k = 1; k < nSeen; ++k) {
-                const uint8_t m = seen[k];
-                if (vol[m] > vol[best] ||
-                    (vol[m] == vol[best] && ((m != 0 && best == 0) || (m != 0 && best != 0 && m < best))))
-                    best = m;
-            }
-            cellOut[i] = best;
-            ++count[best];
-        }
-        // 2. §7a step 4, "no detail vanishes": a material present in the ninths with no voxel left takes the voxel
-        // where it has the most volume (ties: lower x, y, z), skipping the last voxel of another material and voxels
-        // already taken; materials in ascending palette order
-        bool present[256] = {};
-        for (uint8_t m : g) present[m] = true;
-        bool taken[512] = {};
-        for (int m = 1; m < 256; ++m) {
-            if (!present[m] || count[m] > 0) continue;
-            int bestI = -1, bestV = 0;
-            // candidates in index order, best volume first: two passes keep the tie rule (lower index wins)
-            std::vector<std::pair<int, int>> cand;   // (volume, voxel)
-            for (int i = 0; i < 512; ++i) {
-                int vol[256];
-                uint8_t seen[8];
-                const int nSeen = votes(i >> 6, (i >> 3) & 7, i & 7, vol, seen);
-                for (int k = 0; k < nSeen; ++k)
-                    if (seen[k] == m) cand.push_back({vol[m], i});
-            }
-            std::stable_sort(cand.begin(), cand.end(), [](const auto& l, const auto& r) { return l.first > r.first; });
-            for (const auto& c : cand) {
-                const uint8_t cur = cellOut[c.second];
-                if (taken[c.second] || (cur != 0 && count[cur] == 1)) continue;
-                bestI = c.second;
-                bestV = c.first;
-                break;
-            }
-            (void)bestV;
-            if (bestI < 0) continue;   // nowhere to put it (counted below as lost: it is not in the output)
-            --count[cellOut[bestI]];
-            cellOut[bestI] = uint8_t(m);
-            count[m] = 1;
-            taken[bestI] = true;
-            ++st.rescued;
-        }
+        st.rescued += resampleNinths(g.data(), cellOut);
         for (int i = 0; i < 512; ++i)
             if (cellOut[i]) s.set(base + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7), cellOut[i]);
     }

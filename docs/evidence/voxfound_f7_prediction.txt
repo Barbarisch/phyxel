@@ -1689,3 +1689,20 @@ dropped (the 1/8 m palette is material-only; counted). A 1/8 m version, when one
      voxels out / (volume in * 512) within 0.5 - 1.5 for any material with >= 1 m^3 (the PXB2 conversion's band).
   T3 (live, VoxFoundGate8): spawn_template of burgomaster, door_plank, tree_oak, barony_fountain on the switched world
      succeeds (painted cells > 0, provenance "converted C/S/M"); the red = the refusal on the pre-change build.
+
+D3a RESULTS (2026-11-23; the prediction above untouched). Release. Raw: voxfound_d3a_live.jsonl, the unit log below.
+  The resampler is now ONE function (resampleNinths) called by convertPxb2 and loadCsmTemplate; the PXB2 converter's
+  own tests (VoxFoundStorageLab*) pass unchanged after the cut.
+  T1 PASS (VoxFoundCsmTemplate.CubesExactSubcubesResampled): 2 cubes = 512 + 512, bounds 16 x 8 x 8; the centre
+     subcube -> 8 voxels (2^3: eighths 3-4 per axis -- the measured count, pinned); two corner subcubes of two materials
+     in one cube both kept; a lone microcube rescued into 1 voxel ("no detail vanishes"); cube over grid -> the cube;
+     a tint counted as dropped; a `# grid:` file refused.
+  T2 PASS (WholeLegacyLibraryConverts): 241 templates: 189 C/S/M converted with no error, 52 fine-grid (items) skipped;
+     per material with >= 1 m^3, voxels out / (volume * 512) spans 0.878 (tree_fir_m LogSpruce) - 1.118 (burgomaster_v2
+     Cobblestone) -- inside the 0.5 - 1.5 band.
+  T3 PASS (live, VoxFoundGate8 booted switched): red (legacy_template_stub) refuses all four ("no 1/8 m template");
+     green paints all four, verify_bad 0: burgomaster 632,344 voxels (1,023 cubes + 5,688 subcubes) -- 346,512 changed +
+     285,832 clipped at the region's edge (my position straddled it; changed + clipped = cells exactly), door_plank 337,
+     tree_oak 388, barony_fountain 291 (438 tints dropped -- the imported pack's colours are tints; recorded: imported
+     assets lose their tint colouring on the 1/8 m grid until the palette carries colour or they are regenerated).
+D3a DONE: every non-item template reaches the switched world; a 1/8 m version wins when it exists.
