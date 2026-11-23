@@ -1401,3 +1401,18 @@ again afterwards); tools/voxfound_f725_live.py, raw voxfound_f725_live.jsonl. Ev
   I2: on the size-2 brush (ground 24.25 -> 24.5) the item rests at 24.503 = the brush's top + the same 3 mm lift.
   Recorded, not ported: TemplateLodChain (the distant-instanced tree tier over today's 1/9 m templates) -- the switched
      world does not use it inside its region; what draws beyond the region is a render-tier question for the switch.
+
+F7.21e PREDICTION -- sit / interact on the 1/8 m furnished structures (2026-11-22, before any code). Today's furnish
+stage spawns every piece as a PlacedObject whose interaction points (seats, ...) come from the template's definitions
+(PlacedObjectManager::computeInteractionPointsAt at the placed anchor); the 1/8 m stage paints the pieces as static
+voxels with no PlacedObject -- nothing in a switched-world house can be sat on (find_fitting_seat finds none).
+THE CHANGE: PlacedObjectManager::registerFixture -- a "fixture" record (no voxels of its own: removing it never clears
+the world; the structure registry clears the voxels) with the template definitions' interaction points anchored at the
+piece's 1/8 m world anchor; the forge registers one per painted piece after the sink; the structure registry owns their
+ids (removed with an overlapped structure). Stated: the definitions are authored on the 1/9 m template; the 1/8 m
+piece's extents differ by up to 1/8 m, so a point can sit up to 1/8 m off.
+Live, VoxFoundBoot, the furnished hall house (as F7.21b):
+  E1: seat interaction points exist on the house's chairs / benches / stools (>= 4); CONTROL / RED (fixture_stub):
+      0 seat points in the house.
+  E2: every seat point lies within 0.25 m (horizontally) of its piece's painted voxels and above the floor.
+  E3: a furnished house built over it removes its fixtures (0 of the first's ids remain).
