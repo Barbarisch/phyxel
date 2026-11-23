@@ -1675,3 +1675,17 @@ D2 RESULTS (2026-11-23; the prediction above untouched). Release.
      3.6 - 23 s (Emberwake 136 s in F7.28 -- now generated around the camera). Opted out, each loads today's world as
      before (4 - 965 resident chunks).
 D2 DONE: a project that boots switched never loads today's world.
+
+D3a PREDICTION -- step 7 stage D3, first part: legacy C/S/M templates reach the 1/8 m grid (2026-11-23; not yet written).
+Census: 241 templates under resources/templates, 128 in resources/templates_g8; 113 have no 1/8 m version (50 nature --
+the gen_tree pool, superseded by the forge library but still named by recipes / tools; 24 furniture, 19 architecture,
+10 imported, 7 test, 3 weapons). Today the switched spawn_template REFUSES them ("no 1/8 m template"); D3 removes the
+C/S/M stamping, so they need a path. loadCsmTemplate(path): C / S / M lines -> per-cube 9^3 ninth grids -> the SAME
+resampler as convertPxb2 (factored out, not copied: the vote + "no detail vanishes"); cubes exact. Tints and states are
+dropped (the 1/8 m palette is material-only; counted). A 1/8 m version, when one exists, still wins.
+  T1 (unit): a C-only template = 512 voxels per cube, exact; one subcube -> the resampler's count for a 3x3x3-ninth block
+     (predicted 3^3 * (8/9)^3 * 27 ... measured, then pinned); a template that names 2 materials in one cube keeps both.
+  T2 (unit): every one of the 241 legacy templates that has no '# grid' header converts with no error; per material,
+     voxels out / (volume in * 512) within 0.5 - 1.5 for any material with >= 1 m^3 (the PXB2 conversion's band).
+  T3 (live, VoxFoundGate8): spawn_template of burgomaster, door_plank, tree_oak, barony_fountain on the switched world
+     succeeds (painted cells > 0, provenance "converted C/S/M"); the red = the refusal on the pre-change build.
