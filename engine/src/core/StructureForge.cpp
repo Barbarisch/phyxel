@@ -202,7 +202,30 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
             nlohmann::json furnished;
             if (ctx.deps.canvasFurnish) furnished = furnishCanvasGrid8(ctx);   // F7.21b: before the hand-over
             nlohmann::json out = ctx.deps.canvasSink(ctx.shell.canvas, ctx.shell.floorTopMicro, ctx.ox, ctx.oz);
-            if (!furnished.is_null()) out["furnish_grid8"] = furnished;
+            if (!furnished.is_null()) {
+                // F7.21c: the lights, at today's positions (stageFurnish's place_lights rule) converted at 1/8 m from the
+                // canvas origin the sink chose: a fixture = base cell + (0.5 m, its flame height, 0.5 m); a hearth =
+                // its measured fire cell's centre
+                nlohmann::json lights = nlohmann::json::array();
+                if (out.value("success", false) && out.contains("origin") && ctx.deps.addPointLight) {
+                    const glm::vec3 o(out["origin"][0].get<float>(), out["origin"][1].get<float>(),
+                                      out["origin"][2].get<float>());
+                    for (const auto& em : furnished["emitters"]) {
+                        const auto e = FurniturePlacer::emitterFor(em["type"].get<std::string>());
+                        const glm::vec3 c(em["cell"][0].get<float>(), em["cell"][1].get<float>(), em["cell"][2].get<float>());
+                        const glm::vec3 pos = em["exact"].get<bool>()
+                            ? (o + c + glm::vec3(0.5f)) / 8.0f
+                            : glm::vec3((o.x + c.x) / 8.0f + 0.5f, (o.y + c.y) / 8.0f + e.emitMicroY / 9.0f,
+                                        (o.z + c.z) / 8.0f + 0.5f);
+                        const int id = ctx.deps.addPointLight(pos, glm::vec3(e.r, e.g, e.b), e.intensity, e.radius);
+                        lights.push_back({{"id", id}, {"type", em["type"]}, {"room", em["room"]},
+                                          {"pos", {pos.x, pos.y, pos.z}}, {"color", {e.r, e.g, e.b}},
+                                          {"intensity", e.intensity}, {"radius", e.radius}});
+                    }
+                }
+                furnished["lights"] = lights;
+                out["furnish_grid8"] = furnished;
+            }
             gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
                              {"ms", stageClock.lap()}});
             out["gates"] = gates;
@@ -242,7 +265,12 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
     const std::string wealthTier = ctx.rp ? ctx.rp->wealthTier : "";
     const int extT = FurniturePlacer::planExteriorThicknessMicro(plan, 8);
     nlohmann::json pieces = nlohmann::json::array(), noTemplate = nlohmann::json::array(),
-                   unplacedJ = nlohmann::json::array(), builtins = nlohmann::json::array();
+                   unplacedJ = nlohmann::json::array(), builtins = nlohmann::json::array(),
+                   emitters = nlohmann::json::array();
+    for (const auto& h : plan.hearths)   // F7.21c: a hearth's flame anchor is measured by the forge (canvas cells)
+        if (FurniturePlacer::emitterFor(h.type).emits)
+            emitters.push_back({{"type", h.type}, {"room", h.room}, {"cell", {h.fireMicroX, h.fireMicroY, h.fireMicroZ}},
+                                {"exact", true}});
     size_t voxels = 0, refusedCells = 0;
     for (size_t si = 0; si < ctx.program.stories.size(); ++si) {
         const int floorTop = si < ctx.shell.floorTopByStory.size() ? ctx.shell.floorTopByStory[si] : ctx.shell.floorTopMicro;
@@ -276,7 +304,7 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
                     if (h.story == int(si) && h.type == pl.type && h.x == pl.worldPos.x && h.z == pl.worldPos.z) match = true;
                 builtins.push_back({{"type", pl.type}, {"room", pl.room}, {"story", si},
                                     {"cube", {pl.worldPos.x, pl.worldPos.z}}, {"matches_shell_hearth", match}});
-                continue;
+                continue;   // its light comes from the shell's hearth record (below)
             }
             const VoxFound::GridTemplate* t = tmplOf(pl.type);
             auto fit = fps.find(pl.type);
@@ -318,12 +346,14 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
             refusedCells += refused;
             pieces.push_back({{"type", pl.type}, {"room", pl.room}, {"story", si}, {"cell", {a.x, a.y, a.z}},
                               {"rotation", pl.rotation}, {"voxels", put}, {"refused_cells", refused}});
+            if (FurniturePlacer::emitterFor(pl.type).emits)   // F7.21c: its light, registered after the sink
+                emitters.push_back({{"type", pl.type}, {"room", pl.room}, {"cell", {a.x, a.y, a.z}}, {"exact", false}});
         }
     }
     LOG_INFO_FMT("StructureForge", "F7.21b furnish on 1/8 m: " << pieces.size() << " pieces, " << voxels << " voxels, "
                  << refusedCells << " cells refused (over the shell), " << noTemplate.size() << " without a 1/8 m template");
     return {{"pieces", pieces}, {"count", pieces.size()}, {"voxels", voxels}, {"refused_cells", refusedCells},
-            {"no_grid8_template", noTemplate}, {"unplaced", unplacedJ}, {"builtins", builtins},
+            {"no_grid8_template", noTemplate}, {"unplaced", unplacedJ}, {"builtins", builtins}, {"emitters", emitters},
             {"not_in_this_stage", {"item props", "lights", "signage", "nav"}}};
 }
 

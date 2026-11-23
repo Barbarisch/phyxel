@@ -1240,3 +1240,15 @@ Live, VoxFoundBoot, hall_house 16 x 7 at (8150, 28, 200), furnish:true (as F7.21
   L2: every light inside the house box; a lantern's light within 0.75 m of its piece's cells.
   L3: save_world, relaunch: the registry's lights are back (same count, positions within 1e-3 m).
   L4: a second furnished house overlapping the first: the first's lights removed -- the light count = the second's.
+
+F7.21c RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot, each mode on a restored copy of the
+project DB (restored again afterwards); tools/voxfound_f721c_live.py, raw voxfound_f721c_live.jsonl. Every artifact:
+StructureForge hall_house + the 1/8 m furniture library + the forge's fixture / hearth lights (FurniturePlacer::
+emitterFor values), on WorldGenerator Perlin s7 + flora.
+  CONTROL / RED (no furnish): 0 lights reported, the engine's light count +0.
+  L1 PASS: 4 lights (fireplace + 3 wall lanterns) = the emitters; GET /api/lights 0 -> 4.
+  L2 PASS: 4 / 4 inside the house box; each lantern's light 0.355 m from its piece's base cell centre (<= 0.75).
+  L4 PASS: a second furnished house over the first: overlaps_cleared reports the first's 4 lights removed; the engine
+     holds 4 (= the second's), not 8.
+  L3 PASS: save_world, relaunch (boot): the registry's 4 lights re-registered (valid ids), positions identical to the
+     saved ones; the engine holds 4.

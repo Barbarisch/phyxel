@@ -3209,8 +3209,9 @@ thicknesses, mount heights) takes perM (default 9 = today, byte-identical except
 the 1/8 m furniture library: 38 pieces, 0 overlapping the shell, every wall-backed piece flush (red, today's units:
 7 overlapping, 15 gaps). Found and fixed on both grids: a chandelier was hung over the stair. **F7.21b:** `{"furnish":true}`
 on the switched world furnishes the exact 1/8 m shell from the 1/8 m library (20 pieces in a hall house, 0 cells over
-the shell, read-back exact, the hearth left to the shell as today). Owed: item props, lights, signage, nav, sit /
-interact metadata (F7.21c onward).
+the shell, read-back exact, the hearth left to the shell as today). **F7.21c:** their lights (fixtures + hearths, today's
+positions) registered, owned by the structure registry: saved, restored at the boot, removed with an overlapped
+structure. Owed: item props, signage, nav, sit / interact metadata.
 
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces

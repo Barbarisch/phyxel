@@ -14912,7 +14912,13 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
                     for (int z = st.lo.z; z <= st.hi.z; ++z)
                         if (voxFoundEdit.voxelAt({x, y, z})) air.push_back({{x, y, z}, uint8_t(0)});
             const nlohmann::json cr = voxFoundPaintCells("clear_overlapping_structure", air);
-            overlapsCleared.push_back({{"id", st.id}, {"voxels", cr.value("voxels_changed", size_t(0))}});
+            size_t lightsRemoved = 0;   // F7.21c: its lights go with it
+            if (renderCoordinator)
+                for (const auto& l : st.lights)
+                    if (l.value("id", -1) >= 0 && renderCoordinator->getLightManager().removeLight(l["id"].get<int>()))
+                        ++lightsRemoved;
+            overlapsCleared.push_back({{"id", st.id}, {"voxels", cr.value("voxels_changed", size_t(0))},
+                                       {"lights_removed", lightsRemoved}});
         }
         voxFoundStructures.swap(keep);
     }
@@ -15152,11 +15158,21 @@ void Application::voxFoundSpanEdit(const Core::VoxFound::RegionEdit::Stats& st) 
         }
 }
 
+// F7.21c: a furnished structure's lights (the forge registered them after the sink) belong to its registry entry
+void Application::voxFoundStructureAttachLights(int structureId, const nlohmann::json& lights) {
+    for (auto& s : voxFoundStructures)
+        if (s.id == structureId) {
+            for (const auto& l : lights) s.lights.push_back(l);
+            return;
+        }
+}
+
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back
 nlohmann::json Application::voxFoundStructuresJson() const {
     nlohmann::json a = nlohmann::json::array();
     for (const auto& s : voxFoundStructures)
-        a.push_back({{"id", s.id}, {"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"floor", s.floor}});
+        a.push_back({{"id", s.id}, {"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"floor", s.floor},
+                     {"lights", s.lights}});
     return {{"next", voxFoundStructureNext}, {"structures", a}};
 }
 void Application::voxFoundStructuresLoad() {
@@ -15171,6 +15187,17 @@ void Application::voxFoundStructuresLoad() {
             s.lo = {e["lo"][0].get<int>(), e["lo"][1].get<int>(), e["lo"][2].get<int>()};
             s.hi = {e["hi"][0].get<int>(), e["hi"][1].get<int>(), e["hi"][2].get<int>()};
             s.floor = e.at("floor").get<int>();
+            if (e.contains("lights") && renderCoordinator)   // F7.21c: re-registered (light ids are per session)
+                for (const auto& l : e["lights"]) {
+                    nlohmann::json r = l;
+                    const auto& p = l["pos"];
+                    const auto& c = l["color"];
+                    r["id"] = renderCoordinator->getLightManager().addPointLight(
+                        Graphics::LightSource::Fixture, glm::vec3(p[0].get<float>(), p[1].get<float>(), p[2].get<float>()),
+                        glm::vec3(c[0].get<float>(), c[1].get<float>(), c[2].get<float>()), l.value("intensity", 1.0f),
+                        l.value("radius", 1.0f));
+                    s.lights.push_back(r);
+                }
             voxFoundStructures.push_back(s);
         }
         voxFoundStructureNext = j.value("next", int(voxFoundStructures.size()) + 1);
@@ -22524,6 +22551,10 @@ void Application::processAPICommands() {
                         response = Core::StructureBuildService::placeAndRegister(
                             structure, cmd.params, deps);
                     }
+                    // F7.21c: a furnished switched-world structure owns its lights (saved / restored / cleared with it)
+                    if (response.is_object() && response.contains("structure_id") && response.contains("furnish_grid8"))
+                        voxFoundStructureAttachLights(response["structure_id"].get<int>(),
+                                                      response["furnish_grid8"].value("lights", nlohmann::json::array()));
                 }
 
             } else if (cmd.action == "list_structure_types") {
