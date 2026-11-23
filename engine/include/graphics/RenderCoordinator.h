@@ -422,6 +422,11 @@ public:
     void setOcclusionCullingEnabled(bool e) { m_occlusionCullingEnabled = e; }
     /// F2.8 A/B (docs/VoxelFoundationPlan.md): stop drawing today's world (chunk geometry, its grass and leaf cards,
     /// and their shadow casters) so the 1/8 m preview of the same scene is measured alone, in the same session.
+    /// docs/VoxelFoundationPlan.md F7.29: the switched world's grass -- per region chunk (world origin) its grass
+    /// instances (tex bits 20-22 = the 1/8 m ground's sink below the cube top), drawn by today's grass pipeline in
+    /// the scene + near-shadow passes while today's world is hidden. Replacing waits for the device (switch-on only).
+    void setVoxFoundGrass(const std::vector<std::pair<glm::ivec3, std::vector<GrassInstanceData>>>& chunks);
+    size_t voxFoundGrassInstances() const { return m_vfGrassTotal; }
     void setHideWorld(bool h) { m_hideWorld = h; }
     bool hideWorld() const { return m_hideWorld; }
     bool isOcclusionCullingEnabled() const { return m_occlusionCullingEnabled; }
@@ -1316,6 +1321,11 @@ private:
     // air-connected chunks. Conservative — no false holes. PHYXEL_OCCLUSION=0
     // env var / POST /api/debug/occlusion disables for A/B.
     bool m_occlusionCullingEnabled = true;
+    VkBuffer m_vfGrassBuffer = VK_NULL_HANDLE;   // F7.29
+    VkDeviceMemory m_vfGrassMemory = VK_NULL_HANDLE;
+    struct VfGrassChunk { glm::ivec3 origin; uint32_t first = 0, count = 0; };
+    std::vector<VfGrassChunk> m_vfGrass;
+    size_t m_vfGrassTotal = 0;
     bool m_hideWorld = false;   // F2.8 A/B switch, see setHideWorld
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
     void applyOcclusionCulling(const glm::vec3& cameraPos, const Utils::Frustum& cameraFrustum);

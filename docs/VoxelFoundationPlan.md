@@ -3242,8 +3242,9 @@ streaming world around the camera (generator), a fixed world from TODAY's reside
 ("voxfound": {"enabled": false} opts out). On real projects 6 / 6 boot switched (F7.28: the region cap measured, big
 fixed worlds convert whole -- in ~2.2 min, a cost miss). Converted 1/3 m content quantizes to 3/8 m (+12.5 %, by
 construction; buildings reach 1/8 m by being generated there). At steady state the switched Emberwake runs 132 FPS (today
-81) with shadows (an early-capture "missing shadow / 55 FPS" finding was withdrawn). Owed before the deletion: grass
-blades on the switched world, the pits seen on the boot project's ground, the conversion's cost (2.2 min, 6.9 GB).
+81) with shadows (an early-capture "missing shadow / 55 FPS" finding was withdrawn). **F7.29:** grass blades on the
+switched world (today's pipeline; instances carry the 1/8 m ground's sink; 14,084 on the boot region). Owed before the
+deletion: the pits seen on the switched ground, grass refresh on edits, the conversion's cost (2.2 min, 6.9 GB).
 
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces

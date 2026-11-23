@@ -373,6 +373,9 @@ private:
     bool voxFoundSpanStoreStub = false;
     bool voxFoundStreamSwapping = false;
     void voxFoundSpansFill();
+    void voxFoundGrassFill();   // F7.29
+    bool voxFoundGrassStub = false;
+    size_t voxFoundGrassCount = 0;
     // F7.24 (step-7 port: the API's units): batch / copy / paste / move / named snapshots on the switched world
     struct VoxFoundBox { glm::ivec3 lo{0}, size{0}; std::vector<uint8_t> mats; };   // 1/8 m voxels, x-major
     VoxFoundBox voxFoundClip;

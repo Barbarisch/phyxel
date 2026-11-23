@@ -13636,6 +13636,17 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"today_voxels_by_material", vol}, {"chunks", chunkManager->chunkMap.size()}};
             return;
         }
+        if (cmd.params.contains("grass_stub")) {   // F7.29 (tests): no grass on the switched world (the red)
+            voxFoundGrassStub = cmd.params["grass_stub"].get<bool>();
+            if (voxFoundWorldReads) voxFoundGrassFill();
+            response = {{"grass_stub", voxFoundGrassStub}, {"grass_instances", voxFoundGrassCount}};
+            return;
+        }
+        if (cmd.params.value("grass_status", false)) {
+            response = {{"grass_instances", voxFoundGrassCount},
+                        {"renderer_instances", renderCoordinator ? renderCoordinator->voxFoundGrassInstances() : 0}};
+            return;
+        }
         if (cmd.params.contains("item_snap_stub")) {   // F7.25 (tests): items snap by today's cube scan (the red)
             if (itemPropManager) itemPropManager->setVoxFoundSnapStub(cmd.params["item_snap_stub"].get<bool>());
             response = {{"item_snap_stub", cmd.params["item_snap_stub"]}};
@@ -13996,6 +14007,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
             if (!on && waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: back to today
             if (!on && chunkManager) chunkManager->clearVoxFoundPlayBounds();   // F8.3b
+            if (!on && renderCoordinator && !voxFoundStreamSwapping) renderCoordinator->setVoxFoundGrass({});   // F7.29
             if (!on && chunkManager && !voxFoundStreamSwapping) {   // F7.18: today's chunks hold the spans again
                 chunkManager->setVoxFoundSpansOn(false);
                 chunkManager->bumpWaterSpanRevision();
@@ -14118,6 +14130,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         : Core::PlayBounds::make(float(rlo.x * 32), float(rlo.z * 32), float((rhi.x + 1) * 32), float((rhi.z + 1) * 32)));
                 }
                 voxFoundSpansFill();   // F7.18: the water spans of the region's chunks (no Chunk object needed)
+                voxFoundGrassFill();   // F7.29: the grass blades of the region's ground
             }
             renderCoordinator->setHideWorld(on);
             voxFoundPreview.shown = on;
@@ -15271,6 +15284,51 @@ void Application::voxFoundStructureAttachLights(int structureId, const nlohmann:
             for (const auto& l : lights) s.lights.push_back(l);
             return;
         }
+}
+
+// F7.29: the switched world's grass -- today's rule (a grass-topped surface with air above sprouts one blade clump per
+// metre cell, today's grass.vert fans it out) on the 1/8 m ground: per metre column, the top solid voxel of its centre
+// voxel column; a Grass / GrassForest / GrassSavanna top with air above gets an instance at that metre, its sink below
+// the cube top (7 - v % 8 eighths) in tex bits 20-22. Stated simplifications: sky light 15, no block light, edge-ness 8
+// (no lawn-edge taper), the topmost surface only, rebuilt at switch-on (edits do not refresh it yet).
+void Application::voxFoundGrassFill() {
+    if (!renderCoordinator || voxFoundEdit.empty() || voxFoundGrassStub) {
+        if (renderCoordinator) renderCoordinator->setVoxFoundGrass({});
+        voxFoundGrassCount = 0;
+        return;
+    }
+    auto& reg = Core::MaterialRegistry::instance();
+    std::vector<int16_t> grassTex(voxFoundPalette.size(), -1);
+    for (size_t m = 1; m < voxFoundPalette.size(); ++m) {
+        const std::string& n = voxFoundPalette[m];
+        if (n == "Grass" || n == "GrassForest" || n == "GrassSavanna") grassTex[m] = int16_t(reg.getTextureIndex(n, 4));
+    }
+    std::vector<std::pair<glm::ivec3, std::vector<GrassInstanceData>>> chunks;
+    size_t total = 0;
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const auto& ch = voxFoundEdit.chunk(i);
+        const auto& st = ch.store;
+        const int H = st.dim().y;
+        std::vector<GrassInstanceData> v;
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z) {
+                const int vx = x * 8 + 4, vz = z * 8 + 4;
+                int y = H - 1;
+                while (y >= 0 && !st.at({vx, y, vz})) --y;
+                if (y < 0 || y == H - 1) continue;   // no ground in this chunk, or covered by the chunk above (unknown)
+                const uint8_t m = st.at({vx, y, vz});
+                if (m >= grassTex.size() || grassTex[m] < 0) continue;
+                GrassInstanceData gi;
+                const uint32_t cy = uint32_t(y / 8), sink = uint32_t(7 - y % 8);
+                gi.packed = (uint32_t(x) & 0x1F) | ((cy & 0x1F) << 5) | ((uint32_t(z) & 0x1F) << 10) | (15u << 15);
+                gi.tex = uint32_t(uint16_t(grassTex[m])) | (8u << 16) | (sink << 20);
+                v.push_back(gi);
+            }
+        total += v.size();
+        if (!v.empty()) chunks.push_back({ch.originVoxel / 8, std::move(v)});
+    }
+    renderCoordinator->setVoxFoundGrass(chunks);
+    voxFoundGrassCount = total;
 }
 
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back

@@ -183,7 +183,9 @@ void main() {
     vTex = inTex & 0xFFFFu;
 
     // Min corner of the voxel's top face, CAMERA-RELATIVE (all position math below).
-    vec3 cellBase = pc.chunkBaseOffset + vec3(lx, ly + 1.0, lz);
+    // VoxelFoundationPlan F7.29: inTex bits 20-22 = how many 1/8 m voxels the ground top sits BELOW the cube top
+    // (the switched world's 1/8 m ground; 0 = today's whole-cube top). The hash seed below stays on the cube.
+    vec3 cellBase = pc.chunkBaseOffset + vec3(lx, ly + 1.0 - float((inTex >> 20) & 0x7u) * 0.125, lz);
     // Hash-domain coordinates: ABSOLUTE world cell (exact integers via pc.absBase*), WRAPPED
     // to a 2048-unit period before any hashing/phase math. Raw far coords break float
     // precision inside hash21 (fract(400000 * 127.1) has no fractional bits), and RELATIVE

@@ -109,7 +109,8 @@ struct GrassInstanceData {
     // bits 16-19: edge-ness — count (0-8) of horizontal neighbour columns that are also
     //             grass-topped within a ±1 step, baked at mesh time (world-look C4). grass.vert
     //             tapers blade height toward 0 neighbours so lawns end in a fringe, not a cliff.
-    // bits 20-31: reserved.
+    // bits 20-22: SINK -- how many 1/8 m voxels the ground top lies below the cube top (VoxelFoundationPlan F7.29, the
+    //             switched world's 1/8 m ground; 0 = today's whole-cube top). bits 23-31: reserved.
     uint32_t tex = 0;
     // Total: 8 bytes
 

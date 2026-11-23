@@ -1600,13 +1600,44 @@ size_t RenderCoordinator::renderStaticGeometry(StaticDrawPass pass) {
     return renderedChunks;
 }
 
+void RenderCoordinator::setVoxFoundGrass(const std::vector<std::pair<glm::ivec3, std::vector<GrassInstanceData>>>& chunks) {
+    if (!vulkanDevice) return;
+    if (m_vfGrassBuffer != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_vfGrassBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_vfGrassMemory, nullptr);
+        m_vfGrassBuffer = VK_NULL_HANDLE;
+        m_vfGrassMemory = VK_NULL_HANDLE;
+    }
+    m_vfGrass.clear();
+    m_vfGrassTotal = 0;
+    for (const auto& [o, v] : chunks) m_vfGrassTotal += v.size();
+    if (m_vfGrassTotal == 0) return;
+    const VkDeviceSize bytes = VkDeviceSize(m_vfGrassTotal) * sizeof(GrassInstanceData);
+    vulkanDevice->createBuffer(bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               m_vfGrassBuffer, m_vfGrassMemory);
+    if (m_vfGrassBuffer == VK_NULL_HANDLE) return;
+    void* mapped = nullptr;
+    vkMapMemory(vulkanDevice->getDevice(), m_vfGrassMemory, 0, bytes, 0, &mapped);
+    auto* dst = static_cast<GrassInstanceData*>(mapped);
+    uint32_t at = 0;
+    for (const auto& [o, v] : chunks) {
+        if (v.empty()) continue;
+        std::memcpy(dst + at, v.data(), v.size() * sizeof(GrassInstanceData));
+        m_vfGrass.push_back({o, at, uint32_t(v.size())});
+        at += uint32_t(v.size());
+    }
+    vkUnmapMemory(vulkanDevice->getDevice(), m_vfGrassMemory);
+}
+
 void RenderCoordinator::renderGrass() {
     // Grass rides on the chunks that just survived static-geometry culling (visibleChunkIndices is
     // populated by renderStaticGeometry, which runs immediately before this). We additionally clip
     // to the grass radius so far terrain stays bare — the hard cost bound. No per-frame CPU beyond
     // assembling the small draw list; blades are GPU-expanded.
     if (!grassPipeline || !grassPipeline->params().enabled || !chunkManager) return;
-    if (visibleChunkIndices.empty()) return;
+    if (visibleChunkIndices.empty() && !(m_hideWorld && !m_vfGrass.empty())) return;   // F7.29
 
     const glm::vec3 cameraPos = camera->getPosition();
     // Cull whole chunks by center distance, padded by a chunk half-diagonal (~sqrt(3)*16) so a
@@ -1653,6 +1684,16 @@ void RenderCoordinator::renderGrass() {
                           chunk->getGrassBindOffset(),
                           nearDist });
     }
+    if (m_hideWorld)   // F7.29: the switched world's grass (its own buffer, per-chunk offsets)
+        for (const auto& g : m_vfGrass) {
+            const glm::vec3 center = glm::vec3(g.origin) + glm::vec3(16.0f);
+            const float distSq = glm::dot(center - cameraPos, center - cameraPos);
+            if (distSq > radiusSq) continue;
+            constexpr float kChunkHalfDiagonal = 27.71f;
+            draws.push_back({m_vfGrassBuffer, g.count, glm::vec3(g.origin),
+                             VkDeviceSize(g.first) * sizeof(GrassInstanceData),
+                             std::max(0.0f, std::sqrt(distSq) - kChunkHalfDiagonal)});
+        }
     if (draws.empty()) return;
 
     grassPipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
@@ -4508,6 +4549,15 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
                                    glm::vec3(origin.x, origin.y, origin.z),
                                    chunk->getGrassBindOffset(), std::sqrt(dSq) });
         }
+        if (m_hideWorld)   // F7.29: the switched world's grass casts too
+            for (const auto& g : m_vfGrass) {
+                const glm::vec3 c = glm::vec3(g.origin) + glm::vec3(16.0f);
+                if (glm::length(c - cullCenter) > cullRadius + 8.0f) continue;
+                const float dSq = glm::dot(c - camPos, c - camPos);
+                if (dSq > grassRadiusSq) continue;
+                grassDraws.push_back({m_vfGrassBuffer, g.count, glm::vec3(g.origin),
+                                      VkDeviceSize(g.first) * sizeof(GrassInstanceData), std::sqrt(dSq)});
+            }
         m_shadowGrassChunks = int(grassDraws.size());
         grassPipeline->renderShadow(commandBuffer,
                                     vulkanDevice->getDescriptorSet(currentFrame), grassDraws);

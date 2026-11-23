@@ -1565,3 +1565,14 @@ Live, VoxFoundBoot (switched), a meadow pose:
   B2 (visual, for the owner): blades stand on the 1/8 m ground (not floating above it, not buried), at the pose of
       the F7.28 A/B; red: bare ground.
   B3: today's world unchanged: with the switch off at a today-resident pose, today's grass draws as before (picture).
+
+F7.29 RESULTS (2026-11-23; the prediction above untouched). Release; tools/voxfound_f729_live.py on VoxFoundBoot, raw
+voxfound_f729_live.jsonl. Every artifact: WorldGenerator Perlin s7 + flora on the 1/8 m grid + grass instances built
+from it, drawn by today's grass pipeline (grass.vert / grass_shadow.vert recompiled, .spv + manifest committed).
+  B1 PASS: 14,084 grass instances over the region, all 14,084 in the renderer; RED (grass_stub) 0.
+  B2 PASS (pictures f729_grass_green.png / f729_grass_red.png, the same pose): blades stand rooted on the 1/8 m ground
+     (neither floating nor buried) and take the trees' shadows; the red: bare ground.
+  B3 PASS (f729_today_grass_emberwake.png, Emberwake opted out, its own pose): today's grass draws as before the change
+     (sink 0 = today's cube top).
+  The red picture shows the PITS clearly: small dark square holes clustered in open ground, and a few cube-sized lumps
+     -- cause not measured yet (owed, before the deletion).
