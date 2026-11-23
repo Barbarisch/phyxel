@@ -33,3 +33,15 @@ voxfound_f81_live.jsonl, voxfound_f81_state.json; tools/voxfound_f81_live.py. Ev
      relaunch, the boot loads it -> 32 / 32 equal.
   S3 PASS: an edit's rebuild + assemble median 0.119 ms, p99 0.402, max 0.698 (<= 5 predicted); the HTTP round trip
      median 13.9 ms (the frame the request waits for).
+
+F8.2 PREDICTION -- 100 breaks in quick succession (2026-11-22; a census endpoint is added first -- a measuring tool,
+no behaviour change -- then the control).
+READ IN THE CODE BEFORE ANY RUN: every switched-world blast starts the bodies lab's "world" rig afresh
+(handleVoxFoundBodies: lab.sim.reset()), dropping the previous blast's bodies WITHOUT baking them -- and those voxels
+left the region at the break. So breaks faster than the rest policy bakes should lose matter.
+TOOL: voxfound_preview {"census":true} -> every material's voxel count over the region's stores.
+  R1 (one blast, then a forced bake): the census per material equal before / after (the chain conserves).
+  R2 (100 blasts back to back over the region, 0.2 s apart, then a forced bake): predicted to FAIL on the current code
+     (matter lost with every reset rig) -- the CONTROL; THE FIX: a new world rig first bakes the previous rig's bodies
+     into the region (forced, budget 0); then R2 = 0 voxels lost per material.
+  R3: the 100 blasts' apply_damage calls each <= 0.5 s; the whole run reported.
