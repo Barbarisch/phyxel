@@ -574,8 +574,18 @@ void NPCManager::buildNavGrid() {
                 }
             }),
             MicroQueryFunc([this, cm](const glm::ivec3& micro) {
+                // F7.22: on the switched world the graph runs at 8 cells per metre and reads the 1/8 m voxels
+                // directly (fetched per call: the reads are replaced at every stream shift); the non-voxel overlay
+                // stays a 1/9 m raster, sampled at the 1/9 cell holding this voxel's centre (stated)
+                if (m_navGraph && m_navGraph->cellsPerM() == 8)
+                    if (const auto* reads = cm->voxFoundReads()) {
+                        auto to9 = [](int v) { return static_cast<int>(std::floor((v + 0.5) * 9.0 / 8.0)); };
+                        return reads->voxel(micro) != 0 ||
+                               navObstacleMicro(glm::ivec3(to9(micro.x), to9(micro.y), to9(micro.z)));
+                    }
                 return cm->occupiedMicro(micro) || navObstacleMicro(micro);
             }));
+        m_navGraph->setCellsPerM(cm->voxFoundReads() ? 8 : NavGraph::MICRO);   // F7.22
     }
     {
         const auto t0 = std::chrono::high_resolution_clock::now();
@@ -614,16 +624,17 @@ void NPCManager::buildNavGrid() {
             if (!m_navGraph->surfaceAt(pos).valid()) {
                 const int cx = static_cast<int>(std::floor(pos.x));
                 const int cz = static_cast<int>(std::floor(pos.z));
-                const int feetMicro = static_cast<int>(std::floor(pos.y * 9.0f));
+                const int navPerM = m_navGraph->cellsPerM();   // F7.22: the graph's grid
+                const int feetMicro = static_cast<int>(std::floor(pos.y * navPerM));
                 bool moved = false;
                 for (int r = 1; r <= 3 && !moved; ++r)
                     for (int dx = -r; dx <= r && !moved; ++dx)
                         for (int dz = -r; dz <= r && !moved; ++dz) {
                             if (std::max(std::abs(dx), std::abs(dz)) != r) continue;
                             for (const NavSurface& sf : m_navGraph->columnSurfaces(cx + dx, cz + dz)) {
-                                if (std::abs(sf.floorTopMicro - feetMicro) > 9) continue;   // same storey only
+                                if (std::abs(sf.floorTopMicro - feetMicro) > navPerM) continue;   // same storey only
                                 glm::vec3 safePos(static_cast<float>(cx + dx) + 0.5f,
-                                                  static_cast<float>(sf.floorTopMicro) / 9.0f,
+                                                  static_cast<float>(sf.floorTopMicro) / static_cast<float>(navPerM),
                                                   static_cast<float>(cz + dz) + 0.5f);
                                 npc->setPosition(safePos);
                                 LOG_INFO("NPCManager", "Relocated NPC '{}' from an unwalkable cell ({},{}) to ({},{},{})",

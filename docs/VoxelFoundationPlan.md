@@ -3215,6 +3215,12 @@ structure. **F7.21d:** item props on the tables / counters / bars (placeSurfaceI
 path byte-identical), resting on the measured tops, owned by the registry, persisted. Owed: signage, nav, sit /
 interact metadata.
 
+**F7.22, nav agent units (2026-11-22).** NavGraph's micro grid is a parameter (9 today; 8 on the switched world, reading
+the 1/8 m voxels directly), the agent converted per grid (needs round up, tolerances down). A 1.875 m door and a 0.5 m
+step that today's 1/9 m sampling of the switched world let the agent through are refused; a 2.0 m door and a 0.375 m
+step pass; legacy unchanged. Live: the NPC graph runs at 8 on the switched world and paths into and out of a
+generated, furnished house through its door.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

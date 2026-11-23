@@ -129,6 +129,15 @@ public:
 
     bool microMode() const { return static_cast<bool>(m_microFunc); }
 
+    /// docs/VoxelFoundationPlan.md F7.22 (step-7 port: nav units): the micro grid's cells per metre -- MICRO (9, today)
+    /// or 8 on the switched world (its 1/8 m voxels queried directly, not resampled at 1/9). The agent profile's micro
+    /// fields are 1/9 m values; they are converted per grid at every entry point: clearances the body NEEDS (height,
+    /// half width) round UP, tolerances it may TAKE (step-up) round DOWN. A ChunkManager-backed graph picks 8 while the
+    /// ChunkManager is routed to the switched world. Every floorTopMicro / headroomMicro is in this graph's cells.
+    int cellsPerM() const { return m_perM; }
+    void setCellsPerM(int perM) { m_perM = perM > 0 ? perM : MICRO; }
+    NavAgentProfile scaledAgent(const NavAgentProfile& a) const;
+
     /// Build all columns in an inclusive XZ region for the given agent. The columns are
     /// built and their edges swept on `threads` worker threads (0 = one per hardware
     /// thread; small regions use one). The result is identical for any thread count: a
@@ -257,6 +266,7 @@ private:
     glm::ivec2 m_minBounds{0, 0};
     glm::ivec2 m_maxBounds{0, 0};
     int m_lastBuildThreads = 1;
+    int m_perM = MICRO;   ///< F7.22: cells per metre of the micro grid
     mutable std::shared_mutex m_mutex;   ///< guards m_columns/bounds; see findPath() note above.
 };
 

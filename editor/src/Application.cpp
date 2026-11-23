@@ -8374,7 +8374,7 @@ static bool handleNavGridQueryCommand(
             nlohmann::json surfaces = nlohmann::json::array();
             for (const auto& s : graph->columnSurfaces(x, z)) {
                 surfaces.push_back({{"floorY", s.floorY}, {"feetMicro", s.floorTopMicro},
-                                    {"feetY", s.floorTopMicro / 9.0f},
+                                    {"feetY", s.floorTopMicro / float(npcManager->getNavGraph()->cellsPerM())},   // F7.22
                                     {"headroomMicro", s.headroomMicro},
                                     {"edge", {s.edge[0], s.edge[1], s.edge[2], s.edge[3]}},
                                     {"slack", {s.slack[0], s.slack[1], s.slack[2], s.slack[3]}},
@@ -14111,6 +14111,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 const auto p = g->findPath(from, to, agent);
                 nr["found"] = p.found;
                 nr["nodes"] = p.nodes.size();
+                nr["cells_per_m"] = g->cellsPerM();   // F7.22: 8 while routed to the switched world
             } else {
                 nr["found"] = false;
                 nr["error"] = "no nav graph";

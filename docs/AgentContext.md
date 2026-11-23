@@ -711,7 +711,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       sit/interact metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate), bridges on the 1/8 m terrain
       (F7.20 did grading; carve + road material were already there), API units, items / LOD
-      template units, nav units) -- then the global default and the deletion.
+      template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world) -- then the global default
+      and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

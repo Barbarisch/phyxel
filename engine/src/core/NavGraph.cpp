@@ -1,4 +1,5 @@
 #include "core/NavGraph.h"
+#include "core/voxfound/WorldReads.h"   // F7.22
 #include "core/ChunkManager.h"
 #include <algorithm>
 #include <cmath>
@@ -43,7 +44,11 @@ NavGraph::NavGraph(ChunkManager* chunkManager) : m_chunkManager(chunkManager) {
                 default:                   return CellFill::Partial;
             }
         };
-        m_microFunc = [cm = m_chunkManager](const glm::ivec3& micro) { return cm->occupiedMicro(micro); };
+        m_microFunc = [this, cm = m_chunkManager](const glm::ivec3& micro) -> bool {
+            if (m_perM != MICRO)   // F7.22: the switched world's own 1/8 m voxels
+                if (const auto* r = cm->voxFoundReads()) return r->voxel(micro) != 0;
+            return cm->occupiedMicro(micro);
+        };
     }
 }
 NavGraph::NavGraph(VoxelQueryFunc queryFunc) : m_queryFunc(std::move(queryFunc)) {}
@@ -83,8 +88,8 @@ std::vector<NavSurface> NavGraph::buildColumnCube(int x, int z, const NavAgentPr
             NavSurface s;
             s.x = x; s.z = z; s.floorY = y;
             s.headroom = static_cast<uint16_t>(std::min(hr, MAX_HEADROOM));
-            s.floorTopMicro = (y + 1) * MICRO;
-            s.headroomMicro = static_cast<uint16_t>(s.headroom * MICRO);
+            s.floorTopMicro = (y + 1) * m_perM;
+            s.headroomMicro = static_cast<uint16_t>(s.headroom * m_perM);
             surfaces.push_back(s);
         }
     }
@@ -92,7 +97,7 @@ std::vector<NavSurface> NavGraph::buildColumnCube(int x, int z, const NavAgentPr
 }
 
 // ---------------------------------------------------------------------------
-// MICRO mode
+// m_perM mode
 // ---------------------------------------------------------------------------
 CellFill NavGraph::fillAt(const glm::ivec3& cube, FillCache& cache) const {
     const int64_t k = packCell(cube);
@@ -104,7 +109,7 @@ CellFill NavGraph::fillAt(const glm::ivec3& cube, FillCache& cache) const {
 }
 
 bool NavGraph::microSolid(const glm::ivec3& micro, FillCache& cache) const {
-    const glm::ivec3 cube(divFloor(micro.x, MICRO), divFloor(micro.y, MICRO), divFloor(micro.z, MICRO));
+    const glm::ivec3 cube(divFloor(micro.x, m_perM), divFloor(micro.y, m_perM), divFloor(micro.z, m_perM));
     switch (fillAt(cube, cache)) {
         case CellFill::Empty: return false;
         case CellFill::Solid: return true;
@@ -117,13 +122,13 @@ bool NavGraph::boxFits(int fx, int fy, int fz, int hw, int heightMicro, FillCach
     footprint(fx, fz, hw, xs, zs);
     const int yTop = fy + heightMicro;                 // exclusive
     for (int i = 0; i < 5; ++i) {
-        const int cx = divFloor(xs[i], MICRO), cz = divFloor(zs[i], MICRO);
+        const int cx = divFloor(xs[i], m_perM), cz = divFloor(zs[i], m_perM);
         // Walk the span cube by cube so Empty/Solid cubes cost one lookup each.
-        for (int cy = divFloor(fy, MICRO); cy * MICRO < yTop; ++cy) {
+        for (int cy = divFloor(fy, m_perM); cy * m_perM < yTop; ++cy) {
             const CellFill f = fillAt({cx, cy, cz}, cache);
             if (f == CellFill::Empty) continue;
             if (f == CellFill::Solid) return false;
-            const int y0 = std::max(fy, cy * MICRO), y1 = std::min(yTop, (cy + 1) * MICRO);
+            const int y0 = std::max(fy, cy * m_perM), y1 = std::min(yTop, (cy + 1) * m_perM);
             for (int y = y0; y < y1; ++y)
                 if (m_microFunc({xs[i], y, zs[i]})) return false;
         }
@@ -142,10 +147,10 @@ bool NavGraph::boxSupported(int fx, int fy, int fz, int hw, FillCache& cache) co
 std::vector<NavSurface> NavGraph::buildColumnMicro(int x, int z, const NavAgentProfile& agent,
                                                    FillCache& cache) const {
     std::vector<NavSurface> surfaces;
-    const int hw = std::clamp(agent.halfWidthMicro, 0, 4);   // footprint stays inside its own cell
+    const int hw = std::clamp(agent.halfWidthMicro, 0, (m_perM - 1) / 2);   // footprint stays inside its own cell
     const int need = std::max(1, agent.heightMicro);
-    const int fx = x * MICRO + 4, fz = z * MICRO + 4;         // cell centre, micro
-    const int maxHeadroomMicro = MAX_HEADROOM * MICRO;
+    const int fx = x * m_perM + m_perM / 2, fz = z * m_perM + m_perM / 2;         // cell centre, micro
+    const int maxHeadroomMicro = MAX_HEADROOM * m_perM;
 
     // A layer is "solid" for standing/blocking if any footprint sample is solid there.
     auto layerSolid = [&](int my) { return boxSupported(fx, my + 1, fz, hw, cache); };
@@ -153,18 +158,18 @@ std::vector<NavSurface> NavGraph::buildColumnMicro(int x, int z, const NavAgentP
     for (int cy = MIN_SCAN_Y; cy <= MAX_SCAN_Y; ++cy) {
         const CellFill f = fillAt({x, cy, z}, cache);
         if (f == CellFill::Empty) continue;                     // nothing to stand on in this cube
-        const int base = cy * MICRO;
+        const int base = cy * m_perM;
         // Candidate floor tops: a solid layer with a free layer above it.
-        const int firstLayer = (f == CellFill::Solid) ? base + MICRO - 1 : base;
-        for (int my = firstLayer; my < base + MICRO; ++my) {
+        const int firstLayer = (f == CellFill::Solid) ? base + m_perM - 1 : base;
+        for (int my = firstLayer; my < base + m_perM; ++my) {
             if (!layerSolid(my) || layerSolid(my + 1)) continue;
             const int feet = my + 1;
             // Headroom above the feet, cube-accelerated.
             int hr = 0;
             bool open = true;
-            for (int hy = divFloor(feet, MICRO); open && hr < maxHeadroomMicro; ++hy) {
+            for (int hy = divFloor(feet, m_perM); open && hr < maxHeadroomMicro; ++hy) {
                 const CellFill fa = fillAt({x, hy, z}, cache);
-                const int y0 = std::max(feet, hy * MICRO), y1 = (hy + 1) * MICRO;
+                const int y0 = std::max(feet, hy * m_perM), y1 = (hy + 1) * m_perM;
                 if (fa == CellFill::Empty) { hr += y1 - y0; continue; }
                 for (int y = y0; y < y1; ++y) {
                     if (layerSolid(y)) { open = false; break; }
@@ -175,10 +180,10 @@ std::vector<NavSurface> NavGraph::buildColumnMicro(int x, int z, const NavAgentP
             if (hr < need) continue;
             NavSurface s;
             s.x = x; s.z = z;
-            s.floorY = divFloor(my, MICRO);
+            s.floorY = divFloor(my, m_perM);
             s.floorTopMicro = feet;
             s.headroomMicro = static_cast<uint16_t>(hr);
-            s.headroom = static_cast<uint16_t>(std::min(hr / MICRO, MAX_HEADROOM));
+            s.headroom = static_cast<uint16_t>(std::min(hr / m_perM, MAX_HEADROOM));
             surfaces.push_back(s);
         }
     }
@@ -190,17 +195,17 @@ bool NavGraph::sweepEdge(const NavSurface& from, const NavSurface& to, const Nav
     const int fa = from.floorTopMicro, fb = to.floorTopMicro;
     const int dy = fb - fa;
     if (dy > agent.stepUpMicro)   return false;       // too tall a step up
-    if (-dy > agent.maxFallMicro()) return false;     // drop too far down
-    const int hw = std::clamp(agent.halfWidthMicro, 0, 4);
+    if (-dy > (agent.maxFallY * m_perM)) return false;     // drop too far down
+    const int hw = std::clamp(agent.halfWidthMicro, 0, (m_perM - 1) / 2);
     const int H  = std::max(1, agent.heightMicro);
     const int dx = to.x - from.x, dz = to.z - from.z;
     // Lateral shift is perpendicular to the travel axis.
-    const int sx = from.x * MICRO + 4 + (dx == 0 ? lateral : 0);
-    const int sz = from.z * MICRO + 4 + (dz == 0 ? lateral : 0);
+    const int sx = from.x * m_perM + m_perM / 2 + (dx == 0 ? lateral : 0);
+    const int sz = from.z * m_perM + m_perM / 2 + (dz == 0 ? lateral : 0);
     const bool isStep = std::abs(dy) <= agent.stepUpMicro;
-    for (int k = 1; k <= MICRO; ++k) {
+    for (int k = 1; k <= m_perM; ++k) {
         const int px = sx + dx * k, pz = sz + dz * k;
-        const bool inFrom = divFloor(px, MICRO) == from.x && divFloor(pz, MICRO) == from.z;
+        const bool inFrom = divFloor(px, m_perM) == from.x && divFloor(pz, m_perM) == from.z;
         bool ok;
         if (isStep) {
             // A STEP (<= the auto step-up): the controller lifts the body the moment it
@@ -233,7 +238,7 @@ void NavGraph::linkColumn(int x, int z, const NavAgentProfile& agent, FillCache&
             int bestAbs = INT_MAX;
             for (int lvl = 0; lvl < static_cast<int>(col.size()) && lvl < 127; ++lvl) {
                 const int dy = col[lvl].floorTopMicro - s.floorTopMicro;
-                if (dy > agent.stepUpMicro || -dy > agent.maxFallMicro()) continue;
+                if (dy > agent.stepUpMicro || -dy > (agent.maxFallY * m_perM)) continue;
                 if (std::abs(dy) >= bestAbs) continue;
                 if (!sweepEdge(s, col[lvl], agent, cache)) continue;
                 bestAbs = std::abs(dy);
@@ -248,9 +253,22 @@ void NavGraph::linkColumn(int x, int z, const NavAgentProfile& agent, FillCache&
     }
 }
 
-void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent,
+NavAgentProfile NavGraph::scaledAgent(const NavAgentProfile& a) const {
+    if (m_perM == MICRO) return a;
+    NavAgentProfile s = a;
+    auto up = [&](int micro) { return static_cast<int>(std::ceil(micro * m_perM / double(MICRO) - 1e-9)); };
+    auto down = [&](int micro) { return static_cast<int>(std::floor(micro * m_perM / double(MICRO) + 1e-9)); };
+    s.halfWidthMicro = up(a.halfWidthMicro);
+    s.heightMicro = up(a.heightMicro);
+    s.stepUpMicro = down(a.stepUpMicro);
+    return s;
+}
+
+void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agentIn,
                            int threads) {
     std::unique_lock lock(m_mutex);
+    if (m_chunkManager) m_perM = m_chunkManager->voxFoundReads() ? 8 : MICRO;   // F7.22
+    const NavAgentProfile agent = scaledAgent(agentIn);
     m_columns.clear();
     m_minBounds = glm::min(minXZ, maxXZ);
     m_maxBounds = glm::max(minXZ, maxXZ);
@@ -311,8 +329,9 @@ void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, con
     }
 }
 
-void NavGraph::rebuildColumn(int x, int z, const NavAgentProfile& agent) {
+void NavGraph::rebuildColumn(int x, int z, const NavAgentProfile& agentIn) {
     std::unique_lock lock(m_mutex);
+    const NavAgentProfile agent = scaledAgent(agentIn);   // F7.22
     FillCache cache;
     auto col = microMode() ? buildColumnMicro(x, z, agent, cache) : buildColumnCube(x, z, agent);
     int64_t key = packKey(x, z);
@@ -373,11 +392,11 @@ NavNodeId NavGraph::surfaceAt(const glm::vec3& worldPos) const {
     int bestLevel = -1;
     if (microMode()) {
         // Highest feet level at or within one cube above the agent's feet.
-        const int feetMicro = static_cast<int>(std::floor(worldPos.y * MICRO));
+        const int feetMicro = static_cast<int>(std::floor(worldPos.y * m_perM));
         int bestTop = INT_MIN;
         for (int lvl = 0; lvl < static_cast<int>(col.size()); ++lvl) {
             const int top = col[lvl].floorTopMicro;
-            if (top <= feetMicro + MICRO && top > bestTop) { bestTop = top; bestLevel = lvl; }
+            if (top <= feetMicro + m_perM && top > bestTop) { bestTop = top; bestLevel = lvl; }
         }
     } else {
         const int feetY = static_cast<int>(std::floor(worldPos.y));
@@ -411,12 +430,12 @@ NavGraph::PathResult NavGraph::findPathCore(const NavNodeId& start, const NavNod
     const NavSurface* sGoal  = surface(goal);
     if (!sStart || !sGoal) return result;
 
-    auto worldOf = [](const NavSurface* s) {
-        return glm::vec3(s->x + 0.5f, static_cast<float>(s->floorTopMicro) / static_cast<float>(MICRO),
+    auto worldOf = [this](const NavSurface* s) {
+        return glm::vec3(s->x + 0.5f, static_cast<float>(s->floorTopMicro) / static_cast<float>(m_perM),
                          s->z + 0.5f);
     };
-    auto cubesUp = [](const NavSurface* a, const NavSurface* b) {
-        return std::abs(a->floorTopMicro - b->floorTopMicro) / static_cast<float>(MICRO);
+    auto cubesUp = [this](const NavSurface* a, const NavSurface* b) {
+        return std::abs(a->floorTopMicro - b->floorTopMicro) / static_cast<float>(m_perM);
     };
     if (start == goal) {
         result.found = true;
@@ -516,12 +535,12 @@ bool NavGraph::hasClearWalkCore(const glm::vec3& a, const glm::vec3& b,
                 const float bx = static_cast<float>(from.x + (kDX[d] > 0 ? 1 : 0));
                 const float t  = (bx - a.x) / dx;
                 const float zc = a.z + dz * t;
-                return static_cast<int>(std::lround((zc - (from.z + 0.5f)) * MICRO));
+                return static_cast<int>(std::lround((zc - (from.z + 0.5f)) * m_perM));
             }
             const float bz = static_cast<float>(from.z + (kDZ[d] > 0 ? 1 : 0));
             const float t  = (bz - a.z) / dz;
             const float xc = a.x + dx * t;
-            return static_cast<int>(std::lround((xc - (from.x + 0.5f)) * MICRO));
+            return static_cast<int>(std::lround((xc - (from.x + 0.5f)) * m_perM));
         };
         // Cross from `from` into (nx,nz): the edge must exist and the line must pass
         // within the edge's lateral slack (`requireFull`: the whole face, for corner routes).

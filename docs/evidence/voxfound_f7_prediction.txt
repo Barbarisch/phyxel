@@ -1296,3 +1296,21 @@ Unit test VoxFoundNavGrid8 (a 1/8 m world: a floor, a 1 m wall with a 1 m wide d
   N3: a 3-voxel step (0.375 m) -> a path at perM 8; a 4-voxel step (0.5 m, above 0.444 m) -> NO path at perM 8; RED: the
       1/9 sampler reads the 0.5 m step as 4 cells = 0.444 m and passes it.
   N4 (legacy): NavGraph* / NavGrid* / NPC* / Traversal* tests unchanged.
+
+F7.22 RESULTS (2026-11-22; the prediction above untouched). Unit test VoxFoundNavGrid8 (tests/core/
+VoxFoundNavGrid8Test.cpp), Release; live tools/voxfound_f722_live.py on VoxFoundBoot (the boot DB restored after each
+run), raw voxfound_f722_live.jsonl.
+  N1 PASS: the 2.0 m door -- a path at perM 8 and in the 1/9 sampler (control).
+  N2 PASS: the 1.875 m door -- NO path at perM 8 (the agent needs 16 cells = 2.0 m >= 1.889 m); RED: the 1/9 sampler
+     finds one (its 17 clear cells read 1.889 m).
+  N3 PASS: the 0.375 m step passes, the 0.5 m step is refused at perM 8; RED: the 1/9 sampler passes 0.5 m (0.444).
+  Agent conversion at 8: height 16, step-up 3, half width 2 (9: unchanged).
+  N4 PASS: *NavGraph* / *NavGrid* / *NPC* / *Traversal* / *Path* / *Typology* / *Building* / *Structure*: 412 pass,
+     4 skipped; the editor builds.
+  LIVE (L4): FOUND that NPCManager builds its graph from a composite sampler (chunk occupancy + the non-voxel obstacle
+     overlay), not the ChunkManager constructor -- run 1 reported cells_per_m 9 while routed. Fixed there: 8 while
+     routed, the 1/8 m voxels read directly (the reads fetched per call -- they are replaced at every stream shift), the
+     obstacle overlay sampled at the 1/9 cell holding each voxel's centre (stated). Then cells_per_m 8.
+  LIVE probe defect, recorded: the first inside point (the house centre) lay on the hall table; the finder snaps it to
+     the tabletop -- a legal fall out, no climb in -> a one-way result that looked like a sealed house. A free floor
+     point 1.5 m inside the south door: furnished AND bare houses path both ways (10 nodes each, through the door).
