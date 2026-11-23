@@ -1606,3 +1606,13 @@ region assembly 102.3 s wall (of which the GPU face build 13.7 s summed; the res
 thread). TIME-BOXED (memory broad-strokes-first): recorded as the gap -- levers left: thread the encode (main-thread
 reads only), thread the per-chunk assembly, reuse today's meshing-free path. Not the stop condition; the plan moves
 to the deletion.
+
+D1 PREDICTION -- step 7 stage D1: a fixed world's region with NO Chunk object (2026-11-23, before any code). F7.27's
+default boot reads TODAY's resident Chunk objects (source "today": the box from chunkMap, each chunk encoded). D1: the
+box = the DB's stored chunks (WorldStorage::getAllChunkCoordinates), each chunk its stored PXB2 blob through
+convertPxb2 (source "world_db"); a DB with no stored chunks falls back to "today" (reported).
+On copies of CharacterTestbed, TavernTest, VillageChat, Emberwake (Release):
+  P1: each boots switched from world_db (source reported), chunks_missing 0 inside the stored box.
+  P2: the region's census per material EQUALS the F7.27 / F7.28 "today"-source census of the same project exactly --
+      i.e. every resident chunk was a stored chunk, so nothing of today's world needed a Chunk object.
+  RED: none needed (the comparison IS against the today source).
