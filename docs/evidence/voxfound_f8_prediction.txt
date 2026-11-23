@@ -149,3 +149,11 @@ else the region's box; authored bounds still win. Set at every switch-on (a shif
   P1: T2 re-run: >= 11 / 12 drops rest within 1/8 m of a region surface (a shell feature may catch one); the drops stay
       at their spawn x / z (within 0.5 m).
   P2: switch off -> the bounds are today's again (playBoundsSource).
+
+F8.3b RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot; the F8.3 driver. CONTROL = F8.3's
+run 3 (probes in rows 1-2 clamped to z 191.75).
+  P1 PASS: 12 / 12 drops rest exactly on their floors (rest = the region surface below, to the 1/8 m voxel), drift 0.0 m
+     for all 12; play bounds "switched world (region box)" (the driver turns streaming off for the build). T1 again
+     12 / 12 exact, T3 0 / 504 of today's cubes changed; job 15.4 s, worst frame 3.7 s.
+  P2 PASS: switch off -> the bounds source "region (world.from/to)" (today's).
+F8.3 is now PASS on T1-T3 (12 houses exact, standable, today's world untouched); T4 measured.

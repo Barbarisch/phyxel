@@ -13605,6 +13605,12 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("bounds_stub")) {   // F8.3b (tests): the switched world's play bounds not set (the red)
+            voxFoundBoundsStub = cmd.params["bounds_stub"].get<bool>();
+            if (voxFoundBoundsStub && chunkManager) chunkManager->clearVoxFoundPlayBounds();
+            response = {{"bounds_stub", voxFoundBoundsStub}};
+            return;
+        }
         if (cmd.params.contains("rapid_stub")) {   // F8.2 (tests): a new rig does not bake the previous one (the red)
             voxFoundRapidStub = cmd.params["rapid_stub"].get<bool>();
             response = {{"rapid_stub", voxFoundRapidStub}};
@@ -13697,6 +13703,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     return;
                 }
                 voxFoundStreamOn = want;
+                if (chunkManager && voxFoundWorldReads && !voxFoundBoundsStub) {   // F8.3b: streaming = unbounded
+                    const glm::ivec3 rlo = voxFoundEdit.chunkLo(), rhi = voxFoundEdit.chunkHi();
+                    chunkManager->setVoxFoundPlayBounds(want ? Core::PlayBounds{}
+                        : Core::PlayBounds::make(float(rlo.x * 32), float(rlo.z * 32), float((rhi.x + 1) * 32), float((rhi.z + 1) * 32)));
+                }
             }
             if (cmd.params.contains("stream_stub")) voxFoundStreamStub = cmd.params["stream_stub"].get<bool>();
             if (cmd.params.contains("stream_bg")) voxFoundStreamBg = cmd.params["stream_bg"].get<bool>();   // F7.9c
@@ -13711,7 +13722,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"cached_chunks", voxFoundStreamCache.size()}, {"region", rg},
                         {"switched", voxFoundWorldReads != nullptr}, {"stream_bg", voxFoundStreamBg},
                         {"job_pending", voxFoundStreamJob != nullptr}, {"max_slice_ms", voxFoundStreamMaxSliceMs},
-                        {"last_bg", voxFoundStreamLastBg}, {"faces", voxFoundPreview.liveFaces()}};
+                        {"last_bg", voxFoundStreamLastBg}, {"faces", voxFoundPreview.liveFaces()},
+                        {"play_bounds", chunkManager ? chunkManager->playBoundsSource() : ""}};
             if (!shift.is_null()) response["shift"] = shift;
             return;
         }
@@ -13860,6 +13872,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
             if (!on && waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: back to today
+            if (!on && chunkManager) chunkManager->clearVoxFoundPlayBounds();   // F8.3b
             if (chunkManager) {       // F7.13: the old-grid writers write the switched world
                 if (on && !voxFoundWriterStub)
                     chunkManager->setVoxFoundWrite([this](const std::vector<std::pair<glm::ivec3, std::string>>& vox,
@@ -13971,6 +13984,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     [this](glm::ivec3 c) { return voxFoundEdit.chunkStore(c); }, voxFoundEdit.chunkCoords());
                 if (chunkManager && !voxFoundWorldSwitchStub) chunkManager->setVoxFoundReads(voxFoundWorldReads.get());
                 if (waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: the region's solids
+                if (chunkManager && !voxFoundBoundsStub) {   // F8.3b: the switched world's play bounds
+                    const glm::ivec3 rlo = voxFoundEdit.chunkLo(), rhi = voxFoundEdit.chunkHi();
+                    chunkManager->setVoxFoundPlayBounds(voxFoundStreamOn ? Core::PlayBounds{}
+                        : Core::PlayBounds::make(float(rlo.x * 32), float(rlo.z * 32), float((rhi.x + 1) * 32), float((rhi.z + 1) * 32)));
+                }
             }
             renderCoordinator->setHideWorld(on);
             voxFoundPreview.shown = on;

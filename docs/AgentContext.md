@@ -699,9 +699,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.17 done: the CA water sim's solids follow the switched world (switch + every region edit resync).
       F7 exit: suites recorded (no regression from F7); step 7 BLOCKED (ports listed in the plan's F7 status).
       F8 done (voxfound_f8_prediction.txt): 1,000 edits exact; 100 rapid breaks conserve exactly (two fixes);
-      a 12-house town exact; floating houses on slopes fixed (median seat + foundation); probe characters in rows
-      1-2 displaced ~21 m right after spawn (cause open).
-      NEXT (owed, in order): the post-spawn displacement; overlap handling for structures; the settle's unit test; the
+      a 12-house town exact and 12/12 standable (fixes: median seat + foundation; the switched world's own play
+      bounds -- today's clamped characters to its edge).
+      NEXT (owed, in order): overlap handling for structures; the settle's unit test; the
       step-7 ports (water spans, 1/8 m furnisher, 1/8 m hydrology carving / road grading, API units, items / LOD
       template units, nav units) -- then the global default and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and

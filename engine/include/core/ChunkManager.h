@@ -120,6 +120,8 @@ public:
     // Play bounds (G-169)
     Core::PlayBounds m_authoredPlayBounds;
     Core::PlayBounds m_regionPlayBounds;
+    Core::PlayBounds m_voxFoundPlayBounds;   // F8.3b
+    bool m_voxFoundBoundsSet = false;
     std::vector<glm::ivec3> m_regionChunkCoords;
     mutable Core::PlayBounds m_worldExtentCache;
     mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
@@ -199,6 +201,10 @@ public:
     /// streamed surround (the norm since 2026-09-23) the world continues past the region with
     /// generated terrain nobody can reach; the region is the play area and the wall.
     void setRegionPlayBounds(const Core::PlayBounds& b) { m_regionPlayBounds = b; }
+    /// docs/VoxelFoundationPlan.md F8.3b: while the new store is the world, its bounds replace today's (after authored
+    /// ones): `b` invalid = unbounded (a streaming switched world). clearVoxFoundPlayBounds = today's again.
+    void setVoxFoundPlayBounds(const Core::PlayBounds& b) { m_voxFoundPlayBounds = b; m_voxFoundBoundsSet = true; }
+    void clearVoxFoundPlayBounds() { m_voxFoundPlayBounds = Core::PlayBounds{}; m_voxFoundBoundsSet = false; }
     void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; m_regionChunkCoords.clear(); }
     /// The exact chunk coordinates of the scene's authored world block (set by the loader
     /// with the region play bounds): what a loading-screen settle waits for, and what the

@@ -70,7 +70,9 @@ def main():
         call("POST", "/api/entity/spawn", {"type": "animated", "id": pid, "position": {"x": cx, "y": fy / 8 + 1.0, "z": cz}})
         time.sleep(2.5)
         e = call("GET", "/api/entity/" + pid)
-        ry = (e.get("position") or {}).get("y")
+        ep = e.get("position") or {}
+        ry = ep.get("y")
+        drift = round(((ep.get("x", cx) - cx) ** 2 + (ep.get("z", cz) - cz) ** 2) ** 0.5, 3)
         pk = call("POST", P, {"pick": {"origin": [cx, (ry or 0) + 0.3, cz], "dir": [0, -1, 0], "max_m": 3, "size": 8}}).get("voxel")
         surf = (pk[1] + 1) / 8 if pk else None
         runs, prev = [], False   # the region's solid runs at the drop column (tops, in voxels / 8)
@@ -78,10 +80,11 @@ def main():
             s_ = call("POST", P, {"pick": {"origin": [cx, (vy + 0.5) / 8, cz], "dir": [0, -1, 0], "max_m": 0.06, "size": 8}}).get("voxel")
             if s_ and not prev: runs.append((vy + 1) / 8)
             prev = bool(s_)
-        t2.append({"house": i, "floor_m": fy / 8, "rest_y": ry, "surface_below": surf, "runs_m": runs[:4],
+        t2.append({"house": i, "floor_m": fy / 8, "rest_y": ry, "surface_below": surf, "runs_m": runs[:4], "drift_m": drift,
                    "on_surface": surf is not None and ry is not None and abs(ry - surf) <= 0.125})
         call("POST", "/api/entity/remove", {"id": pid})
-    out["T2"] = {"on_a_surface": sum(1 for x in t2 if x["on_surface"]), "of": len(t2), "drops": t2}
+    out["play_bounds"] = call("POST", P, {"stream_status": True}).get("play_bounds")
+    out["T2"] = {"max_drift_m": max((x["drift_m"] for x in t2), default=0), "on_a_surface": sum(1 for x in t2 if x["on_surface"]), "of": len(t2), "drops": t2}
     call("POST", "/api/camera", {"mode": "free", "position": {"x": 8188.0, "y": 130.0, "z": 214.0}, "yaw": 90, "pitch": -89})
     time.sleep(3)
     shutil.copy(call("GET", "/api/screenshot")["path"], os.path.join(EVID, "voxfound_f83_town_top.png"))
