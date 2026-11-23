@@ -15168,7 +15168,10 @@ void Application::voxFoundBoot() {
                           {"flora", w.value("flora", true)}, {"editable", true}, {"hide_world", false},
                           {"flora_window", "open"},
                           {"region", {{"from", {lo.x, lo.y, lo.z}}, {"to", {hi.x, hi.y, hi.z}}}}};
-    if (fromToday) req["source"] = "today";
+    if (fromToday) {
+        req["source"] = "today";
+        req["max_chunks"] = v.value("max_chunks", 4096);   // F7.28: a fixed world is converted whole
+    }
     Core::APICommand c;
     nlohmann::json r = nlohmann::json::object(), on = nlohmann::json::object(), st = nlohmann::json::object();   // F7.27: never null
     c.params = req;
@@ -16061,8 +16064,9 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     const glm::ivec3 nC = hi - lo + 1;
     if (cmd.params.value("editable", false)) voxFoundRegionRequest = cmd.params;   // F7.9b: what a shift rebuilds
     const int count = nC.x * nC.y * nC.z;
-    if (count > 256) {
-        response = {{"error", "region over 256 chunks"}, {"chunks", count}};
+    const int maxChunks = std::clamp(cmd.params.value("max_chunks", 256), 1, 8192);   // F7.28: measured, not assumed
+    if (count > maxChunks) {
+        response = {{"error", "region over " + std::to_string(maxChunks) + " chunks"}, {"chunks", count}};
         return;
     }
     WorldGenerator gen(static_cast<WorldGenerator::GenerationType>(generationType), seed);

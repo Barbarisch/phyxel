@@ -714,8 +714,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       LOD template chain: not used inside the region -- the far tier is a question for the switch), items / LOD
       template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world); the global default ON
       (F7.27: projects without world.voxfound boot switched; opt-out "voxfound":{"enabled":false}). OWED before the
-      deletion: a streaming "today" source for fixed worlds over 256 chunks (VillageChat, Emberwake refuse) and the
-      converter's thin-part fidelity (building materials +10-12.5 %).
+      deletion (F7.28 pictures): grass / foliage blades on the switched world, character shadows onto the switched
+      terrain, the FPS gap (55 vs 81 at Emberwake's pose), the conversion cost (~2.2 min for 1,200 chunks, main thread).
+      (Big worlds now convert whole; the +12.5 % on converted 1/3 m content is quantization by construction.)
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

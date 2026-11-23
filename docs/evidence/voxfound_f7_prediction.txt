@@ -1523,3 +1523,21 @@ VoxFound::convertPxb2 for fixed worlds; the engine generator for streaming world
      microcube parts -- the F3.4 owed "thin-part occupancy rule"). Owed: the converter's thin-part fidelity.
   D3: pictures exist for every run; WorldForgeTest's own camera pose is inside rock in BOTH runs (uninformative).
   OPT-OUT PASS: all five projects re-run opted out boot today's world (not configured, not switched).
+
+F7.27 CORRECTION + F7.28 (2026-11-23, measured; the results above stand as recorded, this corrects their reading).
+  D2's CAUSE WAS MISATTRIBUTED above ("the converter's thin-part rule"). Measured: TavernTest's Wood came out at exactly
+     +12.5 % = 0.375 / 0.333 -- a 1/3 m plank or wall cannot exist on the 1/8 m grid (the nearest are 2 voxels = 0.25 m,
+     -25 %, or 3 = 0.375 m, +12.5 %); the converter's majority-volume vote correctly takes 3. Mixed materials land just
+     under (Bricks +9.9 %, WoodPlanks +11.3 %). A per-material 1 % bound on CONVERTED 1/3 m content is unattainable by
+     construction -- the prediction's bound was wrong, not the converter. Buildings reach the 1/8 m grid exactly by
+     being GENERATED there (F7.11 / F7.21), which is the plan's route (generators first); conversion is for content
+     with no generator.
+  F7.28, the region cap measured: the 256-chunk cap was a bare guard. Now a parameter (max_chunks, default 256; the
+     default boot of a fixed world asks up to 4,096). Emberwake and VillageChat (1,200 chunks each, 15 x 5 x 16) now
+     boot switched -- in 132.6 s and 139.8 s (a COST MISS: the conversion runs on the main thread, owed: threaded /
+     incremental conversion). Totals equal (8,112,278,125 vs 8,112,170,377 / 8,242,686,833 vs 8,242,540,471 voxels:
+     < 0.002 %), every cube material exact. Memory not measured in this run (stated).
+  D3 FOUND (pictures f727_Emberwake_default / _optout, the project's own pose): on the switched world the GRASS BLADES
+     are missing and the CHARACTER CASTS NO SHADOW on the ground (today's world shows both); 55 vs 81 FPS at that pose.
+     Owed before the deletion: grass / foliage blades on the switched world; character shadows onto the switched
+     terrain; the frame-rate gap measured and closed.
