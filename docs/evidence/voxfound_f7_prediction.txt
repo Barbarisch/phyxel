@@ -1154,3 +1154,17 @@ every road's centerline sampled every 4th vertex (25 graded vertices).
   G3 PASS: a 32 x 16 m area across a road = its two 16 m halves built separately (0 differing voxels).
   Regression: RoadFieldSeamTest 11 / 11, VoxFoundStorageLab 18 / 18, VoxFoundTerrainGenRate 2 / 2.
   Still owed for roads on the 1/8 m terrain: bridge decks, rails and piers (generateChunk emits them in cubes).
+
+F7.21a PREDICTION -- step-7 port: the furnisher on the 1/8 m grid, part a (the placer takes the grid; 2026-11-22, the
+code change written, NOT yet built or run). Map (delegated read, recorded in AgentContext): FurniturePlacer is pure (it
+returns placements); its cell math hard-codes 9 in the pose (microWorldPos), the reservation span, the plan's wall
+thicknesses and the mount heights. The change: a trailing perM (default 9) through furnish / furnishFromPlan /
+microWorldPos / mountedMicroY / plan thicknesses (thicknessCells: lround(t perM) in [1, perM] -- at 9 exactly
+StructureRealizer::thicknessMicro; mount heights picked in metres: 14/9 m, 1.0 m, 2.0 m -> 14 / 9 / 18 cells at 9).
+Unit test VoxFoundFurnish8 (FurnishPlanEquivalenceTest's two houses, timber cottage, the shell realized on the 1/8 m
+foundation grid; extents from the 1/8 m furniture library, resources/templates_g8/furniture, by FurnitureCatalog's
+template name):
+  A1 (legacy): every existing furniture / structure test passes unchanged (perM 9 = today).
+  A2: on the 1/8 m shell with perM 8, every placed piece's box (its pose + its g8 template's rotated extents) overlaps
+      0 shell cells, and every wall-backed piece is flush (the cell layer behind its back face holds shell cells).
+  RED: the same shell furnished with perM 9 (today's units on the 1/8 m shell) -> overlaps or gaps > 0.
