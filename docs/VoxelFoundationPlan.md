@@ -3291,6 +3291,12 @@ writers or the store (D3b, D4) as staged would break all three. New stage, befor
   by GameShell (packaged games boot switched like editor projects); the asset editor's floor on the 1/8 m grid. Gate:
   the F7.26 battery unchanged on the editor; a packaged game (produce_game on a COPY of a real project) boots switched
   with 0 of today's chunks resident and its --test harness subset answers (state, inject_input, screen state).
+- **D3-scenes -- multi-scene games on the switched world (GAP found 2026-11-23, after D3-core):** a game.json with
+  `scenes` never boots switched (the boot reader skips it) and SceneManager loads each scene's DB into today's store;
+  3 projects (TestVideoGame1, WaterBench_Scenes, a MazeRunner backup). Each scene transition: the leaving scene's
+  region saved into its DB, the arriving scene's region built by the default rules from its `world` (or its DB).
+  Gate: WaterBench_Scenes boots switched into its start scene, transitions both ways with 0 of today's chunks, an edit
+  in one scene survives leaving and returning; frames captured.
 
 
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks

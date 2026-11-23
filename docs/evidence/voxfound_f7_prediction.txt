@@ -1782,3 +1782,16 @@ templates_g8 was deleted after each run.
   S4 PASS: --anim-editor humanoid.anim: switched stage, the character stands at y 16.0 with its shadow
      (d3c3_anim_editor.png). The interaction editor shares buildEditorStage but was NOT run (untested).
 D3-core DONE (asset / anim editors run on the switched world; packaged games and the editor host VoxFoundWorld).
+
+D3-scenes PREDICTION (2026-11-23; not yet written). A game.json with `scenes` (no opt-out) boots switched with no boot
+of its own (today's world disabled before the runtime). SceneManager gains switchedWorldSave / switchedWorldLoad: on
+every world (or menuWorld) scene load the leaving region's edits are saved into the leaving DB (handleVoxFoundSave)
+and the region switched off and cleared; once the arriving DB is attached, its region is built by the SAME default
+rules as a single-scene boot from the scene's `world` (typed: generator + DB overlay; none: the DB's stored chunks).
+ChunkStreamingManager::loadAllChunksFromDatabase is gated like D2's other loads.
+  C1: WaterBench_Scenes (copy) boots switched into its start scene `pond` (DB-only: world_db) -- today's chunks 0,
+      region chunks > 0, frame shows the world.
+  C2: transition to `dry` (typed Flat): a new region (source generator), today's chunks 0, frame shows it; back to
+      `pond` the same.
+  C3: an edit (a 1 m Gold block placed through the voxel API) in `dry`, transition away and back: the block is there
+      (the voxel query reads Gold) -- and it is NOT in `pond`.
