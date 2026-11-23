@@ -707,7 +707,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       the span edit; edited spans saved / loaded).
       STEP 7 STAGED (plan section 9f "Step 7, the deletion -- staged"): D1 DONE (typed worlds: generator + DB overlay;
       DB-only: stored chunks; retired materials -> Default), D2 DONE (today's world never loads when switched: the
-      streaming manager's switch + the game-definition loader gated) -- generation
+      streaming manager's switch + the game-definition loader gated), D3a DONE (legacy templates convert);
+      GAP: the switched world is editor-only (packaged games / asset editor run on today's store) -> NEXT is the new
+      stage D3-core (move it into phyxel_core as VoxFoundWorld) BEFORE deleting writers -- generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into

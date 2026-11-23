@@ -3275,6 +3275,24 @@ each with its own prediction, red and gate (the suites green, the F7.26 battery 
    ported to the new store or retired with their subject.
 Caves / City / Random / Custom generation are dropped with D2 unless a project needs them (none does).
 
+**Step 7 progress (2026-11-23).** D1 DONE (6f7b5294): typed worlds generate around the camera and overlay their DB's
+stored chunks through the converter; DB-only worlds convert their stored chunks; retired materials (Cork) become
+Default. D2 DONE (19afb986): a project that boots switched never loads today's world (0 resident chunks through the
+battery and six real projects). D3a DONE (98d24e80): legacy C/S/M templates convert to 1/8 m through the same
+resampler as the chunk converter (189 / 189), so every non-item template spawns on the switched world.
+**GAP FOUND before D3b (2026-11-23): the switched world is EDITOR-ONLY.** Its orchestration (boot from game.json,
+region build, switch, stream, save / load, paint, overlay, grass, the structure registry -- ~800 references, 31 state
+members in editor/src/Application.cpp) is not in phyxel_core; the storage (RegionEdit, StorageLab), the renderer hooks
+(RenderCoordinator) and the read routing (ChunkManager WorldReads) are. Packaged standalone games (GameShell /
+GameApiService over EngineRuntime), the asset editor and the anim editor run ONLY on today's store. Deleting the
+writers or the store (D3b, D4) as staged would break all three. New stage, before D3b:
+- **D3-core -- the switched world moves into the core:** a `VoxFoundWorld` service in phyxel_core (state + boot +
+  build / switch / stream / save / load / paint), hosted by Application (the editor keeps only its HTTP dispatch) and
+  by GameShell (packaged games boot switched like editor projects); the asset editor's floor on the 1/8 m grid. Gate:
+  the F7.26 battery unchanged on the editor; a packaged game (produce_game on a COPY of a real project) boots switched
+  with 0 of today's chunks resident and its --test harness subset answers (state, inject_input, screen state).
+
+
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks
 (419 on chunk borders) + 9 blasts: 0 mismatches in counts, full-rebuild verifies, routed reads, physics probes; undo
 and save / reload exact; 0.12 ms per edit. F8.2: 100 rapid breaks lost 98 % of the broken matter (each new rig dropped
