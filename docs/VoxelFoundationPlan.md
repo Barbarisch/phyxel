@@ -3211,7 +3211,9 @@ the 1/8 m furniture library: 38 pieces, 0 overlapping the shell, every wall-back
 on the switched world furnishes the exact 1/8 m shell from the 1/8 m library (20 pieces in a hall house, 0 cells over
 the shell, read-back exact, the hearth left to the shell as today). **F7.21c:** their lights (fixtures + hearths, today's
 positions) registered, owned by the structure registry: saved, restored at the boot, removed with an overlapped
-structure. Owed: item props, signage, nav, sit / interact metadata.
+structure. **F7.21d:** item props on the tables / counters / bars (placeSurfaceItems on 1/8 m template boxes; the 1/9 m
+path byte-identical), resting on the measured tops, owned by the registry, persisted. Owed: signage, nav, sit /
+interact metadata.
 
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces

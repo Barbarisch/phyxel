@@ -635,17 +635,32 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
     // only primitives whose top row reaches within 1 micro of the template max —
     // the actual tabletop plane — so legs, stretchers, or a bar's lower shelf
     // never widen the item surface.
-    glm::ivec3 mmin(INT_MAX), mmax(INT_MIN);
-    struct P { glm::ivec3 origin; int span; };
-    std::vector<P> prims;
-    auto acc = [&](const glm::ivec3& origin, int span) {
-        mmin = glm::min(mmin, origin);
-        mmax = glm::max(mmax, origin + glm::ivec3(span - 1));
-        prims.push_back({origin, span});
-    };
+    std::vector<SurfaceBox> prims;
+    auto acc = [&](const glm::ivec3& origin, int span) { prims.push_back({origin, glm::ivec3(span)}); };
     for (const auto& c : tableTmpl.cubes)      acc(c.relativePos * 9, 9);
     for (const auto& s : tableTmpl.subcubes)   acc(s.parentRelativePos * 9 + s.subcubePos * 3, 3);
     for (const auto& m : tableTmpl.microcubes) acc(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1);
+    return placeSurfaceItemsBoxes(room, prims, 9, worldMicro, rotationDeg, items, seed);
+}
+
+// F7.21d: the core on boxes of any grid (perM cells per metre). The cell thresholds are picked in metres and round
+// back to today's cell counts at 9: headroom 1/3 m (3), area 20/81 m^2 (20), extent 2/9 m (2); the step merge stays
+// one cell.
+std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItemsBoxes(
+    const std::string& room, const std::vector<SurfaceBox>& prims, int perM,
+    const glm::ivec3& worldMicro, int rotationDeg,
+    const std::vector<std::string>& items, unsigned seed) {
+    (void)room;
+    std::vector<SurfaceItemSpot> out;
+    if (items.empty() || perM <= 0) return out;
+    const int kHeadroom = static_cast<int>(std::lround(perM / 3.0));
+    const int kMinArea = static_cast<int>(std::lround(20.0 / 81.0 * perM * perM));
+    const int kMinExtent = std::max(2, static_cast<int>(std::lround(2.0 / 9.0 * perM)));
+    glm::ivec3 mmin(INT_MAX), mmax(INT_MIN);
+    for (const auto& p : prims) {
+        mmin = glm::min(mmin, p.origin);
+        mmax = glm::max(mmax, p.origin + p.size - glm::ivec3(1));
+    }
     if (mmin.x > mmax.x) return out;   // empty template (fine-grid tables don't exist)
 
     // ---- occupancy raster over the local micro AABB ----
@@ -660,9 +675,9 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
         return occ[((size_t)(x - mmin.x) * dims.y + (y - mmin.y)) * dims.z + (z - mmin.z)];
     };
     for (const auto& p : prims)
-        for (int x = 0; x < p.span; ++x)
-            for (int y = 0; y < p.span; ++y)
-                for (int z = 0; z < p.span; ++z)
+        for (int x = 0; x < p.size.x; ++x)
+            for (int y = 0; y < p.size.y; ++y)
+                for (int z = 0; z < p.size.z; ++z)
                     at(p.origin.x + x, p.origin.y + y, p.origin.z + z) = 1;
 
     // ---- surface planes: occupied cells with >= 3 micro of headroom above
@@ -679,7 +694,7 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
                     if (at(x, yy, z)) { sky = false; break; }
                     ++clear;
                 }
-                if (!sky && clear < 3) continue;   // a bottle needs ~0.33 u headroom
+                if (!sky && clear < kHeadroom) continue;   // a bottle needs ~0.33 u headroom
                 auto it = levels.find(y);
                 if (it == levels.end())
                     levels[y] = {x, z, x, z, 1};
@@ -704,7 +719,7 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
     for (auto it = levels.rbegin(); it != levels.rend(); ++it) {
         const auto& L = it->second;
         const int ex = L[2] - L[0] + 1, ez = L[3] - L[1] + 1;
-        if (L[4] < 20 || ex < 2 || ez < 2) continue;
+        if (L[4] < kMinArea || ex < kMinExtent || ez < kMinExtent) continue;
         if (L[4] * 10 < ex * ez * 6) continue;   // fill < 60% -> a ring/frame, not a shelf
         if (!planes.empty() && planes.back().y - it->first <= 1) {
             auto& P = planes.back();   // union into the higher step
@@ -738,14 +753,15 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
             rmin = glm::min(rmin, r);  rmax = glm::max(rmax, r);
         }
         // world-space float rect (units), rim inset, measured surface Y
-        const float minX = (worldMicro.x + rmin.x) / 9.0f;
-        const float maxX = (worldMicro.x + rmax.x + 1) / 9.0f;
-        const float minZ = (worldMicro.z + rmin.z) / 9.0f;
-        const float maxZ = (worldMicro.z + rmax.z + 1) / 9.0f;
+        const float fM = static_cast<float>(perM);
+        const float minX = (worldMicro.x + rmin.x) / fM;
+        const float maxX = (worldMicro.x + rmax.x + 1) / fM;
+        const float minZ = (worldMicro.z + rmin.z) / fM;
+        const float maxZ = (worldMicro.z + rmax.z + 1) / fM;
         // EXACT surface Y — no epsilon here. spawnProp rests the item's lowest
         // corner on pos.y with its own tiny anti-z-fight lift; stacking a
         // second epsilon read as items hovering above the shelf.
-        const float topY = (worldMicro.y + pl.y + 1) / 9.0f;
+        const float topY = (worldMicro.y + pl.y + 1) / fM;
         const float kRim = 0.20f;   // keep item footprints off the edge
         float x0 = minX + kRim, x1 = maxX - kRim, z0 = minZ + kRim, z1 = maxZ - kRim;
         if (x1 < x0) x0 = x1 = (minX + maxX) * 0.5f;   // narrow surface -> center line

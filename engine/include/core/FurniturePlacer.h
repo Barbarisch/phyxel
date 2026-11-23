@@ -247,6 +247,13 @@ public:
         const std::string& room, const VoxelTemplate& tableTmpl,
         const glm::ivec3& worldMicro, int rotationDeg,
         const std::vector<std::string>& items, unsigned seed);
+    /// F7.21d: the same on a template given as primitive BOXES (template-local cells) of a grid with `perM` cells per
+    /// metre -- the 1/8 m library's boxes at 8; the VoxelTemplate entry above is this at 9 (byte-identical).
+    struct SurfaceBox { glm::ivec3 origin{0}, size{1}; };
+    static std::vector<SurfaceItemSpot> placeSurfaceItemsBoxes(
+        const std::string& room, const std::vector<SurfaceBox>& boxes, int perM,
+        const glm::ivec3& worldCell, int rotationDeg,
+        const std::vector<std::string>& items, unsigned seed);
     /// TESTING: drop any loaded data recipes (back to the hardcoded fallback).
     static void clearRecipes();
 

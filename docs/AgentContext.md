@@ -707,8 +707,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       the span edit; edited spans saved / loaded).
       NEXT (owed, in order): the
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into
-      the shell on the sink path; F7.21c lights (registry-owned, saved); owed item props, signage, nav, sit/interact
-      metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
+      the shell on the sink path; F7.21c lights + F7.21d item props (registry-owned, saved); owed signage, nav,
+      sit/interact metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate), bridges on the 1/8 m terrain
       (F7.20 did grading; carve + road material were already there), API units, items / LOD
       template units, nav units) -- then the global default and the deletion.

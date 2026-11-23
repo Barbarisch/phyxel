@@ -1267,3 +1267,16 @@ themselves persist as placed objects (category item), as today.
       1/8 m voxel just below its base is solid and the one just above is air. CONTROL / RED (no furnish): 0 props.
   S3: a furnished house built over it removes its props (the prop count = the second house's).
   S4: save_world + relaunch: the second house's props are back (same count).
+
+F7.21d RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot, each mode on the restored boot DB
+(restored again afterwards); tools/voxfound_f721d_live.py, raw voxfound_f721d_live.jsonl. Every artifact:
+StructureForge hall_house + the 1/8 m furniture library + FurniturePlacer::placeSurfaceItemsBoxes at perM 8
+(ItemPropManager static props), on WorldGenerator Perlin s7 + flora.
+  S1 PASS: *Furnish* / *Furniture* / *Structure* / *Hearth* / *Settlement* / *Fixture* / *Building* / *Surface* /
+     *ItemProp* / *Clutter*: 423 pass, 4 skipped (the 9-grid path byte-identical: thresholds 3 / 20 / 2 cells at 9).
+  CONTROL / RED (no furnish): 0 surfaces, 0 props.
+  S2 PASS: 4 props (goblet, plate x 2 tables) at y 24.000 m (floor 23.25 + the 0.75 m tabletop); every one: the 1/8 m
+     voxel below its base solid, the one above air.
+  S3 PASS: the overlapping furnished house removed the first's 4 props (with its 4 lights); 4 item props remain (the
+     second's).
+  S4 PASS: save_world + relaunch: the registry's 4 prop ids all present as placed objects (category item).

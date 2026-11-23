@@ -14917,8 +14917,12 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
                 for (const auto& l : st.lights)
                     if (l.value("id", -1) >= 0 && renderCoordinator->getLightManager().removeLight(l["id"].get<int>()))
                         ++lightsRemoved;
+            size_t propsRemoved = 0;   // F7.21d: and its item props
+            if (itemPropManager)
+                for (const auto& p : st.props)
+                    if (itemPropManager->removeProp(p.get<std::string>())) ++propsRemoved;
             overlapsCleared.push_back({{"id", st.id}, {"voxels", cr.value("voxels_changed", size_t(0))},
-                                       {"lights_removed", lightsRemoved}});
+                                       {"lights_removed", lightsRemoved}, {"props_removed", propsRemoved}});
         }
         voxFoundStructures.swap(keep);
     }
@@ -15172,7 +15176,7 @@ nlohmann::json Application::voxFoundStructuresJson() const {
     nlohmann::json a = nlohmann::json::array();
     for (const auto& s : voxFoundStructures)
         a.push_back({{"id", s.id}, {"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"floor", s.floor},
-                     {"lights", s.lights}});
+                     {"lights", s.lights}, {"props", s.props}});
     return {{"next", voxFoundStructureNext}, {"structures", a}};
 }
 void Application::voxFoundStructuresLoad() {
@@ -15198,6 +15202,7 @@ void Application::voxFoundStructuresLoad() {
                         l.value("radius", 1.0f));
                     s.lights.push_back(r);
                 }
+            if (e.contains("props")) s.props = e["props"];   // F7.21d: placed-object ids (the props persist themselves)
             voxFoundStructures.push_back(s);
         }
         voxFoundStructureNext = j.value("next", int(voxFoundStructures.size()) + 1);
@@ -22552,9 +22557,14 @@ void Application::processAPICommands() {
                             structure, cmd.params, deps);
                     }
                     // F7.21c: a furnished switched-world structure owns its lights (saved / restored / cleared with it)
-                    if (response.is_object() && response.contains("structure_id") && response.contains("furnish_grid8"))
+                    if (response.is_object() && response.contains("structure_id") && response.contains("furnish_grid8")) {
                         voxFoundStructureAttachLights(response["structure_id"].get<int>(),
                                                       response["furnish_grid8"].value("lights", nlohmann::json::array()));
+                        for (auto& s : voxFoundStructures)   // F7.21d: and its item props (ids of placed objects)
+                            if (s.id == response["structure_id"].get<int>())
+                                for (const auto& p : response["furnish_grid8"].value("props", nlohmann::json::array()))
+                                    if (!p.value("id", std::string()).empty()) s.props.push_back(p["id"]);
+                    }
                 }
 
             } else if (cmd.action == "list_structure_types") {

@@ -224,6 +224,36 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
                     }
                 }
                 furnished["lights"] = lights;
+                // F7.21d: the surface props, measured off the 1/8 m template's boxes at the placed pose (today's
+                // placeSurfaceItems, perM 8); static props resting on the measured top
+                nlohmann::json props = nlohmann::json::array();
+                if (out.value("success", false) && out.contains("origin") && ctx.deps.itemProps) {
+                    const glm::ivec3 o(out["origin"][0].get<int>(), out["origin"][1].get<int>(), out["origin"][2].get<int>());
+                    for (const auto& sf : furnished["surfaces"]) {
+                        std::string name = FurnitureCatalog::templateFor(sf["template"].get<std::string>());
+                        const auto slash = name.find_last_of('/');
+                        if (slash != std::string::npos) name = name.substr(slash + 1);
+                        const VoxFound::GridTemplate t =
+                            VoxFound::loadGridTemplate("resources/templates_g8/furniture/" + name + ".voxel");
+                        if (!t.error.empty()) continue;
+                        std::vector<FurniturePlacer::SurfaceBox> boxes;
+                        for (const auto& b : t.boxes) boxes.push_back({b.pos, b.size});
+                        const glm::ivec3 w = o + glm::ivec3(sf["cell"][0].get<int>(), sf["cell"][1].get<int>(),
+                                                            sf["cell"][2].get<int>());
+                        const unsigned seed = (static_cast<unsigned>(w.x) * 73856093u) ^
+                                              (static_cast<unsigned>(w.z) * 19349663u) ^ 0x9e3779b9u;
+                        const std::string type = sf["type"].get<std::string>(), room = sf["room"].get<std::string>();
+                        const auto items = FurniturePlacer::surfaceItemsFor(type == "back_bar" ? type : room);
+                        for (const auto& c : FurniturePlacer::placeSurfaceItemsBoxes(room, boxes, 8, w,
+                                                                                   sf["rotation"].get<int>(), items, seed)) {
+                            const std::string pid = ctx.deps.itemProps->spawnProp(
+                                c.type, c.worldPos, c.yawDeg, /*snapToGround=*/false, "", glm::vec3(0.0f), false);
+                            props.push_back({{"id", pid}, {"item", c.type}, {"on", type}, {"room", room},
+                                             {"pos", {c.worldPos.x, c.worldPos.y, c.worldPos.z}}});
+                        }
+                    }
+                }
+                furnished["props"] = props;
                 out["furnish_grid8"] = furnished;
             }
             gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
@@ -266,7 +296,7 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
     const int extT = FurniturePlacer::planExteriorThicknessMicro(plan, 8);
     nlohmann::json pieces = nlohmann::json::array(), noTemplate = nlohmann::json::array(),
                    unplacedJ = nlohmann::json::array(), builtins = nlohmann::json::array(),
-                   emitters = nlohmann::json::array();
+                   emitters = nlohmann::json::array(), surfaces = nlohmann::json::array();
     for (const auto& h : plan.hearths)   // F7.21c: a hearth's flame anchor is measured by the forge (canvas cells)
         if (FurniturePlacer::emitterFor(h.type).emits)
             emitters.push_back({{"type", h.type}, {"room", h.room}, {"cell", {h.fireMicroX, h.fireMicroY, h.fireMicroZ}},
@@ -348,12 +378,18 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
                               {"rotation", pl.rotation}, {"voxels", put}, {"refused_cells", refused}});
             if (FurniturePlacer::emitterFor(pl.type).emits)   // F7.21c: its light, registered after the sink
                 emitters.push_back({{"type", pl.type}, {"room", pl.room}, {"cell", {a.x, a.y, a.z}}, {"exact", false}});
+            // F7.21d: tables / counters / bars carry item props (as today's stageFurnish), spawned after the sink
+            if (pl.type.find("table") != std::string::npos || pl.type == "tavern_bar" || pl.type == "back_bar" ||
+                pl.type.find("counter") != std::string::npos)
+                surfaces.push_back({{"type", pl.type}, {"room", pl.room}, {"cell", {a.x, a.y, a.z}},
+                                    {"rotation", pl.rotation}, {"template", pl.type}});
         }
     }
     LOG_INFO_FMT("StructureForge", "F7.21b furnish on 1/8 m: " << pieces.size() << " pieces, " << voxels << " voxels, "
                  << refusedCells << " cells refused (over the shell), " << noTemplate.size() << " without a 1/8 m template");
     return {{"pieces", pieces}, {"count", pieces.size()}, {"voxels", voxels}, {"refused_cells", refusedCells},
             {"no_grid8_template", noTemplate}, {"unplaced", unplacedJ}, {"builtins", builtins}, {"emitters", emitters},
+            {"surfaces", surfaces},
             {"not_in_this_stage", {"item props", "lights", "signage", "nav"}}};
 }
 

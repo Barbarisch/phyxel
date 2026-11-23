@@ -358,7 +358,8 @@ private:
     nlohmann::json voxFoundSettleRubble();                       // F8.2: a world rig's rubble into whole voxels
     // F8.4: the switched world's structures (box in world voxels, floor surface voxel) -- a new one clears those it
     // overlaps; saved in world_meta "voxfound_structures"
-    struct VoxFoundStructure { glm::ivec3 lo{0}, hi{0}; int floor = 0; int id = 0; nlohmann::json lights = nlohmann::json::array(); };
+    struct VoxFoundStructure { glm::ivec3 lo{0}, hi{0}; int floor = 0; int id = 0; nlohmann::json lights = nlohmann::json::array();
+                               nlohmann::json props = nlohmann::json::array(); };   // F7.21d: its item props' ids
     void voxFoundStructureAttachLights(int structureId, const nlohmann::json& lights);   // F7.21c
     std::vector<VoxFoundStructure> voxFoundStructures;
     int voxFoundStructureNext = 1;
