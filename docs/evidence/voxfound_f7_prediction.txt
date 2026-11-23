@@ -1747,3 +1747,19 @@ D3-core RESULTS, parts 1 + 2 (2026-11-23; the prediction above untouched). Relea
   world-type check is case-sensitive ("flat" fails validate, aborting the rest of TavernTest's definition); packaging
   omits resources/templates and humanoid.anim for this game.
 REMAINING in D3-core: the asset editor's floor on the 1/8 m grid.
+
+D3-core PREDICTION, part 3 -- the special editors on the switched world (2026-11-23; not yet written). The asset, anim
+and interaction editors each build a 32 x 32 Stone floor at y 15 in today's chunk (0,0,0) (createChunk + addCube).
+VoxFoundWorld::buildEditorStage(): an editable switched region over chunk (0,0,0) from the Flat generator, flora off,
+switched on; the three editors call it instead (today's chunks cleaned up, none created). Asset editor: the template
+is painted by the switched spawn path from its FILE (a `# grid: 8` template as is; a C/S/M file through
+loadCsmTemplate); Ctrl+S writes the edited cells as a `# grid: 8` template -- a grid-8 file in place, a C/S/M file's
+version to resources/templates_g8/<category>/<stem>.voxel (the conversion is lossy: the legacy file is never
+overwritten).
+  S1: --asset-editor resources/templates_g8/furniture/barrel.voxel boots switched, 0 of today's chunks; the floor top
+      is at 16 m (a voxel query at y 15.9 solid, 16.1 air at the origin's column); the barrel is drawn (screenshot).
+  S2: save round trip -- Ctrl+S (the save route) writes a grid-8 file whose cell count equals the painted barrel's
+      (loadGridTemplate of the output: same per-material counts as the input file).
+  S3: --asset-editor resources/templates/furniture/chair_wood.voxel (C/S/M) converts, draws, and its save lands in
+      templates_g8/furniture/chair_wood.voxel; the legacy file is byte-identical after.
+  S4: --anim-editor <a rig> boots switched with the character standing on the floor (screenshot).
