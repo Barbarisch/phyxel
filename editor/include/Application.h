@@ -372,6 +372,12 @@ private:
     bool voxFoundSpanStoreStub = false;
     bool voxFoundStreamSwapping = false;
     void voxFoundSpansFill();
+    // F7.24 (step-7 port: the API's units): batch / copy / paste / move / named snapshots on the switched world
+    struct VoxFoundBox { glm::ivec3 lo{0}, size{0}; std::vector<uint8_t> mats; };   // 1/8 m voxels, x-major
+    VoxFoundBox voxFoundClip;
+    bool voxFoundClipSet = false;
+    std::map<std::string, VoxFoundBox> voxFoundSnapshots;
+    bool voxFoundApiRegion(const std::string& action, const nlohmann::json& p, nlohmann::json& response);
     // F7.19 (W2): span edits from region edits; edited spans saved / loaded
     bool voxFoundSpanEditStub = false;
     bool voxFoundSpansLoadPending = false, voxFoundSpansRestored = false;

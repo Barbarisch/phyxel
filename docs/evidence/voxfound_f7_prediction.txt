@@ -1356,3 +1356,19 @@ place_voxel at mixed sizes (a Stone cube, size-2 Bricks, size-1 Glass voxels -- 
   P3: paste rotate 90 -> equals S rotated by x' = 15 - z, z' = x (the box is 16 voxels deep).
   P4: move S by +20 m z -> the source box 0 solid; the destination = S.
   P5: create_snapshot of S's box, clear it, restore -> the box = S again.
+
+F7.24 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot, each mode on the restored boot DB
+(restored again afterwards); tools/voxfound_f724_live.py, raw voxfound_f724_live.jsonl. Every artifact: WorldGenerator
+Perlin s7 + flora + edits made through the voxel API by the driver (hand-placed via the API, stated).
+  RUN 1: every routed call answered success:false -- voxFoundPaintCells' reply carries an EMPTY "error" key (the same
+     trap as F7.12's sink); the success test now reads emptiness and drops the empty key. And the paste / move
+     destinations held flora (288 and 72 solid voxels) that a paste (solids only, as today's) leaves -- the driver now
+     clears them first (setup, stated); P3's destination was empty and passed in run 1 already.
+  CONTROL / RED (api_stub): the region unchanged by every call (batch +0, S built 0 voxels, nothing pasted).
+  P1 PASS: the batch of 10 cubes +5,120 voxels; one undo -> +0.
+  P2 PASS: S (586 solid voxels: a Stone cube, size-2 Bricks, size-1 Glass, a size-4 Wood brush) pasted +10 m x equals S
+     voxel for voxel (offsets + materials).
+  P3 PASS: the 90-degree paste equals S under x' = 15 - z, z' = x.
+  P4 PASS: move +20 m z: the source box 0 solid, the destination = S (one edit, 1,172 voxels changed).
+  P5 PASS: create_snapshot, clear (0 solid), restore -> S exactly.
+  Seen, not fixed (stated): the undo reply (F7.6b) also carries an empty "error" key.

@@ -710,7 +710,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       the shell on the sink path; F7.21c lights + F7.21d item props (registry-owned, saved); owed signage, nav,
       sit/interact metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate); bridges DONE F7.23 (grading
-      F7.20); API units, items / LOD
+      F7.20); API units DONE F7.24 (batch / copy / paste / move / snapshots on the switched world), items / LOD
       template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world) -- then the global default
       and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and

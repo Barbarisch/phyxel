@@ -13604,6 +13604,21 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("box_voxels")) {   // F7.24 (tests): the solid 1/8 m voxels of a box [lo, hi] (voxel units)
+            const auto& bj = cmd.params["box_voxels"];
+            const glm::ivec3 lo(bj["lo"][0].get<int>(), bj["lo"][1].get<int>(), bj["lo"][2].get<int>());
+            const glm::ivec3 hi(bj["hi"][0].get<int>(), bj["hi"][1].get<int>(), bj["hi"][2].get<int>());
+            nlohmann::json v = nlohmann::json::array();
+            size_t n = 0;
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z)
+                        if (const uint8_t m = voxFoundEdit.voxelAt({x, y, z}))
+                            if (++n <= 200000)
+                                v.push_back({x - lo.x, y - lo.y, z - lo.z, m < voxFoundPalette.size() ? voxFoundPalette[m] : "?"});
+            response = {{"solid", n}, {"voxels", v}, {"truncated", n > 200000}};
+            return;
+        }
         if (cmd.params.contains("today_stream_off")) {   // F7.18: the step-7 gate -- today's streaming off while switched
             voxFoundTodayStreamOff = cmd.params["today_stream_off"].get<bool>();
             response = {{"today_stream_off", voxFoundTodayStreamOff}};
@@ -15492,6 +15507,131 @@ void Application::voxFoundPhysSwitch(bool on) {
 // F7.6c (docs/VoxelFoundationPlan.md section 7 step 6, section 12): the voxel API on the switched world. The JSON keeps
 // its shape: x/y/z are metres (today's cube coordinates) -> a cube is the size-8 brush, a subcube (sx, sy, sz thirds)
 // the size-2 brush at x*8 + floor((s + 0.5) * 8 / 3) (F7.4's mapping); "units":"voxel" = 1/8 m voxels (+ "size").
+// F7.24 (docs/VoxelFoundationPlan.md section 7 step 6, the voxel API's units): the rest of the region API on the switched
+// world. Coordinates are cubes (metres) by default -- a box x1..x2 covers voxels x1*8 .. x2*8+7 -- or 1/8 m voxels with
+// "units":"voxel". copy / snapshots capture the box's 1/8 m voxels exactly (sub-cube detail kept); paste writes the
+// clip's SOLID voxels (as today's paste places only its entries); move = clear the source + paste, one edit; restore
+// writes the box exactly (air included). Rotation: 90 degree steps about +Y, SnapshotManager::rotateY90's convention
+// (x' = size.z - 1 - z, z' = x). Every call is ONE region edit (one undo entry). place_voxels_batch: each entry a
+// cube (512 voxels) or, in voxel units, one voxel.
+bool Application::voxFoundApiRegion(const std::string& action, const nlohmann::json& p, nlohmann::json& response) {
+    if (!voxFoundWorldReads || voxFoundApiStub || voxFoundEdit.empty()) return false;
+    const bool vu = p.value("units", std::string("cube")) == "voxel";
+    const int k = vu ? 1 : 8;
+    auto boxOf = [&](const char* a1, const char* a2) {
+        const glm::ivec3 a(p.value(std::string("x") + a1, 0), p.value(std::string("y") + a1, 0), p.value(std::string("z") + a1, 0));
+        const glm::ivec3 b(p.value(std::string("x") + a2, 0), p.value(std::string("y") + a2, 0), p.value(std::string("z") + a2, 0));
+        const glm::ivec3 lo = glm::min(a, b) * k, hi = glm::max(a, b) * k + glm::ivec3(k - 1);
+        return std::make_pair(lo, hi - lo + glm::ivec3(1));
+    };
+    auto capture = [&](glm::ivec3 lo, glm::ivec3 size) {
+        VoxFoundBox bx;
+        bx.lo = lo;
+        bx.size = size;
+        bx.mats.resize(size_t(size.x) * size.y * size.z);
+        size_t i = 0;
+        for (int x = 0; x < size.x; ++x)
+            for (int y = 0; y < size.y; ++y)
+                for (int z = 0; z < size.z; ++z) bx.mats[i++] = voxFoundEdit.voxelAt(lo + glm::ivec3(x, y, z));
+        return bx;
+    };
+    auto rotated = [](const VoxFoundBox& b, int steps, glm::ivec3& sizeOut) {
+        std::vector<std::pair<glm::ivec3, uint8_t>> out;   // (offset, material) of the solid voxels
+        glm::ivec3 size = b.size;
+        size_t i = 0;
+        for (int x = 0; x < b.size.x; ++x)
+            for (int y = 0; y < b.size.y; ++y)
+                for (int z = 0; z < b.size.z; ++z, ++i) {
+                    if (!b.mats[i]) continue;
+                    glm::ivec3 o(x, y, z), s = b.size;
+                    for (int r = 0; r < steps; ++r) {
+                        o = glm::ivec3(s.z - 1 - o.z, o.y, o.x);
+                        s = glm::ivec3(s.z, s.y, s.x);
+                    }
+                    out.push_back({o, b.mats[i]});
+                }
+        for (int r = 0; r < steps; ++r) size = glm::ivec3(size.z, size.y, size.x);
+        sizeOut = size;
+        return out;
+    };
+    const size_t kMaxVoxels = size_t(64) * 1024 * 1024;   // 1/8 m voxels per box (= 131,072 cubes)
+    auto tooBig = [&](glm::ivec3 size) { return size_t(size.x) * size.y * size.z > kMaxVoxels; };
+    std::vector<std::pair<glm::ivec3, uint8_t>> cells;
+    nlohmann::json extra = nlohmann::json::object();
+    std::string label = "api_" + action;
+    if (action == "place_voxels_batch") {
+        if (!p.contains("voxels")) { response = {{"error", "Missing 'voxels' array"}, {"world", "voxfound"}}; return true; }
+        size_t refused = 0;
+        for (const auto& v : p["voxels"]) {
+            const int m = voxFoundMaterial(v.value("material", std::string("Default")), nullptr);
+            if (m < 0) { ++refused; continue; }
+            const glm::ivec3 at = glm::ivec3(v.value("x", 0), v.value("y", 0), v.value("z", 0)) * k;
+            for (int x = 0; x < k; ++x)
+                for (int y = 0; y < k; ++y)
+                    for (int z = 0; z < k; ++z) cells.push_back({at + glm::ivec3(x, y, z), uint8_t(m)});
+        }
+        extra = {{"entries", p["voxels"].size()}, {"refused_unknown_material", refused}};
+    } else if (action == "copy_region" || action == "create_snapshot") {
+        const auto [lo, size] = boxOf("1", "2");
+        if (tooBig(size)) { response = {{"error", "Region too large"}, {"world", "voxfound"}}; return true; }
+        VoxFoundBox bx = capture(lo, size);
+        size_t solid = 0;
+        for (uint8_t m : bx.mats) solid += m != 0;
+        if (action == "copy_region") {
+            voxFoundClip = std::move(bx);
+            voxFoundClipSet = true;
+        } else {
+            const std::string name = p.value("name", std::string());
+            if (name.empty()) { response = {{"error", "Missing 'name'"}, {"world", "voxfound"}}; return true; }
+            voxFoundSnapshots[name] = std::move(bx);
+        }
+        response = {{"success", true}, {"world", "voxfound"}, {"voxel_count", solid},
+                    {"size_voxels", {size.x, size.y, size.z}}, {"units", vu ? "voxel" : "cube"}};
+        return true;
+    } else if (action == "paste_region") {
+        if (!voxFoundClipSet) { response = {{"error", "Clipboard is empty  --  use copy_region first"}, {"world", "voxfound"}}; return true; }
+        const glm::ivec3 at = glm::ivec3(p.value("x", 0), p.value("y", 0), p.value("z", 0)) * k;
+        glm::ivec3 size;
+        for (const auto& [o, m] : rotated(voxFoundClip, ((p.value("rotate", 0) % 360) + 360) % 360 / 90, size))
+            cells.push_back({at + o, m});
+        extra = {{"size_voxels", {size.x, size.y, size.z}}, {"rotation", p.value("rotate", 0)}};
+    } else if (action == "move_region") {
+        const auto [lo, size] = boxOf("1", "2");
+        if (tooBig(size)) { response = {{"error", "Region too large"}, {"world", "voxfound"}}; return true; }
+        const VoxFoundBox src = capture(lo, size);
+        const glm::ivec3 dst = glm::ivec3(p.value("dx", lo.x / k), p.value("dy", lo.y / k), p.value("dz", lo.z / k)) * k;
+        std::map<std::tuple<int, int, int>, uint8_t> m;   // the source cleared, then the destination (wins)
+        for (int x = 0; x < size.x; ++x)
+            for (int y = 0; y < size.y; ++y)
+                for (int z = 0; z < size.z; ++z) m[{lo.x + x, lo.y + y, lo.z + z}] = 0;
+        glm::ivec3 rs;
+        for (const auto& [o, mat] : rotated(src, ((p.value("rotate", 0) % 360) + 360) % 360 / 90, rs))
+            m[{dst.x + o.x, dst.y + o.y, dst.z + o.z}] = mat;
+        for (const auto& [q, mat] : m) cells.push_back({{std::get<0>(q), std::get<1>(q), std::get<2>(q)}, mat});
+        extra = {{"moved_voxels", std::count_if(src.mats.begin(), src.mats.end(), [](uint8_t v) { return v != 0; })}};
+    } else if (action == "restore_snapshot") {
+        const std::string name = p.value("name", std::string());
+        auto it = voxFoundSnapshots.find(name);
+        if (it == voxFoundSnapshots.end()) { response = {{"error", "Snapshot not found"}, {"name", name}, {"world", "voxfound"}}; return true; }
+        const VoxFoundBox& bx = it->second;
+        size_t i = 0;
+        for (int x = 0; x < bx.size.x; ++x)
+            for (int y = 0; y < bx.size.y; ++y)
+                for (int z = 0; z < bx.size.z; ++z) cells.push_back({bx.lo + glm::ivec3(x, y, z), bx.mats[i++]});
+        label = "api_restore_snapshot:" + name;
+    } else {
+        return false;
+    }
+    nlohmann::json r = voxFoundPaintCells(label, cells);
+    response = r;
+    response["world"] = "voxfound";
+    const bool ok = r.value("error", std::string()).empty();   // an EMPTY error key is not an error (drop it)
+    if (ok) response.erase("error");
+    response["success"] = ok;
+    for (auto it = extra.begin(); it != extra.end(); ++it) response[it.key()] = it.value();
+    return true;
+}
+
 bool Application::voxFoundApiEdit(const std::string& action, const nlohmann::json& p, nlohmann::json& response) {
     if (!voxFoundWorldReads || voxFoundApiStub || voxFoundEdit.empty()) return false;
     const bool vu = p.value("units", std::string("cube")) == "voxel";
@@ -19501,6 +19641,7 @@ void Application::registerSnapshotCommands() {
     };
 
     reg.on("create_snapshot", [this, needName, noCMSnap](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (voxFoundApiRegion("create_snapshot", cmd.params, r)) return;   // F7.24: the switched world's box
         if (!chunkManager || !snapshotManager) return noCMSnap(r);
         std::string name = cmd.params.value("name", "");
         if (name.empty()) return needName(r);
@@ -19533,6 +19674,7 @@ void Application::registerSnapshotCommands() {
     });
 
     reg.on("restore_snapshot", [this, needName, noCMSnap, clearRegion](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (voxFoundApiRegion("restore_snapshot", cmd.params, r)) return;   // F7.24
         if (!chunkManager || !snapshotManager) return noCMSnap(r);
         std::string name = cmd.params.value("name", "");
         if (name.empty()) return needName(r);
@@ -21395,6 +21537,10 @@ void Application::processAPICommands() {
                         cmd.action == "fill_region" || cmd.action == "clear_region") &&
                        voxFoundApiEdit(cmd.action, cmd.params, response)) {
                 // docs/VoxelFoundationPlan.md F7.6c: routed to the switched world (response set)
+            } else if ((cmd.action == "place_voxels_batch" || cmd.action == "copy_region" || cmd.action == "paste_region" ||
+                        cmd.action == "move_region") &&
+                       voxFoundApiRegion(cmd.action, cmd.params, response)) {
+                // F7.24: routed to the switched world (response set)
             } else if (cmd.action == "place_voxel") {
                 int x = cmd.params.value("x", 0);
                 int y = cmd.params.value("y", 0);
