@@ -15151,8 +15151,8 @@ void Application::voxFoundReadBootConfig(const std::string& gameJsonPath) {
                 w["voxfound"] = {{"enabled", true}, {"size", {4, 2, 4}}, {"y_from", 0}, {"load_saved", true},
                                  {"stream", true}, {"default", true}};
             else
-                w["voxfound"] = {{"enabled", true}, {"source", "today"}, {"load_saved", true}, {"stream", false},
-                                 {"default", true}};
+                w["voxfound"] = {{"enabled", true}, {"source", "world_db"}, {"load_saved", true}, {"stream", false},
+                                 {"default", true}};   // D1: the DB's stored chunks -- no Chunk object read
             voxFoundBootConfig = w;
             voxFoundBootPending = true;
             voxFoundBootFrames = 0;
@@ -15181,7 +15181,21 @@ void Application::voxFoundBoot() {
     const int cx = int(std::floor(cam.x / 32.0f)), cz = int(std::floor(cam.z / 32.0f));
     const int y0 = v.value("y_from", 0);
     glm::ivec3 lo(cx - size[0] / 2, y0, cz - size[2] / 2), hi = lo + glm::ivec3(size[0], size[1], size[2]) - 1;
-    const bool fromToday = v.value("source", std::string()) == "today";
+    bool fromDb = v.value("source", std::string()) == "world_db";
+    std::string dbFallback;
+    if (fromDb) {   // D1: the box of the DB's STORED chunks (no Chunk object read)
+        auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+        const std::vector<glm::ivec3> stored = ws ? ws->getAllChunkCoordinates() : std::vector<glm::ivec3>{};
+        if (stored.empty()) {
+            fromDb = false;
+            dbFallback = "the DB holds no chunks: today's resident world converted instead";
+        } else {
+            lo = glm::ivec3(std::numeric_limits<int>::max());
+            hi = glm::ivec3(std::numeric_limits<int>::min());
+            for (const auto& c : stored) lo = glm::min(lo, c), hi = glm::max(hi, c);
+        }
+    }
+    const bool fromToday = v.value("source", std::string()) == "today" || !dbFallback.empty();
     if (fromToday && chunkManager && !chunkManager->chunkMap.empty()) {   // F7.27: the box of today's resident chunks
         lo = glm::ivec3(std::numeric_limits<int>::max());
         hi = glm::ivec3(std::numeric_limits<int>::min());
@@ -15192,8 +15206,8 @@ void Application::voxFoundBoot() {
                           {"flora", w.value("flora", true)}, {"editable", true}, {"hide_world", false},
                           {"flora_window", "open"},
                           {"region", {{"from", {lo.x, lo.y, lo.z}}, {"to", {hi.x, hi.y, hi.z}}}}};
-    if (fromToday) {
-        req["source"] = "today";
+    if (fromToday || fromDb) {
+        req["source"] = fromDb ? "world_db" : "today";
         req["max_chunks"] = v.value("max_chunks", 4096);   // F7.28: a fixed world is converted whole
     }
     Core::APICommand c;
@@ -15217,12 +15231,17 @@ void Application::voxFoundBoot() {
                           {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
                           {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}},
                           {"today_stream_off", voxFoundTodayStreamOff},
-                          {"source", fromToday ? "today" : "generator"}, {"default", v.value("default", false)},
+                          {"source", fromDb ? "world_db" : fromToday ? "today" : "generator"},
+                          {"source_fallback", dbFallback}, {"default", v.value("default", false)},
                           {"build_timing", {{"generate_ms", r.value("generate_ms", 0.0)}, {"build_wall_ms", r.value("build_wall_ms", 0.0)},
                                             {"gpu_face_build_ms_sum", r.value("gpu_face_build_ms_sum", 0.0)},
                                             {"region_lod_ms", r.value("region_lod_ms", 0.0)},
                                             {"convert_ms", r.contains("converted") && r["converted"].is_object()
-                                                               ? r["converted"].value("convert_ms", 0.0) : 0.0}}}};   // F7.31
+                                                               ? r["converted"].value("convert_ms", 0.0) : 0.0},
+                                            {"chunks_stored", r.contains("converted") && r["converted"].is_object()
+                                                               ? r["converted"].value("chunks_stored", 0) : 0},
+                                            {"chunks_missing", r.contains("converted") && r["converted"].is_object()
+                                                               ? r["converted"].value("chunks_missing", 0) : 0}}}};   // F7.31 / D1
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 

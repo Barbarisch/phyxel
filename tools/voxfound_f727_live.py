@@ -37,7 +37,9 @@ def main():
         out["boot"]["region_request"] = out["boot"]["region_request"].get("region")
     status = call("POST", P, {"stream_status": True})
     out["switched"] = status.get("switched")
-    if mode == "default" and rep.get("source") == "today":
+    out["build_timing"] = rep.get("build_timing")
+    out["source_fallback"] = rep.get("source_fallback")
+    if mode == "default" and rep.get("source") in ("today", "world_db"):
         today = call("POST", P, {"today_census": True}).get("today_voxels_by_material", {})
         region = call("POST", P, {"census": True}).get("census", {})
         rows, worst = {}, 0.0

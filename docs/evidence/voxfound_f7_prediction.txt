@@ -1616,3 +1616,23 @@ On copies of CharacterTestbed, TavernTest, VillageChat, Emberwake (Release):
   P2: the region's census per material EQUALS the F7.27 / F7.28 "today"-source census of the same project exactly --
       i.e. every resident chunk was a stored chunk, so nothing of today's world needed a Chunk object.
   RED: none needed (the comparison IS against the today source).
+
+D1 RESULTS, run 1 (2026-11-23; the prediction above untouched). Release, copies of the projects; raw
+voxfound_f727_live.jsonl (the F7.27 driver, extended to source world_db).
+  P2 PASS for the DB-ONLY worlds: CharacterTestbed (99 stored chunks; the 153 "missing" are empty space inside the
+     stored box -- air either way) and TavernTest (4 stored): the region's census EQUALS the today-source census exactly
+     (624,708,748 / 35,848,456 voxels, 0 materials differ).
+  P2 MISSED for the GENERATED worlds: VillageChat's DB holds 4 chunks of a 1,200-chunk world (the rest is generated at
+     load and never saved) -> world_db shows 35.7 M of 8,242.5 M voxels. Emberwake's DB holds none -> the fallback to
+     "today" ran WITHOUT the landing wait (it keyed on the configured source) and converted 218 of 315 chunks (73 % of
+     the volume missing) -- a regression against F7.28, found here.
+  P1 as written was wrong for both kinds (chunks_missing counts empty space for DB-only worlds; generated worlds are
+     not in their DB at all).
+D1b PREDICTION (the same date, before its code): a TYPED world boots as a streaming world does -- the 1/8 m generator
+around the camera, streaming on -- with the DB's stored chunks OVERLAID through the converter (at the boot and as
+stream shifts bring them in); an untyped (DB-only) world keeps source world_db; an untyped world with an empty DB
+converts today's world after the landing wait. Type names are normalized ("flat" -> "Flat").
+  Q1: TavernTest, VillageChat, Emberwake boot switched (generator + overlay); every overlaid chunk equals its converted
+      blob exactly (stored_check: 0 mismatching chunks); CharacterTestbed as run 1.
+  Q2: TavernTest's tavern (its stored chunks) is in the region: the overlaid chunks' census includes its building
+      materials (Thatch, WoodPlanks, Bricks).
