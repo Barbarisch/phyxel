@@ -671,7 +671,7 @@ void WaterSurfaceRenderPipeline::renderGpuSurfaces(VkCommandBuffer cmd, VkDescri
         pc.base.screen = glm::vec4(static_cast<float>(screenExtent.width), static_cast<float>(screenExtent.height), static_cast<float>(m_debugMode), m_scatterLegacy ? 1.0f : 0.0f);
         pc.base.look0 = d.look.look0; pc.base.look1 = d.look.look1; pc.base.look1.z = m_horizonGuard ? 0.0f : 1.0f; pc.base.look1.w = m_defaultClarity;   // as pushLook
         pc.field = glm::ivec4(d.originX, d.originZ, d.nx, d.nz);
-        pc.field2 = glm::vec4(d.h, static_cast<float>(d.rippleLayer + 1), 0.0f, 0.0f);
+        pc.field2 = glm::vec4(d.h, static_cast<float>(d.rippleLayer + 1), static_cast<float>(std::clamp(s_topNormalSmoothCells, 0, kTopNormalSmoothMax)), 0.0f);   // 58.5
         vkCmdPushConstants(cmd, m_pullLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(WaterSurfacePush), &pc.base);
         vkCmdPushConstants(cmd, m_pullLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(WaterSurfacePush), sizeof(WaterSurfacePullPush) - sizeof(WaterSurfacePush), &pc.field);
         vkCmdDraw(cmd, 6u * static_cast<uint32_t>(d.nx) * static_cast<uint32_t>(d.nz), 1, 0, 0);   // every column's first-run top

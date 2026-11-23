@@ -2433,6 +2433,46 @@ TEST_F(WaterRecordTilesTest, APatchOverADeepUnevenLakeKeepsItsLevel) {
     EXPECT_NEAR(deepNoTall.median, 6.0f, 1e-3f);
 }
 
+// 58.5 - a recorded river is drawn with its current. Live (RiverCarve, the shader's flow view) the simulated reach drew green (its
+// flow) and the record river beyond it black (u = w = 0): the shader draws moving water choppier, so one river changed its look at the
+// reach's box edge. A recorded river 14 m wide 2 m deep with a 0.6 m/s current along +x, record tiles drawn near the viewer, no volume.
+// Prediction: every wet column of the river's record tiles carries u = 0.6, w = 0; a lake column beside it (current 0) carries 0.
+// RED: s_recordFlowOffForTest - every column 0 (the old drawing).
+TEST_F(WaterRecordTilesTest, ARecordedRiverIsDrawnWithItsCurrent) {
+    struct Out { long river = 0, riverAt = 0, still = 0, stillMoving = 0; };
+    auto run = [&](bool red) {
+        Out o;
+        const auto drawBefore = WaterCoreManager::s_recordDraw; const float drawMBefore = WaterCoreManager::s_locality.drawM;
+        struct Restore { WaterCoreManager::RecordDraw d; float m; ~Restore() { WaterCoreManager::s_recordDraw = d; WaterCoreManager::s_locality.drawM = m; WaterCoreManager::s_recordFlowOffForTest = false; } } restore{drawBefore, drawMBefore};
+        WaterCoreManager::s_recordDraw.on = true; WaterCoreManager::s_locality.drawM = 48.0f;
+        WaterCoreManager::s_recordFlowOffForTest = red;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        FakeRecord record; record.install(mgr);
+        for (int x = 0; x < 32; ++x) for (int z = 0; z < 24; ++z) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        mgr.setRecordCurrent([](int, int wz, float, float) { return wz < 14 ? glm::vec2(0.6f, 0.0f) : glm::vec2(0.0f); });   // z < 14: the river
+        mgr.setViewPoint(glm::vec3(16.0f, 4.0f, 12.0f));
+        for (int k = 0; k < 120; ++k) mgr.update(1.0f / 60.0f);
+        for (const WaterSurfaceField* f : mgr.surfaceFields()) {
+            if (!f || !WaterCoreManager::isRecordDrawField(*f)) continue;
+            for (int z = 0; z < f->nz; ++z) for (int x = 0; x < f->nx; ++x) {
+                const auto& c = f->at(x, z);
+                if (c.runs < 0.5f) continue;
+                const float wz = (f->origin.z + z + 0.5f) * f->h;
+                if (wz < 13.5f) { ++o.river; if (std::abs(c.u - 0.6f) < 1e-6f && c.w == 0.0f) ++o.riverAt; }
+                else if (wz > 14.5f) { ++o.still; if (c.u != 0.0f || c.w != 0.0f) ++o.stillMoving; }
+            }
+        }
+        return o;
+    };
+    const Out g = run(false), red = run(true);
+    std::printf("  river sub-columns %ld, carrying 0.6 m/s %ld | still water %ld, moving %ld | RED (no flow drawn): carrying %ld of %ld\n",
+                g.river, g.riverAt, g.still, g.stillMoving, red.riverAt, red.river);
+    EXPECT_GT(g.river, 1000); EXPECT_EQ(g.riverAt, g.river) << "a recorded river's column drawn without its current";
+    EXPECT_GT(g.still, 1000); EXPECT_EQ(g.stillMoving, 0);
+    EXPECT_EQ(red.riverAt, 0) << "RED: the old drawing carries no flow";
+}
+
 // 58 item 2 - the generated box's rules, on the host (no GPU): (a) chunk independence - the box a touch makes is the same whether the
 // record is read whole or chunk by chunk (32 m pieces, concatenated); (b) a body falling onto the water makes a box, one over land
 // none (the column is dry); (c) water with a current (a river) is refused and counted; (d) a box never overlaps a slept box: a touch

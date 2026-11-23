@@ -15032,6 +15032,9 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("mesh_no_ring")) Core::Water::WaterCoreGpu::s_meshNoRingForTest = cmd.params.value("mesh_no_ring", false);   // TEST ONLY
         // 27.27 TEST ONLY: upload_key_order:true - deferred tiles uploaded in key order again (the back ones starve)
         if (cmd.params.contains("upload_key_order")) Graphics::WaterSurfaceRenderPipeline::s_uploadKeyOrderForTest = cmd.params.value("upload_key_order", false);
+        // 58.5 LOOK switch: top_normal_smooth (cells, 0..9; 0 = today's) - the device-drawn top quads shaded over +-k cells; echoed
+        if (cmd.params.contains("top_normal_smooth") && cmd.params["top_normal_smooth"].is_number())
+            Graphics::WaterSurfaceRenderPipeline::s_topNormalSmoothCells = std::clamp(cmd.params["top_normal_smooth"].get<int>(), 0, Graphics::WaterSurfaceRenderPipeline::kTopNormalSmoothMax);
         if (cmd.params.contains("mode")) {
             const std::string m = cmd.params.value("mode", std::string("mesh"));
             if (m == "mesh") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Mesh);
@@ -15087,7 +15090,8 @@ void Application::registerWaterCommands() {
              {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
              {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()},
              {"scatter", renderCoordinator->waterCoreScatterLegacy() ? "legacy" : "lit"},
-             {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}, {"default_clarity", renderCoordinator->waterCoreDefaultClarity()}};
+             {"horizon_guard", renderCoordinator->waterCoreHorizonGuard()}, {"default_clarity", renderCoordinator->waterCoreDefaultClarity()},
+             {"top_normal_smooth", Graphics::WaterSurfaceRenderPipeline::s_topNormalSmoothCells}};   // 58.5
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

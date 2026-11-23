@@ -6,6 +6,7 @@
 #include "IntegrationTestFixture.h"
 #include "core/water/WaterCoreManager.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -643,20 +644,25 @@ TEST_F(WaterRecordedPondTest, ARippleLayerBeyondTheReachHoldsNoDeviceState) {
         return mgr.rippleStats();
     };
     const glm::vec3 nearV(6.0f, 3.0f, -2.0f), farV(80.0f, 3.0f, 6.0f);
-    int maxStates = 0;
+    int maxStates = 0, maxExtra = 0;
     for (int c = 0; c < 20; ++c) {
         const auto a = frames(nearV, 6);
         if (c == 0) std::printf("  near: layers %d, awake %d, cells %ld, gpu layers %d, device states %d\n",
                                 a.layers, a.awake, a.cells, a.gpuLayers, a.gpuStates);
         EXPECT_EQ(a.slotsHeld, 1) << "cycle " << c;
         EXPECT_TRUE(a.gpu) << "cycle " << c << ": the layers stepped on the CPU";
-        const auto b = frames(farV, 6);   // the ring is 3 deep: freed within a few frames of the drop
+        auto b = frames(farV, 6);   // the ring is 3 deep: freed within a few frames of the drop ON AN IDLE GPU
+        // 58.5: freed once the GPU has finished with it - with another checkout's engine holding the GPU at 100 % that took more than
+        // 6 frames (2-5 of 20 cycles failed, every run). The invariant is the release, not the GPU's latency: more frames, up to 2 s
+        int extra = 0;
+        for (const auto t0 = std::chrono::steady_clock::now(); b.gpuStates != 0 && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(2); ++extra) b = frames(farV, 1);
+        maxExtra = std::max(maxExtra, extra);
         EXPECT_EQ(b.slotsHeld, 0) << "cycle " << c;
-        EXPECT_EQ(b.gpuStates, 0) << "cycle " << c << ": a dropped layer still holds its device state";
+        EXPECT_EQ(b.gpuStates, 0) << "cycle " << c << ": a dropped layer still holds its device state 2 s on";
         maxStates = std::max({maxStates, a.gpuStates, b.gpuStates});
     }
     const auto f = frames(nearV, 6);
-    std::printf("  20 fly-aways: made %ld, dropped %ld, the most device states held %d | pipelines built %ld\n", f.made, f.dropped, maxStates, mgr.ripplePipelinesBuiltForTest());
+    std::printf("  20 fly-aways: made %ld, dropped %ld, the most device states held %d | pipelines built %ld | the most extra frames to free one %d\n", f.made, f.dropped, maxStates, mgr.ripplePipelinesBuiltForTest(), maxExtra);
     EXPECT_EQ(f.made, 21); EXPECT_EQ(f.dropped, 20);
     // 58.3: a dropped state's two pipelines are kept for the next (a new state built both each time: 2.7 ms of a patch's first frame)
     EXPECT_EQ(mgr.ripplePipelinesBuiltForTest(), 2) << "the 21 layers built their own pipelines";

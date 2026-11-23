@@ -25,7 +25,7 @@ layout(push_constant) uniform PushConstants {
     vec4 look0;
     vec4 look1;
     ivec4 field;     // origin x, origin z (cells), nx, nz
-    vec4 field2;     // h, the ripple layer + 1 (0 = none), -, -
+    vec4 field2;     // h, the ripple layer + 1 (0 = none), the top's normal smoothed over +-k cells (0 = the quad's own: 58.5), -
 } pc;
 
 layout(location = 0) out vec3  fragWorldPos;
@@ -49,6 +49,21 @@ void main() {
     vec3 p[4]; vec3 nrm; float depth, side, foam; vec2 flow;
     const bool ok = c < uint(g.nx) * uint(g.nz) && wspQuad(g, c, r, face, p, nrm, depth, side, foam, flow);
     const vec3 pos = p[kCorner[v]];
+    // 58.5 (the river reach's per-cell glare, a look switch - OFF by default): a top quad of the first run drawn with the normal of the
+    // surface over +-k cells (central differences of the column tops; a neighbour not drawn by this field is skipped) - the shape is
+    // unchanged, only its shading is read at a coarser scale
+    const int k = int(pc.field2.z + 0.5);
+    if (ok && k > 0 && face == 0 && r == 0) {
+        const int x = int(c % uint(g.nx)), z = int(c / uint(g.nx));
+        float sx = 0.0, sz = 0.0, wx = 0.0, wz = 0.0;
+        for (int d = 1; d <= k; ++d) {
+            if (wspCol(g, x + d, z) && wspCol(g, x - d, z) && wspRuns(wspIdx(g, x + d, z)) > 0 && wspRuns(wspIdx(g, x - d, z)) > 0) {
+                sx += (surfD[wspIdx(g, x + d, z)].top[0] - surfD[wspIdx(g, x - d, z)].top[0]) / (2.0 * float(d) * g.h); wx += 1.0; }
+            if (wspCol(g, x, z + d) && wspCol(g, x, z - d) && wspRuns(wspIdx(g, x, z + d)) > 0 && wspRuns(wspIdx(g, x, z - d)) > 0) {
+                sz += (surfD[wspIdx(g, x, z + d)].top[0] - surfD[wspIdx(g, x, z - d)].top[0]) / (2.0 * float(d) * g.h); wz += 1.0; }
+        }
+        if (wx > 0.0 && wz > 0.0) nrm = normalize(vec3(-sx / wx, 1.0, -sz / wz));
+    }
     fragWorldPos = pos;
     fragDepth    = depth;
     fragSide     = side;

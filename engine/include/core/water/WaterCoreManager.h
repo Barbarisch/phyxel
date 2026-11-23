@@ -827,6 +827,8 @@ public:
     /// record round it (generatedBoxFor) so the patch path runs as over a recorded lake; generated water woke nothing before. ON by
     /// default; off = the red control. Never a whole-box wake: a generated box only ever wakes patches.
     static inline bool s_generatedWake = true;
+    /// 58.5: TEST ONLY - record tiles drawn with no flow (u = w = 0: before 58.5; the red control of the record's current drawn)
+    static inline bool s_recordFlowOffForTest = false;
     static constexpr int kGeneratedBoxTiles = 4;        ///< the box is the touch's 8 m record tile and this many each side (9 x 9 tiles, 72 m): strictly wider than a patch (k = 2)
     static constexpr float kGeneratedMaxCurrent = 0.05f;   ///< m/s: record water faster than this is a river (a reach owns it) - refused, counted
     static constexpr int kGeneratedChecksPerCall = 16;  ///< bodies' columns read a call (a body not read this call is read the next: it is still falling)

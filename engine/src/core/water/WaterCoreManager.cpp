@@ -3667,6 +3667,27 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
         }
         if (!any) t.field.seaQ.clear();
     } else t.field.seaQ.clear();
+    // 58.5: the record's current drawn - a recorded river's tile carried no flow (u = w = 0) while a simulated reach over the same
+    // river carries its own: the shader draws moving water choppier (roughness + 0.45 x flow, streaks), so one river looked calm where
+    // recorded and rough where simulated, with the reach's box edge between (the flow debug view: green reach, black record). The
+    // current a column of the record holds is m_recordCurrent's (W5.1's recordCurrentAt) - read once a 1 m column, on its top run
+    if (m_recordCurrent && !s_recordFlowOffForTest) {
+        for (int bz = 0; bz < t.field.nz; bz += per) for (int bx = 0; bx < t.field.nx; bx += per) {
+            float top = -1e30f, bottom = 0.0f;
+            for (int k = 0; k < per && bz + k < t.field.nz; ++k) for (int i = 0; i < per && bx + i < t.field.nx; ++i) {
+                const SurfaceColumn& c = t.field.at(bx + i, bz + k); const int n = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+                if (n > 0 && c.top[n - 1] > top) { top = c.top[n - 1]; bottom = c.bottom[n - 1]; }
+            }
+            if (top < -1e29f) continue;
+            const int wx = seaFloorDiv(t.field.origin.x + bx, per), wz = seaFloorDiv(t.field.origin.z + bz, per);
+            const glm::vec2 u = m_recordCurrent(wx, wz, top, bottom);
+            if (u.x == 0.0f && u.y == 0.0f) continue;
+            for (int k = 0; k < per && bz + k < t.field.nz; ++k) for (int i = 0; i < per && bx + i < t.field.nx; ++i) {
+                SurfaceColumn& c = t.field.cols[static_cast<size_t>(bx + i) + static_cast<size_t>(t.field.nx) * (bz + k)];
+                if (c.runs >= 0.5f) { c.u = u.x; c.w = u.y; }
+            }
+        }
+    }
     bpart(3);
     t.field.source = kRecordDrawSourceBit | ((tx & 0x7FFF) << 15) | (tz & 0x7FFF);   // never a volume id (those count up from 1)
     t.field.version = ++m_recordBuilds;

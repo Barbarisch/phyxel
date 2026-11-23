@@ -15457,7 +15457,25 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    flow's own texture over a voxel bed. What reads as fake is how it is DRAWN: ~4 % slopes at the 1/9 m cell under the sun's
    specular, beside a record river drawn flat and dark - per-cell black / white glare with a hard edge. **The fix is a look call
    (the owner's, from clips):** build both behind a switch (the owner's rule "test, do not ask feel") - e.g. the reach's drawn
-   normals filtered to a metre scale and faded toward its edges to the record's, against today's - and show the clip. Not built.
+   normals filtered to a metre scale and faded toward its edges to the record's, against today's - and show the clip.
+   **Then split live by the shader's own views** (`reach_flow_probe`, one pose of the flight, the same frame): with the river ripple
+   layer OFF the white glints are GONE - the sparkle is the W5.3 ripple layer's; the flow view (debug 6, tonemap curve 0) showed the
+   reach GREEN and the record river beyond it BLACK - **the record drew no current** (u = w = 0), and the shader draws moving water
+   choppier (roughness + 0.45 x flow, streaks): one river, calm where recorded, rough where simulated, the box edge between.
+   - **FIXED (a defect, not a look call - one river must not change its look at a box edge):** a record tile's columns carry the
+     record's current (`m_recordCurrent`, once a 1 m column, on its top run) in their u / w. TEST ONLY
+     `s_recordFlowOffForTest`. **Test** `ARecordedRiverIsDrawnWithItsCurrent`: river sub-columns 12,240, all carrying 0.6 m/s; still
+     water 7,056, none moving; RED (off) 0 of 12,240. **Live** (`reach_flow_after.png`): the flow view draws the record river green
+     now; the reach and the record read alike in the shipped frame (the reach's flow varies, the record's is the stage's - a softer
+     edge in the debug view remains).
+   - **Built, a look switch (OFF by default):** `water_render_core {top_normal_smooth: k}` - the device-drawn top quads shaded with
+     the surface's normal over +-k cells (draw only; the mesh unchanged). Measured: little change to the glints at 3 or 9 cells
+     (`reach_look_sheet.png`) - consistent with the glints being the ripple layer's, not the quads'.
+   - **The owner's call:** the river ripple layer's glints on a flowing reach (`f_sheet` top row: on / off) - keep, tone down, or off.
+   - Suites: water unit 322 / 322; integration 111 / 114 - the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` failing
+     2-5 of its 20 cycles every run with another checkout's engine holding the GPU at 99-100 %. Its "freed within 6 frames" measured
+     the GPU's latency (the ring frees a state once the GPU has finished with it), not the release: restated - after the 6 frames, up
+     to 2 s more until the state is freed, the extra frames printed. Under the same load: passes 3 / 3, the most extra frames 1.
 2. **The box edge:** a straight line where the reach meets the record (the reach box's edge) - the same class as 58.4's seam.
 3. **Hitches while flying the river:** 2-25 fps, the longest frames 420-520 ms around each reach make (the clips' captions) - item 1's
    territory (a reach make is a wake).

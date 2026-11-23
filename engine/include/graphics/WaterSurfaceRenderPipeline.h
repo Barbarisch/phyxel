@@ -91,6 +91,10 @@ public:
     /// on screen for 15 s+. Now: tiles drawing nothing where the new mesh has water first, then the longest-waiting. TEST ONLY
     /// (the live red control, water_render_core {upload_key_order}): the key order.
     static inline bool s_uploadKeyOrderForTest = false;
+    /// 58.5 (a LOOK switch, the owner's call - 0 by default = today's): the device-drawn surface's top quads shaded with the normal of
+    /// the surface over +-k cells (the river reach's per-cell glare). Clamped 0..kTopNormalSmoothMax (each step is 4 more column reads a vertex)
+    static inline int s_topNormalSmoothCells = 0;
+    static constexpr int kTopNormalSmoothMax = 9;
     static constexpr VkDeviceSize kStagingBytes     = 24ull << 20;   ///< per frame slot: what one frame may upload (the rest waits a frame)
 
     bool lastTruncated() const { return m_lastTruncated; }
