@@ -1650,3 +1650,13 @@ convertPxb2 (DB-only worlds: the stored chunks alone).
   The landing wait now also covers the world_db default (its today fallback converted a partial Emberwake in run 1).
 D1 DONE: no fixed-world boot reads a Chunk object any more (typed: generator + the DB overlay, streaming; DB-only: the
 stored chunks); the only remaining Chunk reader at the boot is the fallback for an untyped world with an empty DB.
+
+D2 PREDICTION -- step 7 stage D2: today's world never loads (2026-11-23; the change built, NOT yet run). A project that
+boots switched (configured or the default) sets ChunkStreamingManager's today-world switch before the runtime starts:
+no DB chunk landed (loadChunksNearAndDeferRest / pumpDeferredDbLoads), nothing generated (generateOrLoadChunk) or
+streamed (updateStreaming) into today's store. Opt-out projects load today's world as before; world.voxfound.today_world
+true keeps it (A/B). Stated: an untyped world with an EMPTY DB (today: a default initial world) boots to an empty region.
+  E1: VoxFoundGate8, the F7.26 battery re-run unchanged -- F8.2 breaks exact per material, F8.3 town 12 / 12 exact and
+      standable, F7.22 nav both ways, F7.21b 20 pieces -- with today's resident chunks 0 throughout (today_status).
+  E2: the F7.27 projects boot by default with 0 of today's chunks resident: CharacterTestbed (world_db, 99 chunks,
+      stored_check 0), TavernTest / VillageChat / Emberwake (generator + overlay), WorldForgeTest, WaterBench_Coast.
