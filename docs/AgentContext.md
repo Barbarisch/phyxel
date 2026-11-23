@@ -715,7 +715,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world); the global default ON
       (F7.27: projects without world.voxfound boot switched; opt-out "voxfound":{"enabled":false}). OWED before the
       deletion: (grass blades DONE F7.29; shadows / FPS were an early-capture artifact, withdrawn -- the switched
-      Emberwake runs 132 FPS vs today's 81) pits on the switched ground (measure first), grass refresh on edits, the
+      Emberwake runs 132 FPS vs today's 81; the pits were saved F8.1 test edits, closed) grass refresh on edits, the
       conversion cost (~2.2 min, 6.9 GB for 1,200 chunks).
       (Big worlds now convert whole; the +12.5 % on converted 1/3 m content is quantization by construction.)
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and

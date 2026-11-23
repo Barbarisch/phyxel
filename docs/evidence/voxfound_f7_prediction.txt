@@ -1576,3 +1576,8 @@ from it, drawn by today's grass pipeline (grass.vert / grass_shadow.vert recompi
      (sink 0 = today's cube top).
   The red picture shows the PITS clearly: small dark square holes clustered in open ground, and a few cube-sized lumps
      -- cause not measured yet (owed, before the deletion).
+
+F7.29 PITS MEASURED (2026-11-23): the same pose on a copy of VoxFoundBoot booted with load_saved false (generator only,
+no saved switched-world edits): clean ground, no pits, no lumps (f729_pits_nosave.png vs f729_grass_red.png). The pits
+and the cube-sized lumps are the boot project's SAVED TEST EDITS (F8.1's 1,000 random edits / breaks were saved and
+reloaded with the region) -- not a generator or conversion defect. Item closed.
