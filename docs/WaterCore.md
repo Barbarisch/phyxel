@@ -15536,6 +15536,44 @@ location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py -
   round it median 9.0 / max 55 mm; OFF 0.0 (`a4_bow_measure.json`). The clip remade: **`sweep_a4_wade_v2_side_by_side.mp4`**
   (off / on; mass 19.2000007 -> 19.2000007 m^3 both) - the water round the wader disturbed and droplets thrown on the right.
 
+### 58.8 Item 6: the far ripple approximation - the design step (2026-11-23). Status: DESIGNED (`/design-check` READY), not built
+
+**The owner:** *"ideally we would have some cheap method to approximate things so that there isnt such drastic changes from
+ripples to still."* **Today** (read from the code): a ripple layer is simulated per pond within the reach (L2, §43); the draw
+weights it by the horizontal distance to the viewer (`rippleWeight` in `water_surface.frag`: 1 under `near`, 0 past `far`, a
+smoothstep between) - past `far` the water is glass. Inside, the surface carries the simulated rings; outside, nothing: the
+"drastic change".
+
+**Design - a far ripple derived from the simulated one, fading in DETAIL, never in motion (the owner's rule, 45.3 as corrected:
+no pattern that reads as fake where seen):**
+1. **What drives it:** per ripple layer, its recent energy by wavelength band - the RMS slope of the simulated heights in 3 bands
+   (the layer's 2-4 cells, 4-16, 16-64 m-scale), measured where the layer is computed (the GPU step already reduces the layer;
+   one more reduction, a few floats a layer). A body of water with no layer (never touched near the viewer) uses the record's
+   wind state (the sea's swell spectrum where it is the sea; still water = 0 - still water stays still: never invented motion).
+2. **What it draws:** past the layer's window the shader adds a procedural ripple normal: 3 octaves of an aperiodic wave field
+   (sum of a few directional sine trains per octave, directions and phases hashed from WORLD position cells - no texture, so no
+   tiling period to read), each octave scaled by its band's measured slope, travelling at the deep-water phase speed of its
+   wavelength (motion continues at every distance). Detail fades with distance: the shortest octave first (it goes sub-pixel),
+   then the next - by a screen-footprint test (a wavelength under ~2 px contributes 0), not a fixed distance.
+3. **The seam:** across the layer window's last metres the simulated and procedural normals cross-fade with `rippleWeight`'s
+   own smoothstep - the procedural one scaled so its slope RMS equals the simulated one's at the edge (measured, the same bands),
+   so the eye sees the same roughness on both sides.
+4. **Chunk independence:** the field is a pure function of world position, time and the layer's band energies (per body, not per
+   chunk); the band energies are per layer (a pond), never per tile. Test: the procedural normal at a point is the same computed
+   from any tile / field drawing that point (pure function - a host replica of the shader function compared at sampled points).
+5. **Pipeline / API:** draw-only (shader + a few floats a layer through the existing `Ripples` buffer); `water_ripples {far: {on,
+   octaves (0-3), gain}}` echoed; default ON once the owner has seen it (look decision), OFF until then.
+6. **Tests (red first):** (a) the edge: slope RMS within 1 m inside vs 1 m outside the window equal within 20 % (red: today's
+   field drops to 0 outside); (b) still water stays still: a pond never touched has zero procedural amplitude (red: a fixed-
+   amplitude noise); (c) no tiling: the autocorrelation of the procedural height over 0-200 m has no peak > 0.3 past the first
+   wavelength (red: a 64 m texture); (d) motion at distance: the phase advances at the band's deep-water speed (measured from two
+   frames). L4: a clip - a stone into a pond, the camera pulling back from 5 to 120 m, procedural on / off side by side.
+7. **Tiers:** knob = octaves (0-3) and the screen-footprint cut; 120 fps+ 1-2 octaves, 60 fps 3; no outcome changes (draw only).
+   Cost: a few ALU per water fragment past the window - measured whole-frame on Creek's 150 m lake (the realistic scene) and the
+   sea at the horizon (the worst: most water pixels) before choosing defaults.
+
+**Verdict: READY** (every question answered above, the red tests stated). Not built - building it is the next item-6 step.
+
 ### 58.7 Item 7 (Track B): references gathered, targets proposed (2026-11-23). Status: PROPOSED - the owner adds or replaces
 
 The owner: *"7. i need you to find stuff to reference. if you still need something, i will find something later."* What shipped
