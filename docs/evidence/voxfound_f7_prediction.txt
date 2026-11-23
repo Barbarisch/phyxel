@@ -1314,3 +1314,17 @@ run), raw voxfound_f722_live.jsonl.
   LIVE probe defect, recorded: the first inside point (the house centre) lay on the hall table; the finder snaps it to
      the tabletop -- a legal fall out, no climb in -> a one-way result that looked like a sealed house. A free floor
      point 1.5 m inside the south door: furnished AND bare houses path both ways (10 nodes each, through the door).
+
+F7.23 PREDICTION -- WorldForge bridges on the 1/8 m terrain (owed by F7.20; 2026-11-22; the change written, NOT yet
+built or run). generateChunk emits a bridge in cubes: the deck a Wood cube at deckY, a 2/3-voxel WoodPlanks parapet
+shelf at deckY + 1 on rail columns, piers Stone cubes (surfaceY, pierTopY]; the 1/8 m terrain emitted none (roads ended
+at the banks). THE CHANGE: StorageLab's stampBridgeColumn (both builders): the same, partitioned into 1/8 m voxels --
+the deck fills metre deckY, the parapet the lower 2/3 (centre sampling: 5 of 8 voxels), the pier fills from the 1/8 m
+ground up (the continuous ground can lie below surfaceY + 1, where the cube pier starts -- it would float).
+Unit test VoxFoundBridge8 (RoadFieldSeamTest's BridgeWorld: Perlin 20260816, two sites pinned across an order >= 3
+channel; skipped if the seed has none, as there):
+  B1: every deck column: metre deckY is Wood in all 512 of its voxels. RED (setBridgeStub): not Wood.
+  B2: every rail column: metre deckY + 1 holds exactly 5 / 8 layers of WoodPlanks (320 voxels).
+  B3: every pier column: solid without a gap from the ground's top voxel up through metre pierTopY (all 64 voxel
+      columns).
+  B4: an area across the bridge = its two halves built separately (seam-free); FastAreaEqualsReference still passes.
