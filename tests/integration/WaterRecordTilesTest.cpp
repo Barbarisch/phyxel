@@ -2368,6 +2368,71 @@ TEST_F(WaterRecordTilesTest, ASplashOnGeneratedWaterWakesAPatch) {
     }
 }
 
+// 58.4 - the seam seen live (w58_gen_splash_true.mp4 at 29 s): over RiverCarve's generated lake (bed 84-88, water 90) a patch's
+// surface stood at 89.99 against the record's 90.0 round it - a 1 cm step at its edge, drawn as a dark stepped line - with 4.74 m^3
+// "residue dropped" (~1 cm over the patch). The integration lake (2 m, flat bed) shows none. Rig: a 64 m generated lake (the record
+// only), water 6 m deep over a bed stepping 0..4 m by column (RiverCarve's shape, shifted to y 0), a small splash at its centre (the
+// wood's size), 30 s. Prediction (to be measured): residue 0 and the patch's surface within 1 mm of the record's 6.0 at every
+// column; CONTROL: the same splash on the flat 2 m lake (no residue - ASplashOnGeneratedWaterWakesAPatch's books).
+TEST_F(WaterRecordTilesTest, APatchOverADeepUnevenLakeKeepsItsLevel) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct Out { double residue = 0, books = 0; float lo = 1e9f, hi = -1e9f, median = 0.0f; int live = 0, cols = 0; bool ok = false; };
+    auto run = [&](bool deep, float tall, bool droplets = false) {
+        Out o;
+        auto state = [deep](const glm::ivec3& m) -> int {
+            if (m.y < 0) return 1;
+            if (!deep) return 0;
+            const int bed = ((m.x * 7 + m.z * 13) & 3) + ((m.x / 9 + m.z / 11) & 1);   // 0..4 m, stepping by column
+            return m.y < bed ? 1 : 0;
+        };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return o; }
+        mgr.setDroplets(droplets); mgr.setRealtime(true);
+        const float before = WaterCoreManager::s_tallBandDefault;
+        WaterCoreManager::s_tallBandDefault = tall;
+        struct R { float b; ~R() { WaterCoreManager::s_tallBandDefault = b; } } restore{before};
+        FakeRecord record; record.install(mgr);
+        const float top = deep ? 6.0f : 2.0f;
+        for (int z = 0; z < 64; ++z) for (int x = 0; x < 64; ++x) {
+            ColumnRun r; r.bottomY = deep ? static_cast<float>(((x * 7 + z * 13) & 3) + ((x / 9 + z / 11) & 1)) : 0.0f; r.topY = top; r.mass = r.topY - r.bottomY;
+            record.cols[{x, z}].push_back(r);
+        }
+        const double placed = record.total();
+        const std::vector<int> ids = wakeNearLive(mgr, glm::vec3(32.0f, top - 0.1f, 32.0f), 0.5f, false);
+        mgr.addImpulse(glm::vec3(32.0f, top - 0.1f, 32.0f), 0.5f, 2.0f, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (ids.empty()) { ADD_FAILURE() << "no patch"; return o; }
+        for (int k = 0; k < 60 * 3; ++k) mgr.update(1.0f / 60.0f);   // 3 s: the patch live, its far part near still
+        for (const AvRecord& r : mgr.list()) { o.residue += r.residueDropped; ++o.live; }
+        // the surface the patch draws (its own field: source = its id), columns over 12 m from the splash
+        std::vector<float> tops;
+        for (const WaterSurfaceField* f : mgr.surfaceFields()) {
+            if (!f || f->source <= 0 || f->source > 1000) continue;   // the volumes' own fields (ids), not record tiles
+            for (int zz = 0; zz < f->nz; ++zz) for (int xx = 0; xx < f->nx; ++xx) {
+                const auto& c = f->at(xx, zz); const int n = static_cast<int>(c.runs + 0.5f);
+                if (n <= 0) continue;
+                const float wx = (f->origin.x + xx + 0.5f) * f->h, wz = (f->origin.z + zz + 0.5f) * f->h;
+                if (std::hypot(wx - 32.0f, wz - 32.0f) < 12.0f) continue;
+                tops.push_back(c.top[n - 1]);
+                o.lo = std::min(o.lo, c.top[n - 1]); o.hi = std::max(o.hi, c.top[n - 1]);
+            }
+        }
+        o.cols = static_cast<int>(tops.size());
+        if (!tops.empty()) { std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end()); o.median = tops[tops.size() / 2]; }
+        o.books = record.total() + mgr.totalMass() - placed;
+        o.ok = true;
+        return o;
+    };
+    const Out flat = run(false, 0.5f), deep = run(true, 0.5f), deepNoTall = run(true, 0.0f), deepDrops = run(true, 0.5f, true), flatDrops = run(false, 0.5f, true);
+    for (auto [n, o] : {std::pair<const char*, Out>{"CONTROL flat 2 m", flat}, {"deep uneven, tall 0.5", deep}, {"deep uneven, tall off", deepNoTall}, {"deep uneven, droplets on", deepDrops}, {"flat 2 m, droplets on", flatDrops}})
+        std::printf("  %-24s live %d | residue %.6f m^3, books %+.4f m^3 | the patch's drawn surface > 12 m out: %d columns, median %.4f (%.4f..%.4f), the record %.1f\n",
+                    n, o.live, o.residue, o.books, o.cols, o.median, o.lo, o.hi, n[0] == 'C' || n[0] == 'f' ? 2.0 : 6.0);
+    EXPECT_NEAR(flatDrops.median, 2.0f, 1e-3f); EXPECT_NEAR(deepDrops.median, 6.0f, 1e-3f);
+    EXPECT_NEAR(flat.median, 2.0f, 1e-3f) << "the patch draws its still water off the record's level";
+    EXPECT_NEAR(deep.median, 6.0f, 1e-3f);
+    EXPECT_NEAR(deepNoTall.median, 6.0f, 1e-3f);
+}
+
 // 58 item 2 - the generated box's rules, on the host (no GPU): (a) chunk independence - the box a touch makes is the same whether the
 // record is read whole or chunk by chunk (32 m pieces, concatenated); (b) a body falling onto the water makes a box, one over land
 // none (the column is dry); (c) water with a current (a river) is refused and counted; (d) a box never overlaps a slept box: a touch

@@ -1,0 +1,229 @@
+1
+00:00:00,000 --> 00:00:00,650
+a generated lake - the record, no volume, no old water
+camera y 93.0 (water 90.0): above the surface | 57 fps
+
+2
+00:00:00,650 --> 00:00:01,300
+a generated lake - the record, no volume, no old water
+camera y 93.0 (water 90.0): above the surface | 15 fps
+
+3
+00:00:01,300 --> 00:00:01,960
+a generated lake - the record, no volume, no old water
+camera y 93.0 (water 90.0): above the surface | 14 fps
+
+4
+00:00:01,960 --> 00:00:02,550
+a generated lake - the record, no volume, no old water
+camera y 93.0 (water 90.0): above the surface | 23 fps
+
+5
+00:00:02,550 --> 00:00:03,180
+a generated lake - the record, no volume, no old water
+camera y 93.0 (water 90.0): above the surface | 14 fps
+
+6
+00:00:03,180 --> 00:00:04,080
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 19 fps
+
+7
+00:00:04,080 --> 00:00:04,690
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 8 fps
+
+8
+00:00:04,690 --> 00:00:05,370
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 12 fps
+
+9
+00:00:05,370 --> 00:00:06,090
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 11 fps
+
+10
+00:00:06,090 --> 00:00:06,760
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 14 fps
+
+11
+00:00:06,760 --> 00:00:07,430
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 8 fps
+
+12
+00:00:07,430 --> 00:00:08,100
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 6 fps
+
+13
+00:00:08,100 --> 00:00:08,670
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 16 fps
+
+14
+00:00:08,670 --> 00:00:09,260
+wood debris dropped on it - it floats
+camera y 93.0 (water 90.0): above the surface | 9 fps
+
+15
+00:00:09,260 --> 00:00:09,930
+the camera sinks under the surface
+camera y 92.9 (water 90.0): above the surface | 23 fps
+
+16
+00:00:09,930 --> 00:00:10,570
+the camera sinks under the surface
+camera y 92.5 (water 90.0): above the surface | 53 fps
+
+17
+00:00:10,570 --> 00:00:11,220
+the camera sinks under the surface
+camera y 92.1 (water 90.0): above the surface | 42 fps
+
+18
+00:00:11,220 --> 00:00:11,940
+the camera sinks under the surface
+camera y 91.8 (water 90.0): above the surface | 24 fps
+
+19
+00:00:11,940 --> 00:00:12,610
+the camera sinks under the surface
+camera y 91.3 (water 90.0): above the surface | 18 fps
+
+20
+00:00:12,610 --> 00:00:13,250
+the camera sinks under the surface
+camera y 91.0 (water 90.0): above the surface | 58 fps
+
+21
+00:00:13,250 --> 00:00:14,010
+the camera sinks under the surface
+camera y 90.6 (water 90.0): above the surface | 37 fps
+
+22
+00:00:14,010 --> 00:00:14,640
+the camera sinks under the surface
+camera y 90.2 (water 90.0): above the surface | 40 fps
+
+23
+00:00:14,640 --> 00:00:15,360
+the camera sinks under the surface
+camera y 89.8 (water 90.0): 0.16 m under the surface | 6 fps
+
+24
+00:00:15,360 --> 00:00:16,020
+the camera sinks under the surface
+camera y 89.4 (water 90.0): 0.57 m under the surface | 11 fps
+
+25
+00:00:16,020 --> 00:00:16,760
+the camera sinks under the surface
+camera y 89.0 (water 90.0): 0.94 m under the surface | 47 fps
+
+26
+00:00:16,760 --> 00:00:17,400
+the camera sinks under the surface
+camera y 88.6 (water 90.0): 1.36 m under the surface | 46 fps
+
+27
+00:00:17,400 --> 00:00:18,010
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 11 fps
+
+28
+00:00:18,010 --> 00:00:18,650
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 63 fps
+
+29
+00:00:18,650 --> 00:00:19,270
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 41 fps
+
+30
+00:00:19,270 --> 00:00:19,920
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 65 fps
+
+31
+00:00:19,920 --> 00:00:20,510
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 69 fps
+
+32
+00:00:20,510 --> 00:00:21,120
+under the lake
+camera y 88.5 (water 90.0): 1.49 m under the surface | 17 fps
+
+33
+00:00:21,120 --> 00:00:21,740
+back up
+camera y 88.6 (water 90.0): 1.40 m under the surface | 67 fps
+
+34
+00:00:21,740 --> 00:00:22,540
+back up
+camera y 89.1 (water 90.0): 0.93 m under the surface | 13 fps
+
+35
+00:00:22,540 --> 00:00:23,160
+back up
+camera y 89.7 (water 90.0): 0.34 m under the surface | 16 fps
+
+36
+00:00:23,160 --> 00:00:23,950
+back up
+camera y 90.1 (water 90.0): above the surface | 33 fps
+
+37
+00:00:23,950 --> 00:00:24,560
+back up
+camera y 90.7 (water 90.0): above the surface | 70 fps
+
+38
+00:00:24,560 --> 00:00:25,190
+back up
+camera y 91.2 (water 90.0): above the surface | 15 fps
+
+39
+00:00:25,190 --> 00:00:25,980
+back up
+camera y 91.6 (water 90.0): above the surface | 40 fps
+
+40
+00:00:25,980 --> 00:00:26,680
+back up
+camera y 92.2 (water 90.0): above the surface | 35 fps
+
+41
+00:00:26,680 --> 00:00:27,370
+back up
+camera y 92.8 (water 90.0): above the surface | 48 fps
+
+42
+00:00:27,370 --> 00:00:28,100
+back up
+camera y 93.0 (water 90.0): above the surface | 68 fps
+
+43
+00:00:28,100 --> 00:00:28,930
+back up
+camera y 93.0 (water 90.0): above the surface | 14 fps
+
+44
+00:00:28,930 --> 00:00:29,590
+back up
+camera y 93.0 (water 90.0): above the surface | 38 fps
+
+45
+00:00:29,590 --> 00:00:30,200
+back up
+camera y 93.0 (water 90.0): above the surface | 34 fps
+
+46
+00:00:30,200 --> 00:00:30,450
+back up
+camera y 93.0 (water 90.0): above the surface | 45 fps

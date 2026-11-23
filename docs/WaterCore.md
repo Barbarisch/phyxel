@@ -15418,6 +15418,20 @@ NOT checked: other poses / a moving camera (the clip's own moves).
   the A/B was unreadable under the same load; `water_coupling test_seed_defer_off` re-runs it).
 - Not done: the W4 clip's other half (no hole in motion - the clip's camera moves, frame by frame); the A/B for the deferred seed on an
   idle GPU; a body over the record past drawM (no patch: stated above).
+- **Seen in the remade clip, measured, cause found, NOT fixed (needs a design step): a dark stepped line across the lake at 29 s, only
+  with the patch.** Measured (`gap_probe.py`-style reads, after the clip): the patch's awake water stands at **89.990** while its own
+  recorded tiles and the record round it hold **90.000** - a 1 cm step at the awake / recorded boundary, drawn as the line. Mass is
+  conserved (the patch's mass flat from 17 s; residue 2.5e-5 m^3 - an earlier "4.74 m^3" read was a print cut before its exponent).
+  The water went DOWN: 10 columns near (-2230..-2222, -1338..-1340) hold water from 85.0 where the record's span starts at 86.0. The
+  world there (WaterBench_RiverCarve's saved DB) has bare Dirt at y 84 and AIR at 85 - the Grass layer removed by an edit made before
+  these runs (neighbouring generated columns: Grass at 86); the generator's surface (and so the record's span bottom) still says 86.
+  An edit never moves record water (the owner's rule), so the record held ~6 m^3 over air; the patch, physical, filled the hole and
+  its level fell 1 cm against a record that cannot move. The rig (`APatchOverADeepUnevenLakeKeepsItsLevel`: a 64 m generated lake,
+  6 m deep over a stepping bed, tall cells on / off, droplets on / off; and the flat 2 m control) holds the record's level exactly
+  (median 6.0000 / 2.0000 at 3 s) - unedited ground has no step. **Not specific to generated boxes:** any patch whose water rises or
+  falls against the record (a hole dug under a lake, a pour) draws this step at its edge. The fix at its cause is a patch that
+  exchanges with the record at its edge (54.2's level-only ring columns: the lake fills the hole and the record debits the body) -
+  a design step (`/design-check`), logged for item 5 (edges); not built.
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
