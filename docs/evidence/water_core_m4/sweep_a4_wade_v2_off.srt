@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:14,000
+CHARACTERS OFF - the wader is not fed to the water (before A4): the surface stays flat
+an NPC patrols a 0.8 m deep channel (x 66-77) | 42-95 fps

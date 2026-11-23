@@ -15525,7 +15525,16 @@ location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py -
   pond blue in the clip. Unit scene / far-terrain / streaming / chunk / game-definition 364 / 364; integration Scene* 13 / 16 - the
   same 3 fail with the fix reverted (camera re-entry + an added scene - `ReentryStateRestoresOnReturn`, `MultiHopTransition_A_B_C_A`,
   `AddSceneThenTransitionToIt`; not water, not this change - logged here).
-- A4 (wading): not re-made yet - its item asks to MEASURE the bow wave's size first.
+- **A4 (wading) - measured first, as the item asks (`tools/water_a4_bow_measure.py`: the sweep clip's channel rig, the NPC's own
+  route, the surface on a 0.5 m grid round the wader every 0.25 s, characters off / on): BOTH 0.0 mm** - the wader pushed no water
+  at all, so the owner's "cant really tell a difference" was the truth. Cause (live `water_coupling`): the wader fed, 10-11 limbs
+  a frame rippling, **displacing 0** - the displace gate refused every limb by SIZE (95 refusals, 0 admitted): A10's 1/6 m size
+  floor (a DEBRIS cost rule: chips do not shove) met 48.5's per-limb boxes, each under it; §48's 2-5 cm had been measured with
+  one 0.5 m box per character, before 48.5. **FIXED:** a limb is exempt from the size floor (`WaterDisplaceGate::Body::sizeExempt`,
+  set for character limbs) and still ranked in the 32-body budget. Unit test `ALimbIsExemptFromTheSizeFloorButNotTheBudget`
+  (red: the debris body of the same size refused). **Measured after:** ahead of the wader median **8.3 mm** (max 40 mm), the grid
+  round it median 9.0 / max 55 mm; OFF 0.0 (`a4_bow_measure.json`). The clip remade: **`sweep_a4_wade_v2_side_by_side.mp4`**
+  (off / on; mass 19.2000007 -> 19.2000007 m^3 both) - the water round the wader disturbed and droplets thrown on the right.
 
 ### 58.7 Item 7 (Track B): references gathered, targets proposed (2026-11-23). Status: PROPOSED - the owner adds or replaces
 

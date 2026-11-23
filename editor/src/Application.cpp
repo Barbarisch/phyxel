@@ -3984,7 +3984,7 @@ void Application::update(float deltaTime) {
                     float sy = 0.0f; glm::vec2 fl(0.0f);
                     if (waterCore->columnWater(static_cast<int>(std::floor(m.centre.x)), static_cast<int>(std::floor(m.centre.z)), sy, fl)) rel -= glm::vec3(fl.x, 0.0f, fl.y);
                     moving.push_back(m);
-                    gateIn.push_back({m.id, m.halfExtents, glm::length(rel)});
+                    gateIn.push_back({m.id, m.halfExtents, glm::length(rel), true});   // 58 item 3: a limb is exempt from the debris size floor
                 }
                 // A10 (44.2 step 2): one decision per stroke - a stroke starts above kDisplaceOnSpeed and ends at kDisplaceOffSpeed (the
                 // hysteresis this loop had); the gate adds the size floor and the budget (WaterDisplaceGate.h)

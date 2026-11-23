@@ -89,3 +89,16 @@ TEST(WaterDisplaceGate, TheBudgetGoesByScoreAndTiesByIdInAnyListOrder) {
     const auto b2 = one.select({body(1, 0.2f, 1.0f), body(2, 0.9f, 9.0f)}, a.state, kOn, kOff);
     EXPECT_TRUE(b2.shoving(1)); EXPECT_FALSE(b2.shoving(2));
 }
+
+// 58 item 3 - a character's limb is exempt from the debris size floor (48.5's per-limb boxes fell under it: a wader pushed no water).
+// A 0.1 m half-extent body at 1 m/s: refused as debris (ripple only), admitted as a limb; the budget still ranks it.
+TEST(WaterDisplaceGate, ALimbIsExemptFromTheSizeFloorButNotTheBudget) {
+    G g;
+    G::Body debris = body(1, 0.1f, 1.0f), limb = body(2, 0.1f, 1.0f);
+    limb.sizeExempt = true;
+    const auto r = g.select({debris, limb}, {}, kOn, kOff);
+    EXPECT_FALSE(r.shoving(1)); EXPECT_EQ(r.refusedSize, 1);
+    EXPECT_TRUE(r.shoving(2)) << "a limb was refused by the debris size floor";
+    G none = g; none.budget = 0;
+    EXPECT_FALSE(none.select({limb}, {}, kOn, kOff).shoving(2)) << "a limb must still answer to the budget";
+}

@@ -33,7 +33,10 @@ struct WaterDisplaceGate {
     int budget = kBudgetDefault;         ///< 0 = none shove (as displacement off)
 
     enum State : uint8_t { Idle = 0, Shoving = 1, RippleOnly = 2 };   ///< RippleOnly: this stroke was refused (size or budget)
-    struct Body { uint64_t id = 0; glm::vec3 halfExtents{0.0f}; float relSpeed = 0.0f; };
+    /// sizeExempt (58 item 3): a character's limb - the size floor is a DEBRIS cost rule (chips do not shove); 48.5's per-limb boxes
+    /// fell under it (every limb refused: a wader pushed no water, no bow wave - live, 95 refusals / 0 admitted). Still ranked
+    /// in the budget like any body.
+    struct Body { uint64_t id = 0; glm::vec3 halfExtents{0.0f}; float relSpeed = 0.0f; bool sizeExempt = false; };
     struct Result {
         std::unordered_map<uint64_t, State> state;   ///< every body this frame (feed back as `prev` next frame)
         int kept = 0, admitted = 0, refusedSize = 0, refusedBudget = 0, rippleOnly = 0;
@@ -54,7 +57,7 @@ struct WaterDisplaceGate {
             r.state[b.id] = Idle;
             if (b.relSpeed <= onSpeed) continue;   // not moving fast enough to start a stroke
             const float half = std::max({b.halfExtents.x, b.halfExtents.y, b.halfExtents.z});
-            if (half + 1e-5f < minHalfM) { r.state[b.id] = RippleOnly; ++r.refusedSize; continue; }   // 1e-5: 1/6 through float
+            if (!b.sizeExempt && half + 1e-5f < minHalfM) { r.state[b.id] = RippleOnly; ++r.refusedSize; continue; }   // 1e-5: 1/6 through float
             entrants.push_back(&b);
         }
         auto score = [](const Body& b) { return 8.0f * b.halfExtents.x * b.halfExtents.y * b.halfExtents.z * b.relSpeed; };
