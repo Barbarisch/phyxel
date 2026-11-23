@@ -3255,6 +3255,26 @@ the hydrology carving and road grading the 1/8 m terrain generator does not repr
 cube / subcube semantics outside the switched routes; items' and the LOD template chain's 1/9 units; nav agent units.
 Each is a port of its own; F8 does not depend on them and goes next.
 
+**Step 7, the deletion -- staged (2026-11-23).** The ports are done (F7.18-F7.31) and the default is the switched world
+(F7.27). What is left is removing today's store, which is wider than two classes: a census finds `Subcube` / `Microcube`
+(and their add / get calls) in 61 engine + editor files (486 lines; heaviest: Chunk, ChunkVoxelManager, StructureGenerator,
+DamageSystem, ChunkRenderManager, ObjectTemplateManager, VoxelManipulationSystem) and 38 test files. Two live features
+still READ today's Chunk objects: the opt-out and the default boot's "today" source. Every real project's world type is
+Perlin (28), Flat (13), Mountains (2) or none (12, DB-only); no project uses Caves / City / Random / Custom. The stages,
+each with its own prediction, red and gate (the suites green, the F7.26 battery holding):
+1. **D1 -- a source that needs no Chunk object:** a fixed world's region = its DB's saved chunks through the converter
+   (PXB2 blobs, no Chunk object) + the 1/8 m generator for chunks the DB does not hold (typed worlds; a DB-only world's
+   missing chunk is air). Gate: saved chunks equal the "today" conversion exactly; the six F7.27 projects boot.
+2. **D2 -- generation writes only the new store:** WorldGenerator's cube / subcube emission removed from the boot path;
+   today's streaming never started (the F7.26 gate becomes the default, not a knob).
+3. **D3 -- the 1/9 m writers go:** StructureGenerator's legacy place, ObjectTemplateManager's C/S/M stamping (templates
+   from the 1/8 m libraries), DamageSystem's carving (the F7.5 override is the only path), the editor's cube / subcube /
+   microcube placement tools (brushes instead).
+4. **D4 -- the store and its readers go:** Subcube, Microcube, the C/S/M face packing, ChunkRenderManager's mesher,
+   ChunkPhysicsManager's grids, the PXB2 encoder (the decoder stays inside the converter), the opt-out; the 38 tests
+   ported to the new store or retired with their subject.
+Caves / City / Random / Custom generation are dropped with D2 unless a project needs them (none does).
+
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks
 (419 on chunk borders) + 9 blasts: 0 mismatches in counts, full-rebuild verifies, routed reads, physics probes; undo
 and save / reload exact; 0.12 ms per edit. F8.2: 100 rapid breaks lost 98 % of the broken matter (each new rig dropped
