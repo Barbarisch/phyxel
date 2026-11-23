@@ -1478,3 +1478,22 @@ restored boot DB; tools/voxfound_f721f_live.py, raw voxfound_f721f_live.jsonl. E
   S3 PASS as stated: bracket 19 Metal voxels; the Metal census grew 239 (>= 19; the furniture adds Metal too).
   S4 PASS: a hall house -- "not a business", nothing hung.
   The 1/8 m stage now skips only "emit" (today's own stage's emit -- the structure record -- is the registry here).
+
+F7.27 PREDICTION -- the switched world as the DEFAULT for every project (plan F7: "default switched"; 2026-11-22,
+before any code). Until now a project booted switched only with a world.voxfound block (5 projects); ~50 have none.
+THE CHANGE:
+  - a region source "today": each region chunk = today's resident chunk encoded (ChunkBlobCodec) and converted
+    (VoxFound::convertPxb2: cubes exact, thirds / ninths by volume) -- the region IS today's world, hand-built content
+    and all, not regenerated terrain;
+  - the boot default: a project whose game.json world has no "voxfound" key boots switched: a streaming world as
+    VoxFoundBoot does (generator source around the camera, streaming on); a fixed world with source "today" over the
+    bounding box of today's resident chunks, after today's deferred DB loads have landed. Opt out:
+    "voxfound": {"enabled": false}.
+L4 on real projects (unmodified game.json), Release:
+  D1: CharacterTestbed, TavernTest, VillageChat, Emberwake (fixed) and WorldForgeTest, WaterBench_Coast (streaming) boot
+      switched (boot report booted, the source stated) with no error.
+  D2 (fixed worlds): the region's solid volume per material equals today's resident volume per material (cube 512,
+      subcube 512/27, microcube 512/729 voxels) within 1 % for every material over 1,000 voxels; total within 1 %.
+  D3: a fixed world's camera view renders the converted world: a screenshot at the project's own camera pose shows the
+      same scene as the opt-out run (for the owner; not a numeric gate).
+  OPT-OUT: the same project with "voxfound": {"enabled": false} boots today's world (boot report: not configured).
