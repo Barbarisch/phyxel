@@ -33,8 +33,10 @@ def diff(a, b):
 def bake():
     time.sleep(5.0)
     call("POST", B, {"run": False})
-    return (call("POST", B, {"bake_now": {"budget": 0, "keep_m": 0.0, "rest_ticks": 0}, "status": True,
-                             "pen": False}).get("rest") or {}).get("baked")
+    baked = (call("POST", B, {"bake_now": {"budget": 0, "keep_m": 0.0, "rest_ticks": 0, "awake": True}, "status": True,
+                              "pen": False}).get("rest") or {}).get("baked")
+    settle = call("POST", P, {"settle_rubble": True})   # F8.2: the rig's rubble as whole voxels (code since run 3)
+    return {"baked": baked, "settle": settle}
 
 
 def ground_points(rnd, rg, n):

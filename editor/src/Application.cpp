@@ -13610,6 +13610,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"rapid_stub", voxFoundRapidStub}};
             return;
         }
+        if (cmd.params.value("settle_rubble", false)) {   // F8.2: the current world rig's rubble into whole voxels
+            response = voxFoundSettleRubble();
+            return;
+        }
         if (cmd.params.value("last_break", false)) {   // F8.2: the last switched-world break's report
             response = voxFoundLastBreak;
             return;
@@ -15318,6 +15322,7 @@ bool Application::voxFoundWorldBreak(const glm::vec3& centre, float radius, floa
         bake.params = {{"bake_now", {{"budget", 0}, {"keep_m", 0.0}, {"rest_ticks", 0}, {"awake", true}}},
                        {"status", true}, {"pen", false}};
         handleVoxFoundBodies(bake, ignore);
+        ignore["settle"] = voxFoundSettleRubble();   // F8.2: and its rubble as whole voxels
         voxFoundLastPrevBake = ignore;   // F8.2: what the pre-bake did (reported with the break)
     }
     const glm::ivec3 hw(glm::floor(centre * float(Core::VoxFound::kVoxelsPerM)));

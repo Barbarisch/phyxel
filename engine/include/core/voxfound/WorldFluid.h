@@ -8,6 +8,8 @@
 // carried over). The result does not depend on the box (prediction W2: equal to one box over the whole grid).
 // Written back into grid.fill after every step() call.
 
+#include <cmath>
+#include <tuple>
 #include <cstdint>
 #include <string>
 
@@ -58,6 +60,16 @@ public:
     int grows() const { return grows_; }
     /// F6.4: particles in flight, cells woken into particles and particles settled back (since attach)
     size_t particles() const { return parts_ ? parts_->particles().size() : 0; }
+    /// F8.2: the box's state written into grid.fill now (the ledger still counts it once: box, not grid, inside it)
+    void flush() { writeBack(); }
+    /// F8.2: the particles in flight as (grid voxel, material, units) -- for a settle that ends the fluid
+    std::vector<std::tuple<glm::ivec3, uint8_t, uint32_t>> particleCells() const {
+        std::vector<std::tuple<glm::ivec3, uint8_t, uint32_t>> out;
+        if (parts_)
+            for (const auto& q : parts_->particles())
+                out.emplace_back(glm::ivec3(int(std::floor(q.x)), int(std::floor(q.y)), int(std::floor(q.z))), q.mat, q.units);
+        return out;
+    }
     uint64_t woken() const { return woken_; }
     uint64_t settled() const { return settled_; }
     /// F6.4: particles outside the box at the end of any tick (since attach; must stay 0)

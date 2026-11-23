@@ -68,3 +68,22 @@ Every artifact: WorldGenerator Perlin s7 + flora; blasts through DamageSystem (t
      most-filled cells first), conserving to under one voxel per material per blast; or a fill channel in the store.
   R3 PASS: the 100 apply_damage calls median 0.29 s, max 0.40 s, 0 over 0.5 s.
   Unit: VoxFoundBodyRest.F82IncludeAwakeMakesEveryBodyEligible + the R2 policy test: 2 / 2.
+
+F8.2 ADDENDUM 2 (before run 3, after the results above): the crumb residual is now fixed too -- voxFoundSettleRubble
+puts a world rig's rubble into the region as WHOLE voxels (per world material, units / 256 in the fullest rubble
+cells, the rest of its cells air), run when a rig is replaced (with the pre-bake) and on request
+({"settle_rubble":true}, which the driver calls after its final bake). Predicted: R1 and R2 lose 0 voxels per material.
+
+F8.2 RESULTS, RUN 7 (2026-11-22; supersedes the "R1 MISSED" above, which is kept). The settle took four more runs,
+each a defect of mine found by the census (kept, labelled in voxfound_f82_live.jsonl): run 3 read only grid.fill (the
+rubble lives in the fluid's box and in flight: 13 cells found); run 4 took the targets from the fluid's exact ledger
+(remainder 0) but stacked owed voxels up one column to the window's top (202 unplaced); run 5 flooded around the
+candidates through open cells (80 unplaced: enclosed pockets); run 6 seeded an empty flood at the surface (unchanged);
+run 7 floods through solids too, filling only open cells.
+  R1 PASS: one blast (63,251 voxels broken, 313 bodies all baked, 281 rubble voxels settled): the region's census
+     equal before / after in EVERY material.
+  R2 PASS: 100 blasts 0.2 s apart (4,446,487 voxels broken): the census equal in every material (0 lost; 98 % lost by
+     the control). The rapid-break chain: each new world rig stops the previous, bakes all its bodies (includeAwake)
+     and settles its rubble into whole voxels (voxFoundSettleRubble: the fluid's exact ledger, fullest cells first,
+     then the nearest open cells).
+  R3 PASS: apply_damage median 0.35 s, max 0.45 s, 0 over 0.5 s.

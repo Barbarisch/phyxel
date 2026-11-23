@@ -355,6 +355,7 @@ private:
     bool voxFoundTreeStub = false;                               // F7.14 (tests): tree-matter reads not routed
     nlohmann::json voxFoundLastPrevBake;                         // F8.2: the pre-bake's report
     nlohmann::json voxFoundLastBreak;                            // F8.2
+    nlohmann::json voxFoundSettleRubble();                       // F8.2: a world rig's rubble into whole voxels
     bool voxFoundRapidStub = false;                              // F8.2 (tests): a new world rig drops the previous bodies
     bool voxFoundWaterSyncStub = false;                          // F7.17 (tests): the water sim's resyncs skipped
     // F7.16: game.json world.voxfound -- the switched world as a boot mode
