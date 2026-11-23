@@ -1452,3 +1452,16 @@ boot DB; the drivers unchanged; raw lines appended to their own jsonl files.
   G3 PASS (F7.22): nav at 8 cells / m, both ways through a furnished house's door (10 nodes).
   G4 PASS (F7.21b): 20 pieces, 0 refused, verify 0, census = report (2,178).
 No consumer in these four paths depends on today's chunks being streamed.
+
+F7.21f PREDICTION -- trade signage on the 1/8 m furnished structures (2026-11-22; the change built, NOT yet run).
+CONTROL (F7.21b-e's stage): the reply skips "signage" -- a furnished tavern on the switched world hangs no sign.
+THE CHANGE: the 1/8 m stage plans the sign in the canvas frame with today's planSignMount (1/9 m units; its probe reads
+the canvas), paints the bracket's cells as 1/8 m Metal voxels (empty cells only), spawns the painted board item after
+the sink (registry-owned like the props). A trade with no authored sign item hangs nothing here (stated).
+Live, VoxFoundGate8 (the gate from the boot), a tavern 12 x 10 furnish:true:
+  S1: sign status "hung" with the typology's sign item; board bottom >= 2.44 m (8 ft) above the floor.
+  S2: the 1/8 m voxel at the board's centre is air (the board is not inside the shell).
+  S3: the census grows by exactly the reported bracket voxels in Metal (plus whatever Metal the furniture adds -- the
+      furniture's own Metal is subtracted using the pieces' material breakdown is NOT available: S3 = the Metal delta
+      >= bracket voxels, stated).
+  S4: a hall house (not a business): status "not a business", nothing hung.
