@@ -374,6 +374,16 @@ private:
     bool voxFoundStreamSwapping = false;
     void voxFoundSpansFill();
     void voxFoundGrassFill();   // F7.29
+    // F7.30: per-chunk grass, refreshed after edits
+    std::vector<std::vector<GrassInstanceData>> voxFoundGrassPerChunk;
+    std::set<size_t> voxFoundGrassDirty;
+    std::chrono::steady_clock::time_point voxFoundGrassLastEdit{};
+    bool voxFoundGrassRefreshStub = false;
+    size_t voxFoundGrassRefreshes = 0;
+    std::vector<GrassInstanceData> voxFoundGrassOf(size_t i, const std::vector<int16_t>& grassTex) const;
+    std::vector<int16_t> voxFoundGrassTex() const;
+    void voxFoundGrassUpload();
+    void voxFoundGrassRefreshTick();
     bool voxFoundGrassStub = false;
     size_t voxFoundGrassCount = 0;
     // F7.24 (step-7 port: the API's units): batch / copy / paste / move / named snapshots on the switched world

@@ -3888,6 +3888,7 @@ void Application::update(float deltaTime) {
             voxFoundBootFrames = 0;
         s_lastResident = resident;
     }
+    voxFoundGrassRefreshTick();   // F7.30
     if (voxFoundBootPending && ++voxFoundBootFrames > 30) {  // F7.16: the boot mode, once the first frames ran
         voxFoundBootPending = false;
         try {   // F7.27: a boot that fails is REPORTED, never fatal (TavernTest: a null world field killed the app)
@@ -13642,8 +13643,14 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"grass_stub", voxFoundGrassStub}, {"grass_instances", voxFoundGrassCount}};
             return;
         }
+        if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
+            voxFoundGrassRefreshStub = cmd.params["grass_refresh_stub"].get<bool>();
+            response = {{"grass_refresh_stub", voxFoundGrassRefreshStub}};
+            return;
+        }
         if (cmd.params.value("grass_status", false)) {
-            response = {{"grass_instances", voxFoundGrassCount},
+            response = {{"grass_instances", voxFoundGrassCount}, {"refreshes", voxFoundGrassRefreshes},
+                        {"dirty_chunks", voxFoundGrassDirty.size()},
                         {"renderer_instances", renderCoordinator ? renderCoordinator->voxFoundGrassInstances() : 0}};
             return;
         }
@@ -14673,6 +14680,10 @@ void Application::voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st) {
                                     {fd(st.boxHi.x), fd(st.boxHi.y), fd(st.boxHi.z)});
     }
     voxFoundSpanEdit(st);   // F7.19: and the water spans (today's voxel-edit callback, which region edits never fire)
+    if (voxFoundWorldReads && st.boxLo.x <= st.boxHi.x) {   // F7.30: and the grass of the chunks it touched
+        for (size_t i : voxFoundEdit.chunksNear(st.boxLo, st.boxHi, 8)) voxFoundGrassDirty.insert(i);
+        voxFoundGrassLastEdit = std::chrono::steady_clock::now();
+    }
     if (voxFoundLodEditLevels <= 0 || voxFoundLodStub) return;
     for (size_t i : voxFoundEdit.chunksNear(st.boxLo, st.boxHi, Core::VoxFound::kVoxelsPerM)) voxFoundLodDirty.insert(i);
 }
@@ -15297,19 +15308,20 @@ void Application::voxFoundGrassFill() {
         voxFoundGrassCount = 0;
         return;
     }
-    auto& reg = Core::MaterialRegistry::instance();
-    std::vector<int16_t> grassTex(voxFoundPalette.size(), -1);
-    for (size_t m = 1; m < voxFoundPalette.size(); ++m) {
-        const std::string& n = voxFoundPalette[m];
-        if (n == "Grass" || n == "GrassForest" || n == "GrassSavanna") grassTex[m] = int16_t(reg.getTextureIndex(n, 4));
-    }
-    std::vector<std::pair<glm::ivec3, std::vector<GrassInstanceData>>> chunks;
-    size_t total = 0;
-    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+    const std::vector<int16_t> grassTex = voxFoundGrassTex();
+    voxFoundGrassPerChunk.assign(voxFoundEdit.chunkCount(), {});
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) voxFoundGrassPerChunk[i] = voxFoundGrassOf(i, grassTex);
+    voxFoundGrassDirty.clear();
+    voxFoundGrassUpload();
+}
+
+// F7.30: one region chunk's grass instances (F7.29's rule)
+std::vector<GrassInstanceData> Application::voxFoundGrassOf(size_t i, const std::vector<int16_t>& grassTex) const {
+    std::vector<GrassInstanceData> v;
+    {
         const auto& ch = voxFoundEdit.chunk(i);
         const auto& st = ch.store;
         const int H = st.dim().y;
-        std::vector<GrassInstanceData> v;
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z) {
                 const int vx = x * 8 + 4, vz = z * 8 + 4;
@@ -15324,11 +15336,44 @@ void Application::voxFoundGrassFill() {
                 gi.tex = uint32_t(uint16_t(grassTex[m])) | (8u << 16) | (sink << 20);
                 v.push_back(gi);
             }
-        total += v.size();
-        if (!v.empty()) chunks.push_back({ch.originVoxel / 8, std::move(v)});
+    }
+    return v;
+}
+
+std::vector<int16_t> Application::voxFoundGrassTex() const {
+    auto& reg = Core::MaterialRegistry::instance();
+    std::vector<int16_t> grassTex(voxFoundPalette.size(), -1);
+    for (size_t m = 1; m < voxFoundPalette.size(); ++m) {
+        const std::string& n = voxFoundPalette[m];
+        if (n == "Grass" || n == "GrassForest" || n == "GrassSavanna") grassTex[m] = int16_t(reg.getTextureIndex(n, 4));
+    }
+    return grassTex;
+}
+
+void Application::voxFoundGrassUpload() {
+    if (!renderCoordinator) return;
+    std::vector<std::pair<glm::ivec3, std::vector<GrassInstanceData>>> chunks;
+    size_t total = 0;
+    for (size_t i = 0; i < voxFoundGrassPerChunk.size() && i < voxFoundEdit.chunkCount(); ++i) {
+        total += voxFoundGrassPerChunk[i].size();
+        if (!voxFoundGrassPerChunk[i].empty())
+            chunks.push_back({voxFoundEdit.chunk(i).originVoxel / 8, voxFoundGrassPerChunk[i]});
     }
     renderCoordinator->setVoxFoundGrass(chunks);
     voxFoundGrassCount = total;
+}
+
+// F7.30: the edited chunks' grass, once edits have paused (one device wait per burst)
+void Application::voxFoundGrassRefreshTick() {
+    if (voxFoundGrassDirty.empty() || voxFoundGrassRefreshStub || !voxFoundWorldReads) return;
+    if (std::chrono::steady_clock::now() - voxFoundGrassLastEdit < std::chrono::milliseconds(250)) return;
+    if (voxFoundGrassPerChunk.size() != voxFoundEdit.chunkCount()) voxFoundGrassPerChunk.assign(voxFoundEdit.chunkCount(), {});
+    const auto grassTex = voxFoundGrassTex();
+    for (size_t i : voxFoundGrassDirty)
+        if (i < voxFoundEdit.chunkCount()) voxFoundGrassPerChunk[i] = voxFoundGrassOf(i, grassTex);
+    voxFoundGrassDirty.clear();
+    voxFoundGrassUpload();
+    ++voxFoundGrassRefreshes;
 }
 
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back

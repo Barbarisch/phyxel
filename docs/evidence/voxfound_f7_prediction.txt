@@ -1590,3 +1590,11 @@ Live, VoxFoundBoot: clear 2 x 1 x 2 cubes at the meadow's surface (the top metre
   R1: the grass count drops by exactly the metre columns whose top is no longer grass with air above (predicted 4: the
       four cleared columns now top out on Dirt); the renderer holds the same count. RED (grass_refresh_stub): unchanged.
   R2: placing a Grass cube back on one of them restores exactly 1 instance.
+
+F7.30 RESULTS (2026-11-23; the prediction above untouched). Release; a copy of VoxFoundBoot booted without saved edits
+(scratchpad boot_nosave); tools/voxfound_f730_live.py, raw voxfound_f730_live.jsonl. Every artifact: WorldGenerator
+Perlin s7 + flora + two voxel-API edits (a clear of 2 x 4 x 2 cubes from the meadow's top metre, one Grass cube).
+  RED (grass_refresh_stub): 14,403 instances before, after the clear and after the cube (the 2 marked chunks never
+     rebuilt).
+  R1 PASS: 14,403 -> 14,399 (exactly the 4 cleared columns), the renderer 14,399; one refresh for the burst.
+  R2 PASS: the Grass cube put back -> 14,400 (+1), the renderer equal; a second refresh.
