@@ -79,6 +79,12 @@ struct ChunkCoordHash {
  */
 class ChunkStreamingManager {
 public:
+    /// docs/VoxelFoundationPlan.md step 7 stage D2: TODAY'S WORLD NEVER LOADS -- when set (before the runtime starts:
+    /// the project boots switched), no DB chunk is landed, nothing is generated or streamed into today's store.
+    static void setTodayWorldDisabled(bool on) { s_todayDisabled.store(on); }
+    static bool todayWorldDisabled() { return s_todayDisabled.load(); }
+    static inline std::atomic<bool> s_todayDisabled{false};
+
     // Callback types for accessing ChunkManager state
     using ChunkCreationFunc = std::function<void(const glm::ivec3& origin)>;
     using ChunkMapAccessFunc = std::function<std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash>&()>;

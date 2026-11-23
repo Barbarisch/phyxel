@@ -376,6 +376,7 @@ private:
     void voxFoundGrassFill();   // F7.29
     // D1b: the DB's stored chunks overlaid on a generated region
     bool voxFoundOverlayDb = false;
+    bool voxFoundTodayKeep = false;   // D2: game.json world.voxfound.today_world:true keeps today's world loading (A/B)
     size_t voxFoundOverlaidTotal = 0;
     nlohmann::json voxFoundOverlayStored(const std::vector<glm::ivec3>& coords);
     // F7.30: per-chunk grass, refreshed after edits

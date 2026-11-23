@@ -275,6 +275,7 @@ void ChunkStreamingManager::disconnectWorldStorage() {
 }
 
 void ChunkStreamingManager::updateStreaming(const glm::vec3& playerPosition, float loadDistance, float unloadDistance) {
+    if (s_todayDisabled.load()) return;   // D2
     if (!worldStorage) return;
 
     // Async generation (Phase 1c): start the worker lazily, then land finished chunks
@@ -589,6 +590,7 @@ bool ChunkStreamingManager::saveDirtyChunks() {
 }
 
 int ChunkStreamingManager::loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads) {
+    if (s_todayDisabled.load()) return 0;   // D2
     if (!worldStorage) return 0;
     struct Job {
         glm::ivec3 coord;
@@ -775,6 +777,7 @@ std::vector<glm::ivec3> ChunkStreamingManager::loadAllChunksFromDatabase() {
 std::vector<glm::ivec3> ChunkStreamingManager::loadChunksNearAndDeferRest(
     const glm::vec3& anchor, float nearRadius, bool deferRest) {
     std::vector<glm::ivec3> nearLoaded;
+    if (s_todayDisabled.load()) return nearLoaded;   // D2: today's world never loads
     if (!worldStorage) {
         LOG_WARN("ChunkStreaming", "No world storage available - cannot load chunks from database");
         return nearLoaded;
@@ -817,6 +820,7 @@ std::vector<glm::ivec3> ChunkStreamingManager::loadChunksNearAndDeferRest(
 }
 
 void ChunkStreamingManager::pumpDeferredDbLoads(const glm::vec3& position) {
+    if (s_todayDisabled.load()) return;   // D2
     if (m_dbBacklog.empty() && m_bootResident.empty()) return;
     if (!worldStorage) { m_dbBacklog.clear(); m_bootResident.clear(); return; }
 
@@ -851,6 +855,7 @@ void ChunkStreamingManager::pumpDeferredDbLoads(const glm::vec3& position) {
 }
 
 bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
+    if (s_todayDisabled.load()) return false;   // D2
     // ONE chunk object per coord, ever. Without this guard the sync path could land a
     // SECOND object for an already-resident coord: chunkMap[coord] was overwritten (new
     // wins for queries) while the old object stayed in the render vector — a GHOST that

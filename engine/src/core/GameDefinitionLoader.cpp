@@ -620,6 +620,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         sub.chunkManager->setRegionChunkCoords(chunkCoords);   // the exact block, all levels (G-181)
     }
 
+    // docs/VoxelFoundationPlan.md step 7 stage D2: a project that boots switched never loads today's world -- the play
+    // bounds above stand (the switched world replaces them at its switch-on); no chunk is loaded or generated here.
+    if (ChunkStreamingManager::todayWorldDisabled()) {
+        LOG_INFO("GameDefinitionLoader", "World: today's world disabled (the project boots switched) -- not loaded");
+        return;
+    }
+
     // NEVER regenerate over saved chunks by accident. An inline `world` block on a
     // scene whose DB already holds those chunks REPLACED a built town with flat
     // terrain twice (Ravenmere G-48; regen #18, where the following save wrote the

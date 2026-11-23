@@ -40,6 +40,7 @@ def main():
     out["build_timing"] = rep.get("build_timing")
     out["source_fallback"] = rep.get("source_fallback")
     out["overlay"] = rep.get("overlay")
+    out["today_status"] = call("POST", P, {"today_status": True})
     if mode == "default" and rep.get("booted"):
         out["stored_check"] = call("POST", P, {"stored_check": True})
         out["region_materials"] = sorted(call("POST", P, {"census": True}).get("census", {}).keys())

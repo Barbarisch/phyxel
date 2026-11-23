@@ -249,6 +249,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
         LOG_INFO("Application", "Project mode: worlds={}, game={}", engineConfig.worldsDir, engineConfig.gameDefinitionFile);
         voxFoundReadBootConfig((projPath / "game.json").string());   // F7.16: the boot mode, if configured
+        // D2: a project that boots switched never loads today's world (opt-out / no boot: today's world as before)
+        ChunkStreamingManager::setTodayWorldDisabled(voxFoundBootPending && !voxFoundTodayKeep);
     }
 
     // Enable editor multi-viewport (pop-out OS windows for docked panels)
@@ -13676,6 +13678,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"first_bad", firstBad}, {"overlaid_total", voxFoundOverlaidTotal}};
             return;
         }
+        if (cmd.params.value("today_status", false) && chunkManager) {   // D2 (tests)
+            response = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
+                        {"today_chunks_resident", chunkManager->chunkMap.size()}};
+            return;
+        }
         if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
             voxFoundGrassRefreshStub = cmd.params["grass_refresh_stub"].get<bool>();
             response = {{"grass_refresh_stub", voxFoundGrassRefreshStub}};
@@ -15192,6 +15199,7 @@ void Application::voxFoundReadBootConfig(const std::string& gameJsonPath) {
                 w["voxfound"] = {{"enabled", true}, {"source", "world_db"}, {"load_saved", true}, {"stream", false},
                                  {"default", true}};   // D1: the DB's stored chunks -- no Chunk object read
             voxFoundBootConfig = w;
+            voxFoundTodayKeep = w["voxfound"].value("today_world", false);
             voxFoundBootPending = true;
             voxFoundBootFrames = 0;
             LOG_INFO("VoxFound", "boot mode: the DEFAULT (no world.voxfound) for " + gameJsonPath);

@@ -1660,3 +1660,18 @@ true keeps it (A/B). Stated: an untyped world with an EMPTY DB (today: a default
       standable, F7.22 nav both ways, F7.21b 20 pieces -- with today's resident chunks 0 throughout (today_status).
   E2: the F7.27 projects boot by default with 0 of today's chunks resident: CharacterTestbed (world_db, 99 chunks,
       stored_check 0), TavernTest / VillageChat / Emberwake (generator + overlay), WorldForgeTest, WaterBench_Coast.
+
+D2 RESULTS (2026-11-23; the prediction above untouched). Release.
+  RUN 1 (the battery on VoxFoundGate8): every check held, BUT today_status read 31 of today's chunks resident with the
+     switch on -- a fifth door: GameDefinitionLoader's world block loads the range's saved chunks (loadChunksParallel)
+     and creates + generates the rest (createChunk) itself. Gated there (the play bounds stand; nothing loaded or
+     generated) and in loadChunksParallel.
+  E1 PASS (run 2): today's resident chunks 0 before and after every driver; G1 100 breaks census diff {} / {}, 0 lost,
+     max apply 0.413 s; G2 the town 12 / 12 exact, 12 / 12 standable, T3 0 (job 9.7 s, worst frame 1.06 s -- was
+     13.8 s / 3.5 s with today's world resident); G3 nav at 8 both ways; G4 20 pieces, 0 refused, verify 0.
+  E2 PASS (copies of the six projects, the default; raw voxfound_f727_live.jsonl): every one boots switched with 0 of
+     today's chunks resident (today_world_disabled true): CharacterTestbed world_db (stored_check 0 / 99), TavernTest /
+     VillageChat / Emberwake generator + overlay (stored_check 0), WorldForgeTest / WaterBench_Coast generator; boots
+     3.6 - 23 s (Emberwake 136 s in F7.28 -- now generated around the camera). Opted out, each loads today's world as
+     before (4 - 965 resident chunks).
+D2 DONE: a project that boots switched never loads today's world.
