@@ -369,7 +369,12 @@ private:
     bool voxFoundTodayStreamOff = false;   // the step-7 gate: today's streaming off while switched
     bool voxFoundSpanStoreStub = false;
     bool voxFoundStreamSwapping = false;
-    void voxFoundSpansFill();                             // F8.3b (tests): the switched bounds not set
+    void voxFoundSpansFill();
+    // F7.19 (W2): span edits from region edits; edited spans saved / loaded
+    bool voxFoundSpanEditStub = false;
+    bool voxFoundSpansLoadPending = false, voxFoundSpansRestored = false;
+    size_t voxFoundSpansLoaded = 0, voxFoundSpanEditCells = 0;
+    void voxFoundSpanEdit(const Core::VoxFound::RegionEdit::Stats& st);                             // F8.3b (tests): the switched bounds not set
     bool voxFoundRapidStub = false;                              // F8.2 (tests): a new world rig drops the previous bodies
     bool voxFoundWaterSyncStub = false;                          // F7.17 (tests): the water sim's resyncs skipped
     // F7.16: game.json world.voxfound -- the switched world as a boot mode

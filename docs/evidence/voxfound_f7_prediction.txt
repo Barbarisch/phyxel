@@ -1107,3 +1107,16 @@ column in the region (its stored depth d0, bottom b0).
       split or shortened; depth decreases by 1 m in that column).
   E3: save_world; relaunch (boot, load_saved), the gate on, walk back to C: C's spans equal those after E2.
 RED: span_edit_stub (the span edit skipped) -> E1 / E2 leave C unchanged; E3 then shows the unedited spans.
+
+F7.19 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundWaterSave; the gate on; the region walked
+to the sea; C = (165, 920): one span, top 16, depth 10. Driver tools/voxfound_f719_live.py (each mode on a restored
+copy of the project DB, then a relaunch), raw: voxfound_f719_live.jsonl.
+  RED (span_edit_stub): E1 / E2 leave C at depth 10 / top 16; the relaunch shows the same (0 edited entries saved).
+  E1 MISSED AS WRITTEN: predicted depth 11 with the top at 16 -- the prediction misstated today's rule. Today's
+     spanSolidRemoved (core/water/WaterSpanEdit.h): a run resting on a dug cube FALLS one voxel (bottom - 1, top - 1,
+     mass exact); no sideways refill (that is the motion layer's). Measured: top 16 -> 15, depth 10 -- exactly that rule,
+     now applied to switched-world edits (red: unchanged).
+  E2 PASS: Stone at y 14 (inside the water) -> depth 9, top 14 (1 m displaced, debited to the water core).
+  E3 PASS: save_world; relaunch (boot, load_saved): 2 edited span entries loaded, C = depth 9 / top 14 (= after E2).
+  Stated: span_check's "mismatch_vs_generator" now counts edited entries (1 here: C's chunk) -- edits differ from
+     generation by design. The span edit runs over the box's WET columns only (dry columns: no store entry to edit).

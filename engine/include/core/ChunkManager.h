@@ -275,6 +275,20 @@ public:
         }
     }
     size_t voxFoundSpansChunks() const { return m_vfSpans.size(); }
+    /// F7.19: the store's edited entries (saved with the switched world) and their restore (inserted as edited, so the
+    /// generation fill never overwrites them, wherever the region is).
+    std::vector<std::pair<glm::ivec3, WaterSpanList>> voxFoundEditedSpans() const {
+        std::vector<std::pair<glm::ivec3, WaterSpanList>> out;
+        for (const auto& [cc, e] : m_vfSpansEdited) {
+            auto it = m_vfSpans.find(cc);
+            if (it != m_vfSpans.end()) out.push_back({cc, it->second});
+        }
+        return out;
+    }
+    void restoreVoxFoundEditedSpans(const glm::ivec3& cc, WaterSpanList spans) {
+        m_vfSpans[cc] = std::move(spans);
+        m_vfSpansEdited[cc] = true;
+    }
     const std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash>& voxFoundSpanStore() const {
         return m_vfSpans;
     }

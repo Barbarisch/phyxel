@@ -13609,6 +13609,11 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"today_stream_off", voxFoundTodayStreamOff}};
             return;
         }
+        if (cmd.params.contains("span_edit_stub")) {   // F7.19 (tests): region edits leave the spans alone (the red)
+            voxFoundSpanEditStub = cmd.params["span_edit_stub"].get<bool>();
+            response = {{"span_edit_stub", voxFoundSpanEditStub}};
+            return;
+        }
         if (cmd.params.contains("span_store_stub")) {   // F7.18 (tests): the span store not used (the red)
             voxFoundSpanStoreStub = cmd.params["span_store_stub"].get<bool>();
             if (voxFoundWorldReads) voxFoundSpansFill();
@@ -13645,7 +13650,9 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"store_on", chunkManager && chunkManager->voxFoundSpansOn()}, {"store_chunks", storeChunks},
                         {"chunks_with_spans", withSpans}, {"spans", spans}, {"resident_in_both", both},
                         {"mismatch_vs_chunks", vsChunks}, {"mismatch_vs_generator", vsGen}, {"first_bad", firstBad},
-                        {"today_chunks_resident", chunkManager ? chunkManager->chunkMap.size() : 0}};
+                        {"today_chunks_resident", chunkManager ? chunkManager->chunkMap.size() : 0},
+                        {"edited_chunks", chunkManager ? chunkManager->voxFoundEditedSpans().size() : 0},
+                        {"loaded_edited", voxFoundSpansLoaded}, {"span_edit_cells", voxFoundSpanEditCells}};
             return;
         }
         if (cmd.params.contains("overlap_stub")) {   // F8.4 (tests): overlapping structures not cleared (the red)
@@ -13922,6 +13929,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                 const auto t0 = std::chrono::steady_clock::now();
                 loadReport = loadVoxFoundSaved(voxFoundSwitchLoadSaved);   // false: the stream cache only
                 if (voxFoundSwitchLoadSaved) voxFoundStructuresLoad();   // F8.4
+                voxFoundSpansLoadPending = voxFoundSwitchLoadSaved && !voxFoundSpansRestored;   // F7.19: once per switch-on (not per stream shift)
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
@@ -13930,6 +13938,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (!on && chunkManager && !voxFoundStreamSwapping) {   // F7.18: today's chunks hold the spans again
                 chunkManager->setVoxFoundSpansOn(false);
                 chunkManager->bumpWaterSpanRevision();
+                voxFoundSpansRestored = false;   // F7.19: the next switch-on reads the save again
             }
             if (chunkManager) {       // F7.13: the old-grid writers write the switched world
                 if (on && !voxFoundWriterStub)
@@ -14448,6 +14457,15 @@ void Application::handleVoxFoundSave(nlohmann::json& response) {
                         {"store_bytes", c.store.memoryBytes()}, {"encode_ms", ms(t0, t1)}});
     }
     ws->setMeta("voxfound_structures", voxFoundStructuresJson().dump());   // F8.4: the structure registry
+    if (chunkManager && chunkManager->voxFoundSpansOn()) {   // F7.19: the store's edited water spans
+        nlohmann::json sp = nlohmann::json::array();
+        for (const auto& [cc, l] : chunkManager->voxFoundEditedSpans()) {
+            nlohmann::json e = nlohmann::json::array();
+            for (const auto& s : l) e.push_back({s.x, s.z, s.bottom, s.top});
+            sp.push_back({{"c", {cc.x, cc.y, cc.z}}, {"s", e}});
+        }
+        ws->setMeta("voxfound_spans", sp.dump());
+    }
     size_t savedCache = 0;   // F7.9b: edited chunks outside the region (they left it while streaming)
     for (const auto& [k, blob] : voxFoundStreamCache) {
         const glm::ivec3 c(std::get<0>(k), std::get<1>(k), std::get<2>(k));
@@ -14578,6 +14596,7 @@ void Application::voxFoundLodMark(const Core::VoxFound::RegionEdit::Stats& st) {
         waterManager->syncSolidsBox({fd(st.boxLo.x), fd(st.boxLo.y), fd(st.boxLo.z)},
                                     {fd(st.boxHi.x), fd(st.boxHi.y), fd(st.boxHi.z)});
     }
+    voxFoundSpanEdit(st);   // F7.19: and the water spans (today's voxel-edit callback, which region edits never fire)
     if (voxFoundLodEditLevels <= 0 || voxFoundLodStub) return;
     for (size_t i : voxFoundEdit.chunksNear(st.boxLo, st.boxHi, Core::VoxFound::kVoxelsPerM)) voxFoundLodDirty.insert(i);
 }
@@ -15078,12 +15097,59 @@ void Application::voxFoundSpansFill() {
     }
     WorldGenerator* g = chunkManager->getStreamingGenerator();
     chunkManager->setVoxFoundSpansOn(true);
+    if (voxFoundSpansLoadPending) {   // F7.19: the saved edited spans first (the fill never overwrites an edited entry)
+        voxFoundSpansLoadPending = false;
+        voxFoundSpansRestored = true;
+        auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+        if (ws && ws->hasMeta("voxfound_spans")) {
+            try {
+                for (const auto& e : nlohmann::json::parse(ws->getMeta("voxfound_spans"))) {
+                    ChunkManager::WaterSpanList l;
+                    for (const auto& s : e.at("s"))
+                        l.push_back({s[0].get<uint8_t>(), s[1].get<uint8_t>(), s[2].get<float>(), s[3].get<float>()});
+                    chunkManager->restoreVoxFoundEditedSpans({e["c"][0].get<int>(), e["c"][1].get<int>(), e["c"][2].get<int>()},
+                                                             std::move(l));
+                    ++voxFoundSpansLoaded;
+                }
+            } catch (const std::exception& ex) {
+                LOG_WARN("VoxFound", std::string("voxfound_spans not read: ") + ex.what());
+            }
+        }
+    }
     for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
         const glm::ivec3 cc = voxFoundEdit.chunk(i).chunk;
         chunkManager->fillVoxFoundSpans(cc, g ? Phyxel::waterSpansForChunk(*g, cc) : ChunkManager::WaterSpanList{});
     }
     chunkManager->retainVoxFoundSpans(voxFoundEdit.chunkLo(), voxFoundEdit.chunkHi());
     chunkManager->bumpWaterSpanRevision();
+}
+
+// F7.19 (W2): a region edit's span edit -- today's voxel-edit callback runs applyWaterSpanEdit per edited cube; region
+// edits never fire it. Over the edit box's WET columns (a span in the store there), each 1 m cell is solid when >= 256
+// of its 512 voxels are (the half rule) and goes through applyWaterSpanEdit (a no-op where nothing changes).
+void Application::voxFoundSpanEdit(const Core::VoxFound::RegionEdit::Stats& st) {
+    if (!chunkManager || !chunkManager->voxFoundSpansOn() || !voxFoundWorldReads || voxFoundSpanEditStub) return;
+    if (st.boxLo.x > st.boxHi.x) return;
+    auto fd = [](int v) { return v >= 0 ? v / 8 : -((-v + 7) / 8); };
+    const glm::ivec3 lo(fd(st.boxLo.x), fd(st.boxLo.y), fd(st.boxLo.z)), hi(fd(st.boxHi.x), fd(st.boxHi.y), fd(st.boxHi.z));
+    std::set<std::pair<int, int>> wet;
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {
+        if (cc.x * 32 + 31 < lo.x || cc.x * 32 > hi.x || cc.z * 32 + 31 < lo.z || cc.z * 32 > hi.z) return;
+        for (const auto& s : l) {
+            const int x = cc.x * 32 + s.x, z = cc.z * 32 + s.z;
+            if (x >= lo.x && x <= hi.x && z >= lo.z && z <= hi.z) wet.insert({x, z});
+        }
+    });
+    // the cells a span edit can move: the box's y range, one cube below it (a dug bed lets the water down)
+    for (const auto& [x, z] : wet)
+        for (int y = lo.y - 1; y <= hi.y; ++y) {
+            int n = 0;
+            for (int a = 0; a < 8; ++a)
+                for (int b = 0; b < 8; ++b)
+                    for (int c = 0; c < 8; ++c) n += voxFoundEdit.voxelAt({x * 8 + a, y * 8 + b, z * 8 + c}) != 0;
+            applyWaterSpanEdit(x, y, z, n >= 256);
+            ++voxFoundSpanEditCells;
+        }
 }
 
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back
