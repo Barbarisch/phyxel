@@ -15433,6 +15433,23 @@ NOT checked: other poses / a moving camera (the clip's own moves).
   exchanges with the record at its edge (54.2's level-only ring columns: the lake fills the hole and the record debits the body) -
   a design step (`/design-check`), logged for item 5 (edges); not built.
 
+### 58.5 Item 4 (rivers): the "glaring issues" found in the clips (2026-11-22). Status: LISTED, one measured; none fixed yet
+
+Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame sheets + full frames at 14 s / 22.3 s):
+1. **The simulated reach drawn as black-and-white per-cell noise with a hard straight edge against the teal record river** (W5.2b and
+   W5.3, every frame the reach is in view: 2, 8, 14 s near-white glare; 32-44 s white sparkle). The worst - it reads as fake.
+   **Measured:** NOT the simulated heights - the reach rig (`ASimulatedReachCarriesTheRecordsRiver`, now printing its roughness):
+   grid-scale RMS **0.002 mm** (max 0.01), slope RMS 0.0002 over 8,748 interior sub-columns of a 0.58 m/s reach; foam is 0 on the
+   GPU surface (`wc_surface.comp`). So the noise is in the live draw path (the device-drawn surface over real terrain, the reach's
+   resolved look, or the W5.3 ripple layer on it - W5.2b predates the layer and shows it, so not the layer alone). Next: a live
+   capture of the reach with `debug/tonemap {curve:0}` and the surface's normal / look debug views, one quantity a capture (the
+   lighting doc's rule) - needs an idle GPU (the machine was in use).
+2. **The box edge:** a straight line where the reach meets the record (the reach box's edge) - the same class as 58.4's seam.
+3. **Hitches while flying the river:** 2-25 fps, the longest frames 420-520 ms around each reach make (the clips' captions) - item 1's
+   territory (a reach make is a wake).
+4. W5.2's dam: a black frame at 22.3 s on the sheet is a transient (the full frame at 22.3 s is clean) - not a defect.
+54.2's falling stored level (the owner: "idk" - the recommendation stands) is item 4's second half, not started.
+
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
 **Was: "0a. Where things stand, and what is next (2026-10-14)"**

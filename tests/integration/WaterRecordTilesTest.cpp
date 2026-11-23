@@ -2794,7 +2794,7 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagLakeRecorded) {
 // below it the speed falls under half the record's and the level stays within 5 cm of 2.000 (the outflow edge holds the level
 // only - amendment A1; a prescribed outflow would drain the pool).
 namespace {
-struct ReachRun { double flo = 0.0, midU = 0.0, levelWorst = 0.0, books = 0.0, exchange = 0.0, seeded = 0.0, upLevel = 0.0, downU = 0.0, downLevel = 0.0;
+struct ReachRun { double flo = 0.0, midU = 0.0, levelWorst = 0.0, books = 0.0, exchange = 0.0, seeded = 0.0, upLevel = 0.0, downU = 0.0, downLevel = 0.0, checkerMm = 0.0, slopeRms = 0.0, checkerMaxMm = 0.0; long roughCols = 0;
                   int inflow = 0, levelOnly = 0, columns = 0, worstX = 0, worstZ = 0; bool ok = false, overlapRefused = false, releasedNoSlept = false; std::string err; };
 }
 TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
@@ -2833,6 +2833,26 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
             return n ? s / n : 0.0;
         };
         out.midU = meanU(8, 15);
+        {   // 58 item 4 (the W5.3 clip's noise): the drawn surface's roughness - each sub-column's top against its 4 neighbours' mean
+            // (the grid-scale part) and the RMS slope, over the reach's interior (x 6..18 m, z 15..24 m)
+            double c2 = 0.0, s2 = 0.0; long n = 0;
+            for (const WaterSurfaceField* f : mgr.surfaceFields()) {
+                if (!f || f->source != rr.id) continue;
+                auto top = [&](int x, int z) { const auto& c = f->at(x, z); const int k = static_cast<int>(c.runs + 0.5f); return k > 0 ? c.top[k - 1] : std::numeric_limits<float>::quiet_NaN(); };
+                for (int z = 1; z + 1 < f->nz; ++z) for (int x = 1; x + 1 < f->nx; ++x) {
+                    const float wx = (f->origin.x + x + 0.5f) * f->h, wz = (f->origin.z + z + 0.5f) * f->h;
+                    if (wx < 6.0f || wx > 18.0f || wz < 15.0f || wz > 24.0f) continue;
+                    const float t = top(x, z), a = top(x - 1, z), b = top(x + 1, z), cz0 = top(x, z - 1), cz1 = top(x, z + 1);
+                    if (std::isnan(t) || std::isnan(a) || std::isnan(b) || std::isnan(cz0) || std::isnan(cz1)) continue;
+                    const double ck = t - 0.25 * (a + b + cz0 + cz1);
+                    const double sx = (b - a) / (2.0 * f->h), sz = (cz1 - cz0) / (2.0 * f->h);
+                    c2 += ck * ck; s2 += sx * sx + sz * sz; ++n;
+                    out.checkerMaxMm = std::max(out.checkerMaxMm, std::abs(ck) * 1000.0);
+                }
+            }
+            out.roughCols = n;
+            if (n) { out.checkerMm = std::sqrt(c2 / n) * 1000.0; out.slopeRms = std::sqrt(s2 / n); }
+        }
         for (const auto& c : mgr.probeColumns(0, 13, 23, 26))
             if (!std::isnan(c.surfaceY) && std::abs(static_cast<double>(c.surfaceY) - 2.0) > out.levelWorst) { out.levelWorst = std::abs(static_cast<double>(c.surfaceY) - 2.0); out.worstX = c.x; out.worstZ = c.z; }
         out.upLevel = meanLevel(8, 10);
@@ -2856,6 +2876,7 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
     std::printf("  reach: ring %d columns (%d inflow, %d level only); seeded %.3f m^3\n", g.columns, g.inflow, g.levelOnly, g.seeded);
     std::printf("  GREEN: mid u %.3f m/s (record 0.600); level worst %.1f mm (column %d, %d); exchanged %+.4f m^3; books %+.2e m^3 (the fills' remainders %+.2e)\n", g.midU, g.levelWorst * 1000.0, g.worstX, g.worstZ, g.exchange, g.books, g.flo);
     std::printf("  RED (no boundaries): mid u %.3f m/s\n", red.midU);
+    std::printf("  ROUGHNESS (58 item 4): %ld sub-columns, grid-scale RMS %.3f mm (max %.2f), slope RMS %.4f\n", g.roughCols, g.checkerMm, g.checkerMaxMm, g.slopeRms);
     std::printf("  DAM: level above it %.3f m (+%.3f); below it u %.3f m/s, level %.3f m; books %+.2e m^3\n", dam.upLevel, dam.upLevel - 2.0, dam.downU, dam.downLevel, dam.books);
     EXPECT_GT(g.inflow, 0); EXPECT_GT(g.levelOnly, 0);
     EXPECT_TRUE(g.overlapRefused) << "a reach over a live reach must be refused";
