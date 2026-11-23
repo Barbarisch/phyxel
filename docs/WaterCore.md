@@ -15450,8 +15450,14 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    1.18 mm / 0.041 with it on - the SIMULATED HEIGHTS are rough live, ~400x the flat rig. Narrowed in the rig, one variable at a
    time: a voxel bed (1 m shelves + scattered 1 m bumps) 0.030 mm / slope 0.0048 (15x the flat bed); + realtime stepping (async
    calls, as live) 0.031 - not it. Left: the live river's own geometry (shallow water over 1 m steps on a falling stage, its edges'
-   inflow / level-only mix) - physical chop over the steps or a grid-scale numerical mode, not yet told apart. Next: rebuild the live
-   reach's bed and stage in the rig (from `water_surface_dump` + the record) and split the roughness by distance to a bed step.
+   inflow / level-only mix) - physical chop over the steps or a grid-scale numerical mode, not yet told apart.
+   **Told apart live (`tools/water_reach_noise_split.py`, ripple layer off, 4 windows along the reach, 8,154 sub-columns):** NOT a
+   numerical odd-even mode - the checkerboard share |sum (-1)^(x+z) dev| / sum |dev| is **0.022** (a mode reads ~1). Broadband,
+   everywhere: **0.96 mm within 0.5 m of a bed step, 0.65 mm away from steps**; 0.97 mm in 0.5 m water, 0.69 mm in 1.5 m. The
+   flow's own texture over a voxel bed. What reads as fake is how it is DRAWN: ~4 % slopes at the 1/9 m cell under the sun's
+   specular, beside a record river drawn flat and dark - per-cell black / white glare with a hard edge. **The fix is a look call
+   (the owner's, from clips):** build both behind a switch (the owner's rule "test, do not ask feel") - e.g. the reach's drawn
+   normals filtered to a metre scale and faded toward its edges to the record's, against today's - and show the clip. Not built.
 2. **The box edge:** a straight line where the reach meets the record (the reach box's edge) - the same class as 58.4's seam.
 3. **Hitches while flying the river:** 2-25 fps, the longest frames 420-520 ms around each reach make (the clips' captions) - item 1's
    territory (a reach make is a wake).
