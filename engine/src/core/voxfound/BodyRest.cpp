@@ -398,8 +398,8 @@ std::vector<size_t> chooseBakes(const std::vector<SimBody>& bodies, glm::dvec3 p
     for (size_t i = 0; i < bodies.size(); ++i) {
         const SimBody& b = bodies[i];
         const double d = glm::length(b.pos - player);
-        if (!b.asleep) ++s.keptAwake;
-        else if (b.asleepTicks < p.restTicks) ++s.keptRecent;
+        if (!b.asleep && !p.includeAwake) ++s.keptAwake;
+        else if (b.asleep && b.asleepTicks < p.restTicks && !p.includeAwake) ++s.keptRecent;
         else if (d < p.keepRadiusM) ++s.keptNear;
         else elig.emplace_back(-d, i);
     }

@@ -13605,6 +13605,27 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("rapid_stub")) {   // F8.2 (tests): a new rig does not bake the previous one (the red)
+            voxFoundRapidStub = cmd.params["rapid_stub"].get<bool>();
+            response = {{"rapid_stub", voxFoundRapidStub}};
+            return;
+        }
+        if (cmd.params.value("last_break", false)) {   // F8.2: the last switched-world break's report
+            response = voxFoundLastBreak;
+            return;
+        }
+        if (cmd.params.value("census", false)) {   // F8.2: every material's voxel count over the region's stores
+            std::vector<uint64_t> n(256, 0);
+            for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+                const Core::VoxFound::VoxelGrid g = voxFoundEdit.dense(i);
+                for (uint8_t m : g.mat) ++n[m];
+            }
+            nlohmann::json byName = nlohmann::json::object();
+            for (size_t m = 1; m < 256; ++m)
+                if (n[m]) byName[m < voxFoundPalette.size() ? voxFoundPalette[m] : "id" + std::to_string(m)] = n[m];
+            response = {{"census", byName}, {"chunks", voxFoundEdit.chunkCount()}};
+            return;
+        }
         if (cmd.params.value("boot_status", false)) {   // F7.16
             response = {{"pending", voxFoundBootPending}, {"report", voxFoundBootReport},
                         {"configured", !voxFoundBootConfig.is_null()}};
@@ -15287,6 +15308,18 @@ void Application::voxFoundOccBump(const std::vector<size_t>& rebuiltChunks) {   
 bool Application::voxFoundWorldBreak(const glm::vec3& centre, float radius, float energy, const glm::vec3& dir,
                                      nlohmann::json* report) {
     if (!voxFoundWorldReads) return false;
+    // F8.2: a new world rig resets the body sim -- the previous rig's bodies (their voxels left the region at that break)
+    // are first stopped and baked back into the region, all of them (found: 100 rapid blasts lost 3.6 M voxels)
+    if (voxFoundBodiesLab.worldMode && !voxFoundRapidStub) {
+        Core::APICommand stop, bake;
+        nlohmann::json ignore;
+        stop.params = {{"run", false}};
+        handleVoxFoundBodies(stop, ignore);
+        bake.params = {{"bake_now", {{"budget", 0}, {"keep_m", 0.0}, {"rest_ticks", 0}, {"awake", true}}},
+                       {"status", true}, {"pen", false}};
+        handleVoxFoundBodies(bake, ignore);
+        voxFoundLastPrevBake = ignore;   // F8.2: what the pre-bake did (reported with the break)
+    }
     const glm::ivec3 hw(glm::floor(centre * float(Core::VoxFound::kVoxelsPerM)));
     const int side = std::clamp(int(std::ceil(std::max(8.0f, 4.0f * radius) * Core::VoxFound::kVoxelsPerM)), 16, 256);
     nlohmann::json body = {{"rig", "world"}, {"hit_world", {hw.x, hw.y, hw.z}}, {"window", {side, side, side}},
@@ -15296,7 +15329,15 @@ bool Application::voxFoundWorldBreak(const glm::vec3& centre, float radius, floa
     cmd.params = body;
     nlohmann::json r;
     handleVoxFoundBodies(cmd, r);
+    if (!voxFoundLastPrevBake.is_null()) {   // F8.2
+        r["prev_bake"] = {{"bodies", voxFoundLastPrevBake.value("bodies", -1)},
+                          {"rest", voxFoundLastPrevBake.value("rest", nlohmann::json())},
+                          {"error", voxFoundLastPrevBake.value("error", std::string())}};
+        voxFoundLastPrevBake = nullptr;
+    }
     if (report) *report = r;
+    voxFoundLastBreak = {{"prev_bake", r.value("prev_bake", nlohmann::json())}, {"bodies", r.value("bodies", -1)},
+                         {"error", r.value("error", std::string())}};   // F8.2
     if (r.contains("error")) return false;
     Core::APICommand rest;   // rest on, as the lab's live gates run it
     rest.params = {{"rest", {{"on", true}}}};

@@ -353,6 +353,9 @@ private:
     nlohmann::json voxFoundCanvasLog = nlohmann::json::array();   // F7.12: every new-store placement's result
     bool voxFoundWriterStub = false;                             // F7.13 (tests): the old-grid writers not routed
     bool voxFoundTreeStub = false;                               // F7.14 (tests): tree-matter reads not routed
+    nlohmann::json voxFoundLastPrevBake;                         // F8.2: the pre-bake's report
+    nlohmann::json voxFoundLastBreak;                            // F8.2
+    bool voxFoundRapidStub = false;                              // F8.2 (tests): a new world rig drops the previous bodies
     bool voxFoundWaterSyncStub = false;                          // F7.17 (tests): the water sim's resyncs skipped
     // F7.16: game.json world.voxfound -- the switched world as a boot mode
     nlohmann::json voxFoundBootConfig;   // the world block (type, seed, flora) + its "voxfound" object

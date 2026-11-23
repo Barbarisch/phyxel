@@ -63,6 +63,8 @@ struct RestParams {
     double keepRadiusM = 16.0;                // never bake within this of the player (tier knob)
     int restTicks = 60;                       // asleep at least this long ("recently moved" otherwise)
     size_t cap = 0;                           // F5.5c: at most this many bakes per pass (0 = no cap; tier knob)
+    bool includeAwake = false;                // F8.2: awake / recently moved bodies are eligible too (a rig being
+                                              // replaced bakes every body where it is)
     BakeParams bake;
 };
 

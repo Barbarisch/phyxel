@@ -910,6 +910,7 @@ void Application::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::js
         r.keepRadiusM = j.value("keep_m", r.keepRadiusM);
         r.restTicks = j.value("rest_ticks", r.restTicks);
         r.cap = j.value("cap", r.cap);   // F5.5c: bakes per pass (0 = no cap)
+        r.includeAwake = j.value("awake", false);   // F8.2: bake moving bodies too
         return r;
     };
     if (p.contains("rest")) {

@@ -45,3 +45,26 @@ TOOL: voxfound_preview {"census":true} -> every material's voxel count over the 
      (matter lost with every reset rig) -- the CONTROL; THE FIX: a new world rig first bakes the previous rig's bodies
      into the region (forced, budget 0); then R2 = 0 voxels lost per material.
   R3: the 100 blasts' apply_damage calls each <= 0.5 s; the whole run reported.
+F8.2 ADDENDUM (before the second fix): green run 1 (the pre-bake added) still lost 3,599,451 voxels: the pre-bake
+considered every body and baked NONE -- the rest policy never bakes awake / recently moved bodies (kept_awake 400 at
+0.3 s after a blast), even through bake_now. Second change: RestParams::includeAwake ({"awake":true}), used by the
+pre-bake: a rig about to be replaced bakes every body where it is.
+
+F8.2 RESULTS (2026-11-22; the prediction and its addendum untouched). Release; VoxFoundBoot booted switched. Evidence:
+voxfound_f82_live.jsonl; tools/voxfound_f82_live.py; tests/core/VoxFoundBodyRestTest.cpp (F82IncludeAwake...).
+Every artifact: WorldGenerator Perlin s7 + flora; blasts through DamageSystem (the F7.5 world rig).
+  CONTROL (the census tool only): R2 -- 100 blasts 0.2 s apart broke 3,673,267 voxels and the region LOST 3,599,377
+     (98 %: every reset rig dropped its unbaked bodies); R3 -- apply max 4.6 s, 31 calls over 0.5 s.
+  GREEN run 1 (the pre-bake, kept and labelled): R3 fixed, R2 unchanged -- the pre-bake baked 0 (awake bodies never
+     eligible). Run 2 (includeAwake) is the record:
+  R2 MISSED exact, fixed in the large: 4,441,490 voxels broken, 24,412 lost (0.55 %), all of it the per-blast residual
+     R1 shows on its own: one blast + a forced bake loses 271 voxels (Dirt 82, Grass 189) with every body baked
+     (313 / 313).
+  R1 MISSED (found, not fixed -- time-boxed): the residual is the CRUMBS. They become rubble units in the lab's world;
+     the region holds rubble only through F6.5's display rule (a cell at >= half fill is drawn as a full voxel, below as
+     nothing); nothing writes rubble back as whole voxels when a rig ends. The region's store is binary per voxel, so
+     partial rubble cannot be kept there. F7.5's W1 measured the LAB's ledger, never the region's census -- it could not
+     see this. Lever: on a rig's end, settle each material's rubble units into whole voxels (floor(units / 256), the
+     most-filled cells first), conserving to under one voxel per material per blast; or a fill channel in the store.
+  R3 PASS: the 100 apply_damage calls median 0.29 s, max 0.40 s, 0 over 0.5 s.
+  Unit: VoxFoundBodyRest.F82IncludeAwakeMakesEveryBodyEligible + the R2 policy test: 2 / 2.

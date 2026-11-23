@@ -800,3 +800,29 @@ TEST(VoxFoundBodyRest, F55cRegionEditEqualsFullRebuild) {
         EXPECT_LE(perPass.empty() ? 0.0 : perPass.back(), 3.0) << "H4 per pass";
     }
 }
+
+// F8.2: a rig about to be replaced bakes every body, awake or recently moved included (includeAwake)
+TEST(VoxFoundBodyRest, F82IncludeAwakeMakesEveryBodyEligible) {
+    const auto mats = labMaterials();
+    std::vector<SimBody> bodies;
+    for (int i = 0; i < 4; ++i) {
+        SimBody s;
+        s.src = lBody({0, 0, 0}, mats);
+        s.pos = glm::dvec3(10.0 * (i + 1), 0.0, 0.0);
+        s.asleep = i >= 2;          // two awake, two asleep
+        s.asleepTicks = i == 2 ? 5 : 100;   // one of the sleepers recently moved
+        bodies.push_back(s);
+    }
+    RestParams p;
+    p.budget = 0;
+    p.keepRadiusM = 0.0;
+    p.restTicks = 60;
+    RestStats st;
+    EXPECT_EQ(chooseBakes(bodies, glm::dvec3(0.0), p, &st), (std::vector<size_t>{3}));   // only the settled one
+    EXPECT_EQ(st.keptAwake, 2u);
+    EXPECT_EQ(st.keptRecent, 1u);
+    p.includeAwake = true;
+    RestStats st2;
+    EXPECT_EQ(chooseBakes(bodies, glm::dvec3(0.0), p, &st2), (std::vector<size_t>{3, 2, 1, 0}));   // all, farthest first
+    EXPECT_EQ(st2.keptAwake + st2.keptRecent, 0u);
+}
