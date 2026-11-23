@@ -1706,3 +1706,15 @@ D3a RESULTS (2026-11-23; the prediction above untouched). Release. Raw: voxfound
      tree_oak 388, barony_fountain 291 (438 tints dropped -- the imported pack's colours are tints; recorded: imported
      assets lose their tint colouring on the 1/8 m grid until the palette carries colour or they are regenerated).
 D3a DONE: every non-item template reaches the switched world; a 1/8 m version wins when it exists.
+
+D3-core PREDICTION, part 1 -- the switched world moves into phyxel_core (2026-11-23; the move built, NOT yet run).
+Mechanical move: Application's switched-world members (247 declaration lines) and methods (3,515 lines:
+handleVoxFoundPreview .. handleVoxFoundRegion) + the bodies lab (VoxFoundBodiesLab.cpp, 1,236 lines) are now
+Phyxel::VoxFoundWorld (engine/{include,src}/core/voxfound/VoxFoundWorld*), text unchanged except Application:: ->
+VoxFoundWorld::; the host subsystems are same-named pointers bound every frame and before API commands (vfwBind);
+the editor reaches it through `vfw->` (53 references rewritten). No behaviour change is intended.
+  M1: the F7.26 battery is unchanged -- G1 census diff {} / {}, 0 lost, max apply <= 0.5 s; G2 12 / 12 exact and
+      standable, T3 0; G3 nav both ways at 8; G4 20 pieces, 0 refused; today's resident chunks 0 throughout.
+  M2: the six projects boot by default exactly as D2 (switched, 0 of today's chunks, stored_check 0).
+  M3: the unit suite's switched-world tests unchanged (they link phyxel_core).
+Part 2 (next): GameShell hosts VoxFoundWorld -- a packaged game boots switched.
