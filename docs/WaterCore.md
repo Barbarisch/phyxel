@@ -15557,6 +15557,36 @@ location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py -
   round it median 9.0 / max 55 mm; OFF 0.0 (`a4_bow_measure.json`). The clip remade: **`sweep_a4_wade_v2_side_by_side.mp4`**
   (off / on; mass 19.2000007 -> 19.2000007 m^3 both) - the water round the wader disturbed and droplets thrown on the right.
 
+### 58.11 Items 2 / 4 / 5 are one problem: a live volume's edge against the record. The shared design (2026-11-23). Status: DESIGNED (`/design-check` READY), not built
+
+**The three seams, measured above:** a patch that gained or lost water (58.4: 1 cm, a dug hole), a river reach's inflow edge
+(58.5: 0.12 m live, 15-25 mm in the rig; four fixes tried and reverted - friction n, the inflow head, the level hold, the discharge
+reasoning), the shore band's side edges in the surf zone (58.9: 16 cm; the hold reverted). In every one the volume's physics is
+right and the record beside it is a different model of the same water (a stored level, its stored current) - no edge rule inside
+the volume can make two models agree: the step only moves. **What closes it is the record's DRAWN surface adapting to the volume
+near its edge** (the record's stored water untouched - the books never move).
+
+**Design - the edge blend (draw only):**
+1. Every live volume that borders recorded water (a patch, a reach, a shore band) publishes, each call, its **edge profile**: per
+   box-side cell the drawn surface top of its outermost wet column (already in its surface field; 4 x side length floats, a
+   few KB a volume).
+2. A record tile's drawn vertex within **M** metres of a live box side (M default 3 m; outside every box) is lifted by
+   `w(d) x (edge top at the nearest side point - the record's top there)`, `w(d) = smoothstep(M, 0, d)` - 1 at the box edge, 0 at M.
+   The blend happens in `water_surface.vert` / the pull path from a small `EdgeProfiles` buffer (box, side, offset, n, tops) -
+   the record's mesh is NOT rebuilt per frame (it stays static; the lift is a vertex-shader term like the sea's swell, 55.5's
+   pattern).
+3. The volume's own drawn edge is unchanged; the record meets it exactly at d = 0 and returns to its own level by d = M. A
+   waterline corner (q = 0 rule) blends too - the surf zone's swash then runs out over the record's last metres.
+4. **Chunk independence:** a pure function of world position, the live boxes and their edge tops (world state); no chunk enters.
+   Test: the lift at a point computed from any tile drawing it is the same (tile seams: the two tiles' corners equal).
+5. **API:** `water_edge_blend {on, m (0-8)}` echoed with the profiles published; default ON once the owner has seen it.
+6. **Tests (red first):** (a) the 58.4 patch rig with a hole under it (the level 1 cm low): the drawn step at the box edge
+   <= 2 mm with the blend, ~10 mm without (RED); (b) the reach rig: the drawn surface across its inflow edge continuous within
+   2 mm (RED: 15-25 mm); (c) `TheSwellMeetsTheBandWithNoStep`'s waterline corners: <= 2 cm (RED 15.9 cm) with the open water
+   still <= 2 cm; (d) the record's books unchanged to the bit (draw only); (e) tile seams equal. L4: the three clips again.
+7. **Tiers:** a vertex term on record tiles near a live box (a few thousand vertices); M is the knob. No outcome changes (draw).
+**Verdict: READY.** It replaces the per-seam attempts of 58.4 / 58.5 / 58.9 with one mechanism.
+
 ### 58.10 Item 1, where the first second goes now (2026-11-23). Status: MEASURED; the gate NOT met
 
 Idle GPU (2 %). `s58_windows_now.json` (the 57.6 Creek rig, 2 runs): the worst frames 108 / 119 ms at ~2 s are the host WAITING on
