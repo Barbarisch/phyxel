@@ -17,7 +17,7 @@ INTEGRATION (phyxel_integration_tests): 247 tests in 25 suites, 1,161 s. 240 pas
   WaterCoreGpuParityTest.GpuFlipBulkParityAndRunup -- run-up 1.19 h0 vs > 1.22: the documented OPEN parity row
     (WaterCore.md: the splash is the most solver-sensitive quantity); the water core, untouched here.
   WaterTallCellTest.ShortWaveMatchesAllFineAndTheBooksAreExact -- eta3 ratio 0.114 off vs <= 0.10; the water core's
-    solver, untouched here (re-run alone: still fails -- recorded as not this work's, not investigated).
+    solver, untouched here (re-run in a 5-test filter, not alone: still fails -- recorded as not this work's, not investigated).
   VoxFoundBodySimGpu.F55bGpuRestConservesAndReloads and F55mPrimalSplit -- fail in the suite, PASS alone (re-run:
     2.4 s / 8.5 s): order / GPU-load sensitive (the lab's GPU solver shares the device with the suite's earlier
     GPU tests).
