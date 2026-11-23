@@ -3204,8 +3204,10 @@ Each is a port of its own; F8 does not depend on them and goes next.
 and save / reload exact; 0.12 ms per edit. F8.2: 100 rapid breaks lost 98 % of the broken matter (each new rig dropped
 the last one's bodies) -- fixed: a new rig bakes the previous one's bodies (awake ones included) and settles its rubble
 into whole voxels; now exact per material (4.4 M voxels broken, 0 lost), <= 0.45 s per break. F8.3: a 12-house town by
-the settlement generator, every house exact, today's world untouched; standability 6/12 -- lots over earlier saved
-buildings stack on their roofs (overlap handling on the switched world owed).
+the settlement generator, every house exact, today's world untouched. Standability: the first run's 6/12 was NOT
+overlap (that guess was wrong) -- the sink seated each house on its footprint's HIGHEST ground, floating houses 10 m on
+slopes; fixed (median seat + a Dirt foundation, the old pad's rule). The re-run's 4/12 is a different defect: probe
+characters spawned in rows 1-2 are displaced ~21 m right after spawn (cause open, owed).
 
 ## 10. Performance tiers
 

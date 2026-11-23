@@ -73,7 +73,12 @@ def main():
         ry = (e.get("position") or {}).get("y")
         pk = call("POST", P, {"pick": {"origin": [cx, (ry or 0) + 0.3, cz], "dir": [0, -1, 0], "max_m": 3, "size": 8}}).get("voxel")
         surf = (pk[1] + 1) / 8 if pk else None
-        t2.append({"house": i, "floor_m": fy / 8, "rest_y": ry, "surface_below": surf,
+        runs, prev = [], False   # the region's solid runs at the drop column (tops, in voxels / 8)
+        for vy in range(int((ry or 0) * 8) + 16, int((ry or 0) * 8) - 24, -1):
+            s_ = call("POST", P, {"pick": {"origin": [cx, (vy + 0.5) / 8, cz], "dir": [0, -1, 0], "max_m": 0.06, "size": 8}}).get("voxel")
+            if s_ and not prev: runs.append((vy + 1) / 8)
+            prev = bool(s_)
+        t2.append({"house": i, "floor_m": fy / 8, "rest_y": ry, "surface_below": surf, "runs_m": runs[:4],
                    "on_surface": surf is not None and ry is not None and abs(ry - surf) <= 0.125})
         call("POST", "/api/entity/remove", {"id": pid})
     out["T2"] = {"on_a_surface": sum(1 for x in t2 if x["on_surface"]), "of": len(t2), "drops": t2}

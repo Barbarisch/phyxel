@@ -117,3 +117,25 @@ SettlementBuildService (4 x 3 plots, 104 x 84 m) + StructureForge's 1/8 m shells
 CONCLUSION F8: 1,000 edits / breaks across chunk borders exact at every check (F8.1); 100 rapid breaks conserve every
 material exactly after two defects were fixed (F8.2); a 12-house town lands exact and leaves today's world untouched,
 with standability failing where lots overlap earlier buildings (F8.3, owed).
+
+F8.3 ADDENDUM (the T2 diagnosis -- the "likely cause" above was WRONG): a re-build of the same town with each house's
+solid runs read at its centre (scratchpad f83_diag.py): house 4's runs are its roof (top 41), an inner run (36), its
+floor slab (33) -- then AIR down to the ground (23): the house floats ~10 m above the ground. Same for houses 5 / 9 /
+11. Cause: F7.11's sink seats the floor on the HIGHEST non-vegetation voxel under the footprint; on a slope one high
+column lifts the whole house (the old pipeline levels a pad to the MEDIAN top: StructureGenerator::planPadLevel).
+THE FIX (then T2 re-run): seat at the median ground top under the footprint; fill each footprint column with Dirt from
+its ground up to the shell's lowest cell (a foundation); the cut above the floor stays. Predicted: T2 >= 11 / 12 on a
+surface (the drops at the room centres; a fixture-like shell feature may still catch one).
+
+F8.3 RE-RUN RESULTS (after the addendum's fix; runs kept in voxfound_f83_live.jsonl):
+  run 2 (median seat + Dirt foundation): no house floats (floors 21.0-23.75 m) -- but 214 read-back mismatches: the
+     foundation Dirt and the tree clears wrote the same cells (duplicates). Fixed: one decision per cell, the first wins
+     (the shell, then the foundation, then the clears).
+  run 3 (the record): T1 PASS 12 / 12 placements, 0 mismatches, 0 clipped; T3 PASS 0 / 504; T4 job 14.2 s, worst frame
+     3.6 s. T2 MISSED 4 / 12, and the probe is now the finding: the 4 row-0 drops rest exactly on their floors; the 8
+     drops in rows 1-2 report the row-0 floors' heights because the characters are DISPLACED right after spawn -- a
+     probe spawned at house 7's centre (z 213.24, the spawn response's position) stood at z 191.75 within 0.02 s of the
+     first read, just outside the row-0 house's wall, ~21 m away, and stayed there (12 reads over 3 s). Not walking (no
+     motion after), not the spawn gate (the response reported no relocation), not phantom solids (the physics world =
+     the region at 10 heights over the floor: 10 / 10). Cause NOT found (time-boxed); owed: trace the character's first
+     frames on the switched world (the controller's kinematic resolve / any old-world read in its first update).

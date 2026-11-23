@@ -14797,18 +14797,25 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
     std::vector<char> vegetation(256, 0);
     for (size_t m = 1; m < voxFoundPalette.size() && m < 256; ++m)
         vegetation[m] = voxFoundPalette[m].rfind("Leaf", 0) == 0 || voxFoundPalette[m].rfind("Log", 0) == 0;
-    int groundTop = std::numeric_limits<int>::min();
+    // F8.3: the floor seats at the MEDIAN ground top under the footprint (the old pipeline's pad level,
+    // StructureGenerator::planPadLevel) -- the highest top floated houses 10 m over a slope; each column is then filled
+    // up to the shell's lowest cell (a foundation) and cut above the floor (the excavation below)
+    std::map<std::pair<int, int>, int> colTop;
     std::set<std::pair<int, int>> cols;
     for (const glm::ivec3& c : occ) cols.insert({c.x, c.z});
+    std::vector<int> tops;
     for (const auto& [x, z] : cols)
         for (int y = 160 * kVoxelsPerM; y > -64 * kVoxelsPerM; --y) {   // the region's column, from 160 m down
             const uint8_t m = voxFoundEdit.voxelAt({ox8 + x, y, oz8 + z});
             if (m && !vegetation[m]) {
-                groundTop = std::max(groundTop, y);
+                colTop[{x, z}] = y;
+                tops.push_back(y);
                 break;
             }
         }
-    if (groundTop == std::numeric_limits<int>::min()) return {{"success", false}, {"error", "no ground under the footprint"}};
+    if (tops.empty()) return {{"success", false}, {"error", "no ground under the footprint"}};
+    std::nth_element(tops.begin(), tops.begin() + tops.size() / 2, tops.end());
+    const int groundTop = tops[tops.size() / 2];
     const glm::ivec3 origin(ox8, groundTop + 1 - floorTopCell, oz8);
     std::vector<std::pair<glm::ivec3, uint8_t>> cells;
     voxFoundLastCanvasCells.clear();
@@ -14824,6 +14831,27 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
         }
         cells.push_back({origin + c, it->second});
         voxFoundLastCanvasCells.insert({origin.x + c.x, origin.y + c.y, origin.z + c.z});
+    }
+    size_t foundation = 0;   // F8.3: each footprint column filled from its ground to the shell's lowest cell
+    {
+        std::string ferr;
+        const int dirt = voxFoundMaterial("Dirt", &ferr);
+        std::map<std::pair<int, int>, int> colLow;   // the shell's lowest cell per column (world voxel)
+        for (const glm::ivec3& c : occ) {
+            auto it = colLow.find({c.x, c.z});
+            const int y = origin.y + c.y;
+            if (it == colLow.end() || y < it->second) colLow[{c.x, c.z}] = y;
+        }
+        for (const auto& [xz, low] : colLow) {
+            auto t = colTop.find(xz);
+            if (t == colTop.end() || dirt < 0) continue;
+            for (int y = t->second + 1; y < low; ++y) {
+                const glm::ivec3 w(ox8 + xz.first, y, oz8 + xz.second);
+                if (voxFoundLastCanvasCells.count({w.x, w.y, w.z})) continue;
+                cells.push_back({w, uint8_t(dirt)});
+                ++foundation;
+            }
+        }
     }
     size_t clearedTrees = 0;   // tree matter in the footprint columns from the floor up (above the canvas box too)
     for (int x = clo.x; x <= chi.x; ++x)
@@ -14845,6 +14873,14 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
                 cells.push_back({w, uint8_t(0)});
                 ++excavated;
             }
+    {   // F8.3: one decision per cell, the first wins (the shell, then the foundation, then the clears)
+        std::set<std::tuple<int, int, int>> seen;
+        std::vector<std::pair<glm::ivec3, uint8_t>> once;
+        once.reserve(cells.size());
+        for (const auto& c : cells)
+            if (seen.insert({c.first.x, c.first.y, c.first.z}).second) once.push_back(c);
+        cells.swap(once);
+    }
     nlohmann::json r = voxFoundPaintCells("build_structure", cells);
     r["success"] = r.value("error", std::string()).empty() && r.value("verify_bad", size_t(1)) == 0;
     if (r.value("error", std::string()).empty()) r.erase("error");   // F7.12: callers read any "error" key as a refusal
@@ -14852,6 +14888,7 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
     r["canvas_cells"] = occ.size();
     r["excavated"] = excavated;
     r["cleared_tree_voxels"] = clearedTrees;
+    r["foundation_voxels"] = foundation;   // F8.3
     r["floor_y_voxel"] = groundTop + 1;
     r["origin"] = {origin.x, origin.y, origin.z};
     nlohmann::json logged = r;   // F7.12: kept for struct_log (without the bulky samples)
