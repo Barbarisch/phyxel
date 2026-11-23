@@ -1416,3 +1416,17 @@ Live, VoxFoundBoot, the furnished hall house (as F7.21b):
       0 seat points in the house.
   E2: every seat point lies within 0.25 m (horizontally) of its piece's painted voxels and above the floor.
   E3: a furnished house built over it removes its fixtures (0 of the first's ids remain).
+
+F7.21e RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot on the restored boot DB (restored
+again afterwards); tools/voxfound_f721e_live.py, raw voxfound_f721e_live.jsonl. Every artifact: StructureForge
+hall_house + the 1/8 m furniture library + PlacedObjectManager fixture records with the templates' interaction
+definitions, on WorldGenerator Perlin s7 + flora.
+  CONTROL / RED (fixture_stub): 0 fixture records, 0 seat points.
+  E1 PASS: 20 fixture records, 6 seat points (bench 2, chair 3, stool 1).
+  E2 PASS: every seat point within 0.222 m (horizontally) of its piece's painted box -- the authored approach offset
+     (2/9 m on the 1/9 m template) -- and 0.444 m above the floor (the authored 4/9 m seat height); stated: the 1/8 m
+     piece's own seat surface may differ from that by up to 1/8 m.
+  E3 PASS: the overlapping furnished house removed all 20 fixture records (0 of the first's ids remain; with its 4
+     lights and 4 props).
+  Regression (remove() skips the world for "fixture" as for "item"): *PlacedObject* / *Interaction* / *Seat* /
+     *Furnish* / *Furniture* / *Structure* / *Building* / *ItemProp*: 324 pass, 4 skipped.

@@ -799,6 +799,25 @@ std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateN
     return id;
 }
 
+std::string PlacedObjectManager::registerFixture(const std::string& templateName, const glm::vec3& anchorWorld,
+                                                  int rotation, const glm::ivec3& bboxMin, const glm::ivec3& bboxMax) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string id = generateId(templateName);
+    PlacedObject obj;
+    obj.id = id;
+    obj.templateName = templateName;
+    obj.category = "fixture";
+    obj.position = glm::ivec3(glm::floor(anchorWorld));
+    obj.rotation = rotation;
+    obj.boundingMin = bboxMin;
+    obj.boundingMax = bboxMax;
+    obj.createdAt = std::chrono::system_clock::now();
+    if (auto defsIt = m_templateDefs.find(templateName); defsIt != m_templateDefs.end())
+        obj.interactionPoints = computeInteractionPointsAt(defsIt->second, anchorWorld, rotation);
+    insertObjectLocked(std::move(obj));
+    return id;
+}
+
 std::string PlacedObjectManager::registerStructure(const std::string& typeName,
                                                     const glm::ivec3& position, int rotation,
                                                     const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
@@ -936,7 +955,7 @@ bool PlacedObjectManager::remove(const std::string& idOrUuid) {
         const PlacedObject& obj = removeIt->second;
         // Item props are never baked into chunks — clearing their bbox would
         // carve air out of whatever terrain the prop rests on.
-        if (obj.category != "item") {
+        if (obj.category != "item" && obj.category != "fixture") {   // F7.21e: a fixture owns no voxels
             // ERASE AT THE RESOLUTION IT WAS PLACED AT. A micro-placed fixture is
             // undone by re-rasterizing its template at the recorded pose and removing
             // exactly those cells. Falling back to clearRegion deletes whole CUBES

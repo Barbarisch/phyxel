@@ -254,6 +254,37 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
                     }
                 }
                 furnished["props"] = props;
+                // F7.21e: every painted piece as a FIXTURE record -- its template's interaction points (seats, beds,
+                // ...) at the piece's 1/8 m anchor; the voxels stay the world's
+                nlohmann::json fixtures = nlohmann::json::array();
+                size_t seatPoints = 0;
+                if (out.value("success", false) && out.contains("origin") && ctx.deps.placedObjects && !ctx.deps.canvasFixtureStub) {
+                    const glm::ivec3 o(out["origin"][0].get<int>(), out["origin"][1].get<int>(), out["origin"][2].get<int>());
+                    for (const auto& pc : furnished["pieces"]) {
+                        const std::string tmpl = FurnitureCatalog::templateFor(pc["type"].get<std::string>());
+                        if (tmpl.empty()) continue;
+                        const glm::ivec3 c = o + glm::ivec3(pc["cell"][0].get<int>(), pc["cell"][1].get<int>(),
+                                                            pc["cell"][2].get<int>());
+                        const glm::vec3 anchor = glm::vec3(c) / 8.0f;
+                        const std::string fid = ctx.deps.placedObjects->registerFixture(
+                            tmpl, anchor, pc["rotation"].get<int>(), glm::ivec3(glm::floor(anchor)),
+                            glm::ivec3(glm::floor(anchor)) + glm::ivec3(1));
+                        size_t pts = 0;
+                        nlohmann::json seats = nlohmann::json::array();
+                        if (const auto* po = ctx.deps.placedObjects->get(fid))
+                            for (const auto& ip : po->interactionPoints) {
+                                ++pts;
+                                if (ip.type == "seat") {
+                                    ++seatPoints;
+                                    seats.push_back({ip.worldPos.x, ip.worldPos.y, ip.worldPos.z});
+                                }
+                            }
+                        fixtures.push_back({{"id", fid}, {"type", pc["type"]}, {"template", tmpl}, {"points", pts},
+                                            {"seats", seats}, {"cell", pc["cell"]}, {"ext", pc["ext"]}});
+                    }
+                }
+                furnished["fixtures"] = fixtures;
+                furnished["seat_points"] = seatPoints;
                 out["furnish_grid8"] = furnished;
             }
             gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
@@ -375,7 +406,8 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
             voxels += put;
             refusedCells += refused;
             pieces.push_back({{"type", pl.type}, {"room", pl.room}, {"story", si}, {"cell", {a.x, a.y, a.z}},
-                              {"rotation", pl.rotation}, {"voxels", put}, {"refused_cells", refused}});
+                              {"rotation", pl.rotation}, {"voxels", put}, {"refused_cells", refused},
+                              {"ext", {turned ? fp.microD + 1 : fp.microW + 1, fp.microH, turned ? fp.microW + 1 : fp.microD + 1}}});
             if (FurniturePlacer::emitterFor(pl.type).emits)   // F7.21c: its light, registered after the sink
                 emitters.push_back({{"type", pl.type}, {"room", pl.room}, {"cell", {a.x, a.y, a.z}}, {"exact", false}});
             // F7.21d: tables / counters / bars carry item props (as today's stageFurnish), spawned after the sink

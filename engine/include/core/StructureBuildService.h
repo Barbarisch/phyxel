@@ -73,6 +73,7 @@ public:
         /// (F7.21a) with the 1/8 m furniture library (resources/templates_g8/furniture) painted into the canvas
         /// (never over a shell cell). Items, lights, signage and nav are not in this stage yet (stated in the reply).
         bool canvasFurnish = false;
+        bool canvasFixtureStub = false;   ///< F7.21e (tests): no fixture records (the red)
     };
 
     /// Full v2 build from build_structure params (expects footprint/stories/...;

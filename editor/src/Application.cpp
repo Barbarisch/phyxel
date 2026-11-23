@@ -14945,8 +14945,13 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
             if (itemPropManager)
                 for (const auto& p : st.props)
                     if (itemPropManager->removeProp(p.get<std::string>())) ++propsRemoved;
+            size_t fixturesRemoved = 0;   // F7.21e: and its fixture records (they own no voxels)
+            if (placedObjectManager)
+                for (const auto& f : st.fixtures)
+                    if (placedObjectManager->remove(f.get<std::string>())) ++fixturesRemoved;
             overlapsCleared.push_back({{"id", st.id}, {"voxels", cr.value("voxels_changed", size_t(0))},
-                                       {"lights_removed", lightsRemoved}, {"props_removed", propsRemoved}});
+                                       {"lights_removed", lightsRemoved}, {"props_removed", propsRemoved},
+                                       {"fixtures_removed", fixturesRemoved}});
         }
         voxFoundStructures.swap(keep);
     }
@@ -15200,7 +15205,7 @@ nlohmann::json Application::voxFoundStructuresJson() const {
     nlohmann::json a = nlohmann::json::array();
     for (const auto& s : voxFoundStructures)
         a.push_back({{"id", s.id}, {"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"floor", s.floor},
-                     {"lights", s.lights}, {"props", s.props}});
+                     {"lights", s.lights}, {"props", s.props}, {"fixtures", s.fixtures}});
     return {{"next", voxFoundStructureNext}, {"structures", a}};
 }
 void Application::voxFoundStructuresLoad() {
@@ -15227,6 +15232,7 @@ void Application::voxFoundStructuresLoad() {
                     s.lights.push_back(r);
                 }
             if (e.contains("props")) s.props = e["props"];   // F7.21d: placed-object ids (the props persist themselves)
+            if (e.contains("fixtures")) s.fixtures = e["fixtures"];   // F7.21e
             voxFoundStructures.push_back(s);
         }
         voxFoundStructureNext = j.value("next", int(voxFoundStructures.size()) + 1);
@@ -22689,6 +22695,7 @@ void Application::processAPICommands() {
                             return voxFoundPlaceCanvas(c, floorTop, ox, oz);
                         };
                         deps.canvasFurnish = cmd.params.value("furnish", false);
+                        deps.canvasFixtureStub = cmd.params.value("fixture_stub", false);   // F7.21e (tests)
                     }
                     const std::string stype = cmd.params.value("type", std::string());
                     if (cmd.params.value("schema", std::string()) == "v2") {
@@ -22716,9 +22723,12 @@ void Application::processAPICommands() {
                         voxFoundStructureAttachLights(response["structure_id"].get<int>(),
                                                       response["furnish_grid8"].value("lights", nlohmann::json::array()));
                         for (auto& s : voxFoundStructures)   // F7.21d: and its item props (ids of placed objects)
-                            if (s.id == response["structure_id"].get<int>())
+                            if (s.id == response["structure_id"].get<int>()) {
                                 for (const auto& p : response["furnish_grid8"].value("props", nlohmann::json::array()))
                                     if (!p.value("id", std::string()).empty()) s.props.push_back(p["id"]);
+                                for (const auto& f : response["furnish_grid8"].value("fixtures", nlohmann::json::array()))
+                                    if (!f.value("id", std::string()).empty()) s.fixtures.push_back(f["id"]);   // F7.21e
+                            }
                     }
                 }
 

@@ -707,8 +707,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       the span edit; edited spans saved / loaded).
       NEXT (owed, in order): the
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into
-      the shell on the sink path; F7.21c lights + F7.21d item props (registry-owned, saved); owed signage, nav,
-      sit/interact metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
+      the shell on the sink path; F7.21c lights + F7.21d item props + F7.21e fixture records with seats
+      (registry-owned); owed signage; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate); bridges DONE F7.23 (grading
       F7.20); API units DONE F7.24 (batch / copy / paste / move / snapshots on the switched world), items' snap DONE F7.25 (the
       LOD template chain: not used inside the region -- the far tier is a question for the switch), items / LOD

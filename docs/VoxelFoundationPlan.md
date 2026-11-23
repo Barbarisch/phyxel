@@ -3214,8 +3214,8 @@ on the switched world furnishes the exact 1/8 m shell from the 1/8 m library (20
 the shell, read-back exact, the hearth left to the shell as today). **F7.21c:** their lights (fixtures + hearths, today's
 positions) registered, owned by the structure registry: saved, restored at the boot, removed with an overlapped
 structure. **F7.21d:** item props on the tables / counters / bars (placeSurfaceItems on 1/8 m template boxes; the 1/9 m
-path byte-identical), resting on the measured tops, owned by the registry, persisted. Owed: signage, nav, sit /
-interact metadata.
+path byte-identical), resting on the measured tops, owned by the registry, persisted. **F7.21e:** every painted piece
+has a fixture record carrying its template's interaction points (seats ...), owned by the registry. Owed: signage.
 
 **F7.22, nav agent units (2026-11-22).** NavGraph's micro grid is a parameter (9 today; 8 on the switched world, reading
 the 1/8 m voxels directly), the agent converted per grid (needs round up, tolerances down). A 1.875 m door and a 0.5 m

@@ -260,6 +260,13 @@ public:
                                   int rotation, const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
                                   const std::string& parentId = "");
 
+    /// docs/VoxelFoundationPlan.md F7.21e: a FIXTURE record (category "fixture") for a piece whose voxels are already in
+    /// the world (the switched world's 1/8 m furnish paints them): no voxels of its own -- remove() never clears the
+    /// world for it -- and the template definitions' interaction points (seats, ...) anchored at `anchorWorld` (the
+    /// piece's min corner in metres) with `rotation`.
+    std::string registerFixture(const std::string& templateName, const glm::vec3& anchorWorld, int rotation,
+                                const glm::ivec3& bboxMin, const glm::ivec3& bboxMax);
+
     /// Register a world item prop (category "item"): a holdable item lying in the
     /// world. Item props are NEVER baked into chunks — they render as kinematic
     /// voxel groups owned by ItemPropManager — so remove() does not clear voxels
