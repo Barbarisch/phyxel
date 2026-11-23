@@ -161,6 +161,9 @@ public:
                                       // threshold): the surface voxel is emitted as a 2/3 subcube
                                       // shelf so the creek rests in a 1/3-voxel recess
                                       // (water-as-terrain-stage P2)
+        bool  graded       = false;   // F7.20: road grading moved this column's surface (dry columns only)
+        float gradedHeight = 0.0f;    // F7.20: the graded CONTINUOUS ground ((gradeY + 0.5) w + bedHeight (1 - w)) -- the
+                                      // 1/8 m terrain's ground where graded; bedHeight (the water's bed) is left alone
         int   roadClass   = 0;        // WorldForge road here (1 track/2 road/3 highway; 0 = none) —
                                       // the riverOrder pattern: pure function of world position via
                                       // the baked plan; drives surface material + the flora gate

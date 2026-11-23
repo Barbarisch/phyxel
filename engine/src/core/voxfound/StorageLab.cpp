@@ -28,8 +28,14 @@ namespace Phyxel::Core::VoxFound {
 
 namespace {
 std::atomic<bool> g_terrainLegacy{false};   // F7.9a
+std::atomic<bool> g_roadGradeStub{false};   // F7.20 (tests): the graded height ignored (the red)
+/// F7.20: the 1/8 m terrain's continuous ground -- the graded height on a graded road column, else bedHeight.
+inline float groundOf(const WorldGenerator::ColumnSample& c) {
+    return (c.graded && !g_roadGradeStub.load()) ? c.gradedHeight : c.bedHeight;
+}
 }
 void setTerrainLegacy(bool on) { g_terrainLegacy = on; }
+void setRoadGradeStub(bool on) { g_roadGradeStub = on; }
 
 VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
     VoxelArea a;
@@ -57,7 +63,7 @@ VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec
     // solid up to surfaceY + 1, i.e. on average bedHeight + 0.5). At 1/8 m the voxel whose centre lies below
     // bedHeight + 0.5 is solid: the same mean ground level as today, followed at 1/8 m steps instead of 1 m steps
     // (at a column centre it is within half a metre of today's cube top). Between metre column centres
-    // (m + 0.5) the height is bilinear. Road grading (which moves surfaceY, not bedHeight) is not reproduced.
+    // (m + 0.5) the height is bilinear. F7.20: on a graded road column the ground is its gradedHeight (groundOf).
     const glm::ivec3 d = a.grid.dim;
     for (int vx = 0; vx < d.x; ++vx) {
         const float wx = float(o.x) + (vx + 0.5f) / kVoxelsPerM;
@@ -69,8 +75,8 @@ VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec
             const float fz = wz - 0.5f - float(o.z);
             const int iz = int(std::floor(fz));
             const float tz = fz - float(iz);
-            const float h00 = col(ix, iz).bedHeight, h10 = col(ix + 1, iz).bedHeight;
-            const float h01 = col(ix, iz + 1).bedHeight, h11 = col(ix + 1, iz + 1).bedHeight;
+            const float h00 = groundOf(col(ix, iz)), h10 = groundOf(col(ix + 1, iz));
+            const float h01 = groundOf(col(ix, iz + 1)), h11 = groundOf(col(ix + 1, iz + 1));
             const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
             const auto& c = col(int(std::floor(wx)) - o.x, int(std::floor(wz)) - o.z);  // materials: own metre
             // Material layers count whole metres down from the metre that holds the column's TOP voxel (the last
@@ -122,7 +128,7 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
     // solid up to surfaceY + 1, i.e. on average bedHeight + 0.5). At 1/8 m the voxel whose centre lies below
     // bedHeight + 0.5 is solid: the same mean ground level as today, followed at 1/8 m steps instead of 1 m steps
     // (at a column centre it is within half a metre of today's cube top). Between metre column centres
-    // (m + 0.5) the height is bilinear. Road grading (which moves surfaceY, not bedHeight) is not reproduced.
+    // (m + 0.5) the height is bilinear. F7.20: on a graded road column the ground is its gradedHeight (groundOf).
     const glm::ivec3 d = a.grid.dim;
     std::unordered_map<uint64_t, std::vector<int16_t>> metreCache;   // F7.9a
     for (int vx = 0; vx < d.x; ++vx) {
@@ -135,8 +141,8 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
             const float fz = wz - 0.5f - float(o.z);
             const int iz = int(std::floor(fz));
             const float tz = fz - float(iz);
-            const float h00 = col(ix, iz).bedHeight, h10 = col(ix + 1, iz).bedHeight;
-            const float h01 = col(ix, iz + 1).bedHeight, h11 = col(ix + 1, iz + 1).bedHeight;
+            const float h00 = groundOf(col(ix, iz)), h10 = groundOf(col(ix + 1, iz));
+            const float h01 = groundOf(col(ix, iz + 1)), h11 = groundOf(col(ix + 1, iz + 1));
             const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
             const int ixm = int(std::floor(wx)) - o.x, izm = int(std::floor(wz)) - o.z;
             const auto& c = col(ixm, izm);  // materials: own metre
@@ -251,8 +257,8 @@ FloraStampStats stampFlora(VoxelArea& a, WorldGenerator& gen, const std::string&
         const float wx = float(oM.x) + (vx + 0.5f) / kVoxelsPerM, wz = float(oM.z) + (vz + 0.5f) / kVoxelsPerM;
         const int ix = int(std::floor(wx - 0.5f)), iz = int(std::floor(wz - 0.5f));
         const float tx = (wx - 0.5f) - float(ix), tz = (wz - 0.5f) - float(iz);
-        const float h00 = gen.sampleSurface(ix, iz).bedHeight, h10 = gen.sampleSurface(ix + 1, iz).bedHeight;
-        const float h01 = gen.sampleSurface(ix, iz + 1).bedHeight, h11 = gen.sampleSurface(ix + 1, iz + 1).bedHeight;
+        const float h00 = groundOf(gen.sampleSurface(ix, iz)), h10 = groundOf(gen.sampleSurface(ix + 1, iz));
+        const float h01 = groundOf(gen.sampleSurface(ix, iz + 1)), h11 = groundOf(gen.sampleSurface(ix + 1, iz + 1));
         const float h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
         // first voxel (absolute) whose centre is at or above h + 0.5
         int vyAbs = int(std::floor((h + 0.5f) * kVoxelsPerM - 0.5f)) - 1;

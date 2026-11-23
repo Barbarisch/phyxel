@@ -3199,6 +3199,11 @@ off, a 320 m walk into the sea streams 16,384 spans (0 mismatches vs the generat
 span edit rule (a dug bed lets the run fall a voxel, a placed block displaces), and edited spans are saved with the
 switched world and read back at the boot (relaunch exact).
 
+**F7.20, road grading on the 1/8 m terrain (2026-11-22).** sampleColumn records the graded continuous height (bedHeight,
+the water's bed, untouched); the 1/8 m terrain reads it. Road top faces follow the plan's grade (0 / 1,230 columns
+outside 0.375 m; red 209, worst 0.75 m), off-road areas byte-identical, seam-free. Read, not built: the river carve and
+road material were already reproduced (bedHeight, surfaceMat). Owed: bridge decks / rails / piers on the 1/8 m terrain.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

@@ -1138,3 +1138,19 @@ Unit test VoxFoundRoadGrade (RoadFieldSeamTest's ForgeWorld: Perlin 20260816, 3 
       outside that band (the natural bumps) -- the red's worst deviation recorded.
   G2: an area with no road within 8 m: byte-identical with and without the change.
   G3: a 2 x 1 chunk area across a road = its two chunks built separately (seam-free; a pure function of position).
+
+F7.20 RESULTS (2026-11-22; the prediction above untouched). Unit test VoxFoundRoadGrade (tests/core/
+VoxFoundRoadGradeTest.cpp), Release. World: RoadFieldSeamTest's ForgeWorld (Perlin 20260816, 3 WorldForge sites);
+every road's centerline sampled every 4th vertex (25 graded vertices).
+  RUN 1 (the first test as written): green 4 / 1,267 columns outside the band (worst 0.50 m), red 246 (worst 0.875).
+     The 4 were ONE vertex where the road crosses an order-1 creek: three of the column's bilinear metre samples are
+     creek columns, which today's grading never touches (riverOrder > 0: a ford, "the road simply breaks over the
+     line"). The test's population was wrong, not the tolerance: G1's contract is "where today grades" -- a voxel
+     column counts when all four of its bilinear metre samples are graded; the ones beside a ford are counted apart.
+     Tolerance unchanged (1/8 m + kMaxRoadGrade x 0.5 m = 0.375 m).
+  G1 PASS: green 0 / 1,230 columns outside, worst 0.250 m; RED (setRoadGradeStub: today's 1/8 m terrain) 209 / 1,230
+     outside, worst 0.750 m; 37 columns beside fords excluded (stated).
+  G2 PASS: 4 off-road areas (16^3 m, no road within 8 m) byte-identical with and without the change.
+  G3 PASS: a 32 x 16 m area across a road = its two 16 m halves built separately (0 differing voxels).
+  Regression: RoadFieldSeamTest 11 / 11, VoxFoundStorageLab 18 / 18, VoxFoundTerrainGenRate 2 / 2.
+  Still owed for roads on the 1/8 m terrain: bridge decks, rails and piers (generateChunk emits them in cubes).

@@ -1130,6 +1130,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                     rh.dist <= half ? 1.0f : 1.0f - (rh.dist - half) / kGradeBlend;
                 col.surfaceY = static_cast<int>(std::lround(
                     rh.gradeY * w + static_cast<float>(col.surfaceY) * (1.0f - w)));
+                col.graded = true;   // F7.20: the same blend, continuous (top face at gradeY + 1 where w = 1)
+                col.gradedHeight = (rh.gradeY + 0.5f) * w + col.bedHeight * (1.0f - w);
             }
             // Deck query gated to road/channel columns so the per-column cost stays bounded
             // (a deck always lies on the road corridor or over the carved channel).

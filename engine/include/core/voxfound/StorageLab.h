@@ -47,6 +47,8 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 originMetres, glm::iv
 /// makes buildTerrainArea run the reference (the red / A-B knob).
 VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 originMetres, glm::ivec3 sizeMetres);
 void setTerrainLegacy(bool on);
+/// F7.20 (tests): true = the 1/8 m terrain ignores road grading (follows bedHeight everywhere) -- the red.
+void setRoadGradeStub(bool on);
 
 /// A template on the foundation grid (`# grid: N` + B/V lines, written by tools/voxgrid.py, e.g.
 /// tree_forge.py --grid 8). Cells are rebased to 0; bounds in cells.
