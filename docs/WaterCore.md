@@ -15507,6 +15507,11 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    friction. The hypothesis is wrong; nothing shipped. Left: the inflow edge's head - its column held at the record's level while
    the water just inside must stand higher to accelerate the inflow; candidates: the inflow columns held at the record's level
    MINUS the measured head (54.2's 25 mm at x 0 in the flat rig too), or the inflow written as a discharge (q) not a level.
+   **Tried the first (Bernoulli's v^2 / 2g taken off the inflow columns' level, 18 mm at 0.6 m/s), measured, REVERTED:** flat record
+   25.0 -> 21.2 mm (still at the inflow column), sloped record 14.8 -> 15.2 mm (the worst moved to x 18) - my prediction (< 7 mm)
+   missed; not a fix. Two calibrations have now failed at this edge; the next attempt is the structural one: the inflow written as a
+   DISCHARGE (the record's q through the face, the level left to the solver) - a change to `wc_boundary`'s inflow mode and its
+   CPU twin, with `GpuBoundaryMatchesCpu` as its parity gate.
    - Suites: water unit 322 / 322; integration 111 / 114 - the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` failing
      2-5 of its 20 cycles every run with another checkout's engine holding the GPU at 99-100 %. Its "freed within 6 frames" measured
      the GPU's latency (the ring frees a state once the GPU has finished with it), not the release: restated - after the 6 frames, up
