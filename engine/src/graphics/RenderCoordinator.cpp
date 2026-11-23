@@ -1158,7 +1158,7 @@ void RenderCoordinator::updateSpanWaterGrid() {
     const WorldGenerator* gen = chunkManager->getStreamingGenerator();
     const Phyxel::HydrologyMap* hydro = gen ? gen->hydrology() : nullptr;
     if (!hydro) return;
-    if (chunkManager->chunkMap.empty()) return;
+    if (chunkManager->waterSpanHolderCount() == 0) return;   // F7.18: today's chunks or the switched world's store
 
     // Rebuild when the RESIDENT SET changes (not its count: streaming swaps N chunks for N others
     // along a walk and the count-keyed grid drew dry water over 5,120 columns - WaterRethink WP1
@@ -1169,20 +1169,23 @@ void RenderCoordinator::updateSpanWaterGrid() {
     if (m_spanGridFrozen) return;   // the probe's injected dry grid holds until restore
     if (m_spanGridCooldown > 0) --m_spanGridCooldown;
     const auto tKey0 = std::chrono::steady_clock::now();
-    const Core::SpanGridKey key = Core::makeSpanGridKey(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end(),
-                                                        chunkManager->waterSpanRevision(), m_waterCoreBoxRevision, m_waterLookRevision);
+    const Core::SpanGridKey key = chunkManager->voxFoundSpansOn()   // F7.18: the holders' residency
+        ? Core::makeSpanGridKey(chunkManager->voxFoundSpanStore().begin(), chunkManager->voxFoundSpanStore().end(),
+                                chunkManager->waterSpanRevision(), m_waterCoreBoxRevision, m_waterLookRevision)
+        : Core::makeSpanGridKey(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end(),
+                                chunkManager->waterSpanRevision(), m_waterCoreBoxRevision, m_waterLookRevision);
     const double keyMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tKey0).count();
     if (m_spanGridBuilt && key == m_spanGridKey) return;
     if (m_spanGridCooldown > 0) return;
-    const size_t chunkCount = chunkManager->chunkMap.size();
+    const size_t chunkCount = chunkManager->waterSpanHolderCount();
 
     // Bounds of resident chunks, clamped to a hard cap. ⚑No silent caps: if residency outruns the
     // cap the excess is logged — those chunks' terrain renders with dry water, which is exactly
     // the defect class, so the log line is the tripwire.
     glm::ivec3 lo(INT_MAX), hi(INT_MIN);
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList&) {   // F7.18
         lo = glm::min(lo, cc); hi = glm::max(hi, cc);
-    }
+    });
     constexpr int kMaxCells = 2048;                       // 2048² cols × 16 B = 64 MB ceiling
     int minX = lo.x * 32, minZ = lo.z * 32;
     int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
@@ -1225,11 +1228,10 @@ void RenderCoordinator::updateSpanWaterGrid() {
         return false;
     };
     long wet = 0, masked = 0;
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        if (!chunk) continue;
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& spans) {   // F7.18
         const int bx = cc.x * 32, bz = cc.z * 32;
-        if (bx + 31 < minX || bx >= minX + w || bz + 31 < minZ || bz >= minZ + d) continue;
-        for (const auto& s : chunk->getWaterSpans()) {
+        if (bx + 31 < minX || bx >= minX + w || bz + 31 < minZ || bz >= minZ + d) return;
+        for (const auto& s : spans) {
             const int gx = bx + s.x - minX, gz = bz + s.z - minZ;
             if (gx < 0 || gx >= w || gz < 0 || gz >= d) continue;
             if (inVolume(bx + s.x, bz + s.z)) { ++masked; continue; }
@@ -1247,7 +1249,7 @@ void RenderCoordinator::updateSpanWaterGrid() {
             }
             if (top > px[0]) px[0] = top;              // topmost clip wins
         }
-    }
+    });
 
     // G3: the per-body look, one texel per column beside the data texel (neutral = unset). Turbidity
     // and roughness a body sets replace the derived B/A unless the W1 positive control is active.

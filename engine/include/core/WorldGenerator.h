@@ -439,6 +439,10 @@ private:
         std::vector<uint8_t>   has;
     };
     std::shared_ptr<const ChunkColumnSpans> waterSpansForChunkColumn(const glm::ivec2& colChunk);
+public:
+    /// F7.18: the memoized column spans for Phyxel::waterSpansForChunk (core/WaterSpansForChunk.h).
+    std::shared_ptr<const ChunkColumnSpans> waterColumnSpans(const glm::ivec2& c) { return waterSpansForChunkColumn(c); }
+private:
 
     void clearColumnCache() {
         m_columnCache.clear(); m_columnCacheOrder.clear();

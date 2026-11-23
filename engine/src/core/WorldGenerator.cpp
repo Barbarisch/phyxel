@@ -3,6 +3,7 @@
 #include "core/WorldRecipe.h"
 #include "core/MapCoarseSource.h"
 #include "core/Chunk.h"
+#include "core/WaterSpansForChunk.h"
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
 #include "core/FinePonds.h"
@@ -621,28 +622,7 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     // The uniform-deep fast path above returns early WITHOUT spans, correctly: a chunk ≥4 below
     // every surface cannot intersect open-sky water, which rests ON the surface.
     if (m_hydro) {
-        const auto ws = waterSpansForChunkColumn(glm::ivec2(chunkCoord.x, chunkCoord.z));
-        const float base = static_cast<float>(chunkCoord.y * 32);
-        std::vector<Chunk::WaterSpanLocal> local;
-        for (int x = 0; x < 32; ++x)
-            for (int z = 0; z < 32; ++z) {
-                const size_t i = static_cast<size_t>(x) * 32 + z;
-                if (!ws->has[i]) continue;
-                // A bridge pier displaces the water in its column (solid from the bed up
-                // through the water surface): emit no span there, or the water ribbon
-                // renders inside the stone.
-                if (m_worldForge &&
-                    m_worldForge
-                        ->bridgeAt(static_cast<float>(chunkCoord.x * 32 + x),
-                                   static_cast<float>(chunkCoord.z * 32 + z))
-                        .pier)
-                    continue;
-                const float lo = std::max(static_cast<float>(ws->spans[i].bottomY), base);
-                const float hi = std::min(ws->spans[i].topY, base + 32.0f);
-                if (hi <= lo) continue;   // the span lives in another vertical chunk
-                local.push_back({static_cast<uint8_t>(x), static_cast<uint8_t>(z),
-                                 lo - base, hi - base});
-            }
+        std::vector<Chunk::WaterSpanLocal> local = Phyxel::waterSpansForChunk(*this, chunkCoord);
         if (!local.empty()) chunk.setWaterSpans(std::move(local));
     }
 
@@ -669,6 +649,35 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
     m_columnCache.emplace(key, fresh);
     m_columnCacheOrder.push_back(key);
     return fresh;
+}
+
+// docs/VoxelFoundationPlan.md F7.18: one chunk's generation-time water spans, a pure function of the chunk coordinate
+// (the memoized column flood clipped to the chunk's y range; bridge piers displace their column). generateChunk stores
+// these on the Chunk; the switched world fills ChunkManager's span store from the same function.
+std::vector<Chunk::WaterSpanLocal> waterSpansForChunk(WorldGenerator& gen, const glm::ivec3& chunkCoord) {
+    std::vector<Chunk::WaterSpanLocal> local;
+    if (!gen.hydrology()) return local;
+    const WorldForgePlan* forge = gen.worldForge();
+    const auto ws = gen.waterColumnSpans(glm::ivec2(chunkCoord.x, chunkCoord.z));
+    const float base = static_cast<float>(chunkCoord.y * 32);
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) {
+            const size_t i = static_cast<size_t>(x) * 32 + z;
+            if (!ws->has[i]) continue;
+            // A bridge pier displaces the water in its column (solid from the bed up
+            // through the water surface): emit no span there, or the water ribbon
+            // renders inside the stone.
+            if (forge &&
+                forge->bridgeAt(static_cast<float>(chunkCoord.x * 32 + x),
+                                static_cast<float>(chunkCoord.z * 32 + z))
+                    .pier)
+                continue;
+            const float lo = std::max(static_cast<float>(ws->spans[i].bottomY), base);
+            const float hi = std::min(ws->spans[i].topY, base + 32.0f);
+            if (hi <= lo) continue;   // the span lives in another vertical chunk
+            local.push_back({static_cast<uint8_t>(x), static_cast<uint8_t>(z), lo - base, hi - base});
+        }
+    return local;
 }
 
 std::shared_ptr<const WorldGenerator::ChunkColumnSpans>

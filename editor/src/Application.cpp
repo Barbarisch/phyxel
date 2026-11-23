@@ -112,6 +112,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/SettlementBuildService.h"
+#include "core/WaterSpansForChunk.h"   // F7.18
 #include "core/SpawnGate.h"                 // player spawn gate: never create a character inside geometry  // build_settlement: the settlement pipeline (engine-side)
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
@@ -488,8 +489,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         [this](int cx, int cz) -> uint64_t {
             if (!chunkManager) return 0;
             uint64_t h = 0;
-            for (int cy = -4; cy <= 31; ++cy)
-                if (const Chunk* c = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
+            for (int cy = -4; cy <= 31; ++cy)   // F7.18: residency of the span holder (a Chunk, or the store's entry)
+                if (const auto* c = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz)))
                     h += Core::chunkCoordHash64(glm::ivec3(cx, cy, cz)) ^ static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
             return h;
         });
@@ -505,21 +506,19 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             for (const auto& c : runs) { if (c.held) continue; perChunkCol[{floorDiv32(c.x), floorDiv32(c.z)}].push_back(&c); }
             for (auto& [cc, cols] : perChunkCol) {
                 const int cx = cc.first, cz = cc.second;
-                std::map<int, Chunk*> resident;
+                // F7.18: through ChunkManager::waterSpansAt (today's chunks, or the switched world's store)
+                std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
                 bool allResident = true;
                 for (int cy = cyLo; cy <= cyHi; ++cy) {
-                    Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-                    if (!ch) { allResident = false; break; }
-                    resident[cy] = ch;
+                    const auto* l = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz));
+                    if (!l) { allResident = false; break; }
+                    have[cy] = l;
                 }
                 if (!allResident) { unw += static_cast<long>(cols.size()); continue; }
-                // every vertical chunk that holds part of these columns' spans takes part in the assembly
-                std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
-                for (auto& [cy, ch] : resident) have[cy] = &ch->getWaterSpans();
                 // chunks above/below the box range that are resident contribute their spans too (kept untouched)
                 for (int cy = cyLo - 4; cy <= cyHi + 4; ++cy) {
                     if (have.count(cy)) continue;
-                    if (Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz))) have[cy] = &ch->getWaterSpans();
+                    if (const auto* l = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz))) have[cy] = l;
                 }
                 std::vector<WorldSpan> world = assembleColumnSpans(have, cx, cz);
                 std::vector<WorldSpan> result;
@@ -533,10 +532,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
                 clipSpansToChunks(result, cx, cz, cyMin, cyMax, clips);
                 for (auto& [cy, list] : clips) {
-                    Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-                    if (!ch) continue;   // a span clip aimed at a non-resident chunk outside the box range: it keeps what it had (assembled from nothing, so nothing changes there)
-                    ch->setWaterSpans(std::move(list));
-                    ch->setDirty(true);
+                    // a span clip aimed at a non-resident chunk outside the box range: it keeps what it had (assembled
+                    // from nothing, so nothing changes there)
+                    if (!chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz))) continue;
+                    chunkManager->setWaterSpansAt(glm::ivec3(cx, cy, cz), std::move(list));
                     ++touched;
                 }
             }
@@ -555,7 +554,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 for (int cx = floorDiv32(minVoxel.x); cx <= floorDiv32(maxVoxel.x); ++cx) {
                     std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
                     for (int cy = floorDiv32(minVoxel.y) - 1; cy <= floorDiv32(maxVoxel.y) + 1; ++cy)
-                        if (const Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz))) have[cy] = &ch->getWaterSpans();
+                        if (const auto* l = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz))) have[cy] = l;
                     for (const auto& w : assembleColumnSpans(have, cx, cz))
                         if (w.x >= minVoxel.x && w.x <= maxVoxel.x && w.z >= minVoxel.z && w.z <= maxVoxel.z) all.push_back(w);
                 }
@@ -2976,13 +2975,13 @@ long Application::rebuildGroundedWaterFromSpans() {
     if (!chunkManager || !renderCoordinator) return 0;
     const WorldGenerator* sg = chunkManager->getStreamingGenerator();
     if (sg && sg->hydrology()) return 0;              // baked worlds render via the bake upload
-    if (chunkManager->chunkMap.empty()) return 0;
-
-    // Bounds of the loaded chunks, in columns.
+    // Bounds of the loaded span holders, in columns (F7.18: today's chunks or the switched world's store).
     glm::ivec3 lo(INT_MAX), hi(INT_MIN);
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        lo = glm::min(lo, cc); hi = glm::max(hi, cc);
-    }
+    bool any = false;
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList&) {
+        lo = glm::min(lo, cc); hi = glm::max(hi, cc); any = true;
+    });
+    if (!any) return 0;
     const int minX = lo.x * 32, minZ = lo.z * 32;
     const int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
     if (static_cast<long long>(w) * d > (1 << 21)) return 0;   // editor-scale worlds only
@@ -2995,16 +2994,15 @@ long Application::rebuildGroundedWaterFromSpans() {
         rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
     }
     long wet = 0;
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        if (!chunk) continue;
-        for (const auto& s : chunk->getWaterSpans()) {
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& spans) {
+        for (const auto& s : spans) {
             const int gx = cc.x * 32 + s.x - minX, gz = cc.z * 32 + s.z - minZ;
             float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
             const float topWorld = static_cast<float>(cc.y) * 32.0f + s.top;
             if (px[0] < -1e5f) ++wet;                  // first span for this column
             if (topWorld > px[0]) px[0] = topWorld;    // topmost clip wins
         }
-    }
+    });
     renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
                                                static_cast<float>(minX), static_cast<float>(minZ));
     LOG_INFO("Application", "Grounded water bound from chunk spans: {} wet columns over {}x{}",
@@ -4843,7 +4841,8 @@ void Application::update(float deltaTime) {
         // Phase 1b — stream chunks in/out around the player when streaming terrain is
         // enabled (opt-in via the game.json world "streaming" flag). Throttled because
         // generation + face finalize is heavy; the per-update cap bounds it further.
-        if (chunkManager->isStreamingGenerationEnabled()) {
+        if (chunkManager->isStreamingGenerationEnabled() && !(voxFoundTodayStreamOff && voxFoundWorldReads)) {
+            // F7.18: with today_stream_off, today's chunks are not streamed while switched (the step-7 gate).
             // Frame-pacing phase (PerfProgram I11). Alternates by design: the full update on every
             // 2nd frame, landings only on the others -- the hitch report judges by frame parity.
             PROFILE_SCOPE(*performanceProfiler, "Streaming Pump");
@@ -13605,6 +13604,50 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("today_stream_off")) {   // F7.18: the step-7 gate -- today's streaming off while switched
+            voxFoundTodayStreamOff = cmd.params["today_stream_off"].get<bool>();
+            response = {{"today_stream_off", voxFoundTodayStreamOff}};
+            return;
+        }
+        if (cmd.params.contains("span_store_stub")) {   // F7.18 (tests): the span store not used (the red)
+            voxFoundSpanStoreStub = cmd.params["span_store_stub"].get<bool>();
+            if (voxFoundWorldReads) voxFoundSpansFill();
+            response = {{"span_store_stub", voxFoundSpanStoreStub}};
+            return;
+        }
+        if (cmd.params.value("span_check", false)) {   // F7.18: S1 store vs today's chunks, S2 store vs the generator
+            size_t storeChunks = 0, both = 0, vsChunks = 0, vsGen = 0, spans = 0, withSpans = 0;
+            nlohmann::json firstBad = nlohmann::json::array();
+            WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+            auto same = [](const ChunkManager::WaterSpanList& a, const ChunkManager::WaterSpanList& b) {
+                if (a.size() != b.size()) return false;
+                for (size_t k = 0; k < a.size(); ++k)
+                    if (a[k].x != b[k].x || a[k].z != b[k].z || a[k].bottom != b[k].bottom || a[k].top != b[k].top) return false;
+                return true;
+            };
+            if (chunkManager && chunkManager->voxFoundSpansOn())
+                for (const auto& [cc, l] : chunkManager->voxFoundSpanStore()) {
+                    ++storeChunks;
+                    spans += l.size();
+                    withSpans += !l.empty();
+                    if (g && !same(l, Phyxel::waterSpansForChunk(*g, cc))) {
+                        ++vsGen;
+                        if (firstBad.size() < 5) firstBad.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"vs", "generator"}});
+                    }
+                    if (const Chunk* ch = chunkManager->getChunkAtCoord(cc)) {
+                        ++both;
+                        if (!same(l, ch->getWaterSpans())) {
+                            ++vsChunks;
+                            if (firstBad.size() < 5) firstBad.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"vs", "chunk"}});
+                        }
+                    }
+                }
+            response = {{"store_on", chunkManager && chunkManager->voxFoundSpansOn()}, {"store_chunks", storeChunks},
+                        {"chunks_with_spans", withSpans}, {"spans", spans}, {"resident_in_both", both},
+                        {"mismatch_vs_chunks", vsChunks}, {"mismatch_vs_generator", vsGen}, {"first_bad", firstBad},
+                        {"today_chunks_resident", chunkManager ? chunkManager->chunkMap.size() : 0}};
+            return;
+        }
         if (cmd.params.contains("overlap_stub")) {   // F8.4 (tests): overlapping structures not cleared (the red)
             voxFoundOverlapStub = cmd.params["overlap_stub"].get<bool>();
             response = {{"overlap_stub", voxFoundOverlapStub}};
@@ -13884,6 +13927,10 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
             if (!on && waterManager && !voxFoundWaterSyncStub) waterManager->syncSolidsFromChunks();   // F7.17: back to today
             if (!on && chunkManager) chunkManager->clearVoxFoundPlayBounds();   // F8.3b
+            if (!on && chunkManager && !voxFoundStreamSwapping) {   // F7.18: today's chunks hold the spans again
+                chunkManager->setVoxFoundSpansOn(false);
+                chunkManager->bumpWaterSpanRevision();
+            }
             if (chunkManager) {       // F7.13: the old-grid writers write the switched world
                 if (on && !voxFoundWriterStub)
                     chunkManager->setVoxFoundWrite([this](const std::vector<std::pair<glm::ivec3, std::string>>& vox,
@@ -14000,6 +14047,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                     chunkManager->setVoxFoundPlayBounds(voxFoundStreamOn ? Core::PlayBounds{}
                         : Core::PlayBounds::make(float(rlo.x * 32), float(rlo.z * 32), float((rhi.x + 1) * 32), float((rhi.z + 1) * 32)));
                 }
+                voxFoundSpansFill();   // F7.18: the water spans of the region's chunks (no Chunk object needed)
             }
             renderCoordinator->setHideWorld(on);
             voxFoundPreview.shown = on;
@@ -15018,6 +15066,26 @@ void Application::voxFoundBoot() {
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 
+// F7.18 (step-7 port 1): the switched world's water spans -- every region chunk's generation-time spans from
+// WorldGenerator::waterSpansForChunk (what generateChunk stores on today's Chunk), into ChunkManager's span store, which
+// is then the authority for every span reader / writer. Edited entries are kept; entries outside the region that were
+// never edited are dropped.
+void Application::voxFoundSpansFill() {
+    if (!chunkManager || voxFoundEdit.empty()) return;
+    if (voxFoundSpanStoreStub) {   // the red: today's chunks stay the holders
+        chunkManager->setVoxFoundSpansOn(false);
+        return;
+    }
+    WorldGenerator* g = chunkManager->getStreamingGenerator();
+    chunkManager->setVoxFoundSpansOn(true);
+    for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
+        const glm::ivec3 cc = voxFoundEdit.chunk(i).chunk;
+        chunkManager->fillVoxFoundSpans(cc, g ? Phyxel::waterSpansForChunk(*g, cc) : ChunkManager::WaterSpanList{});
+    }
+    chunkManager->retainVoxFoundSpans(voxFoundEdit.chunkLo(), voxFoundEdit.chunkHi());
+    chunkManager->bumpWaterSpanRevision();
+}
+
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back
 nlohmann::json Application::voxFoundStructuresJson() const {
     nlohmann::json a = nlohmann::json::array();
@@ -15257,7 +15325,9 @@ nlohmann::json Application::voxFoundStreamSwap() {
     Core::APICommand cmd;
     nlohmann::json r;
     cmd.params = {{"world_switch", false}};
+    voxFoundStreamSwapping = true;   // F7.18: the span store (and its edited entries) survives the shift
     handleVoxFoundPreview(cmd, r);
+    voxFoundStreamSwapping = false;
     voxFoundEdit.rebox(job.lo, job.hi);
     for (auto& c : job.ready) voxFoundEdit.insertChunk(std::move(c));
     if (voxFoundBuilder) voxFoundBuilder->dropResident();
@@ -16346,12 +16416,15 @@ void Application::registerWaterCommands() {
         // Write-through: every loaded chunk in the scan gets the truth — including chunks whose
         // spans just became EMPTY (a drained basin must not keep stale water in its blob).
         long spanChunks = 0, spansStored = 0;
-        for (auto& [cc, chunk] : chunkManager->chunkMap) {
-            if (!chunk) continue;
+        std::vector<glm::ivec3> holders;   // F7.18: every resident span holder (today's chunks or the store)
+        chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList&) { holders.push_back(cc); });
+        for (const glm::ivec3& cc : holders) {
             auto it = chunkSpans.find(cc);
-            // Phase D: a runtime span write must survive a dirty-only save (setWaterSpans itself does
-            // not mark the chunk - generation's chunks are saved whole).
-            if (it == chunkSpans.end()) { if (!chunk->getWaterSpans().empty()) { chunk->clearWaterSpans(); chunk->setDirty(true); } continue; }
+            // Phase D: a runtime span write must survive a dirty-only save (setWaterSpansAt marks the chunk dirty).
+            if (it == chunkSpans.end()) {
+                if (!chunkManager->waterSpansAt(cc)->empty()) chunkManager->setWaterSpansAt(cc, {});
+                continue;
+            }
             // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order — sort to the
             // storage contract rather than weakening the contract.
             std::sort(it->second.begin(), it->second.end(),
@@ -16362,8 +16435,7 @@ void Application::registerWaterCommands() {
                       });
             spansStored += static_cast<long>(it->second.size());
             ++spanChunks;
-            chunk->setWaterSpans(std::move(it->second));
-            chunk->setDirty(true);
+            chunkManager->setWaterSpansAt(cc, std::move(it->second));
         }
         chunkManager->bumpWaterSpanRevision();
 
@@ -16406,15 +16478,13 @@ void Application::registerWaterCommands() {
         // column is present, which the 2-D list cannot express (Coast probe, 2026-10-08).
         nlohmann::json residentChunks = nlohmann::json::array();
         std::set<std::pair<int, int>> seenCols;
-        for (auto& [cc, chunk] : chunkManager->chunkMap) {
-            if (!chunk) continue;
+        chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& ws) {   // F7.18
             if (hasRect && (cc.x * 32 > hx || cc.x * 32 + 31 < lx ||
-                            cc.z * 32 > hz || cc.z * 32 + 31 < lz)) continue;
+                            cc.z * 32 > hz || cc.z * 32 + 31 < lz)) return;
             ++chunksLoaded;
             if (seenCols.insert({cc.x, cc.z}).second) residentCols.push_back({cc.x, cc.z});
             residentChunks.push_back({cc.x, cc.y, cc.z});
-            const auto& ws = chunk->getWaterSpans();
-            if (ws.empty()) continue;
+            if (ws.empty()) return;
             ++chunksWithSpans;
             for (const auto& s : ws) {
                 const int wx = cc.x * 32 + s.x, wz = cc.z * 32 + s.z;
@@ -16429,8 +16499,9 @@ void Application::registerWaterCommands() {
                     else truncated = true;
                 }
             }
-        }
+        });
         r = {{"chunks_loaded", chunksLoaded}, {"chunks_with_spans", chunksWithSpans},
+             {"holder", chunkManager->voxFoundSpansOn() ? "switched-world store" : "today's chunks"},
              {"spans", spanCount}, {"total_depth", sumDepth},
              {"min_top", spanCount ? minTop : 0.0f}, {"max_top", spanCount ? maxTop : 0.0f},
              {"resident_chunk_columns", residentCols}, {"resident_chunks", residentChunks},
@@ -16665,15 +16736,14 @@ void Application::registerWaterCommands() {
                 std::unordered_map<long long, float> tops;
                 auto key = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned int>(z)); };
                 int rx0 = INT_MAX, rz0 = INT_MAX, rx1 = INT_MIN, rz1 = INT_MIN;
-                if (chunkManager) for (const auto& [cc, ch] : chunkManager->chunkMap) {
-                    if (!ch) continue;
+                if (chunkManager) chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& spans) {   // F7.18
                     rx0 = std::min(rx0, cc.x * 32); rz0 = std::min(rz0, cc.z * 32); rx1 = std::max(rx1, cc.x * 32 + 31); rz1 = std::max(rz1, cc.z * 32 + 31);
-                    for (const auto& sp : ch->getWaterSpans()) {
+                    for (const auto& sp : spans) {
                         const float t = static_cast<float>(cc.y) * 32.0f + sp.top;
                         auto it = tops.find(key(cc.x * 32 + sp.x, cc.z * 32 + sp.z));
                         if (it == tops.end()) tops[key(cc.x * 32 + sp.x, cc.z * 32 + sp.z)] = t; else it->second = std::max(it->second, t);
                     }
-                }
+                });
                 const auto seed = tops.find(key(ax, az));
                 id = waterCore->bodyAt(ax, az, seed == tops.end() ? std::numeric_limits<float>::quiet_NaN() : seed->second);
                 if (id == WaterBodyTable::kNoBody) {
@@ -17048,10 +17118,9 @@ void Application::registerWaterCommands() {
         (void)cmd;
         double spans = 0.0; long spanCount = 0;
         if (chunkManager) {
-            for (auto& [cc, chunk] : chunkManager->chunkMap) {
-                if (!chunk) continue;
-                for (const auto& s : chunk->getWaterSpans()) { spans += s.top - s.bottom; ++spanCount; }
-            }
+            chunkManager->forEachWaterSpans([&](const glm::ivec3&, const ChunkManager::WaterSpanList& l) {   // F7.18
+                for (const auto& s : l) { spans += s.top - s.bottom; ++spanCount; }
+            });
         }
         const double cells = waterManager ? waterManager->totalMass() : 0.0;
         const double coreCells = waterCore ? waterCore->totalMass() : 0.0;
@@ -17368,7 +17437,9 @@ void Application::registerWaterCommands() {
             out.clear();
             const int cx = floorDiv32(x), cz = floorDiv32(z);
             std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
-            for (const auto& [cc, ch] : chunkManager->chunkMap) if (ch && cc.x == cx && cc.z == cz) have[cc.y] = &ch->getWaterSpans();
+            chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {   // F7.18
+                if (cc.x == cx && cc.z == cz) have[cc.y] = &l;
+            });
             for (const auto& w : assembleColumnSpans(have, cx, cz)) if (w.x == x && w.z == z) out.push_back({w.bottomY, w.topY});
         };
         std::vector<std::pair<float, float>> seedRuns;
@@ -18249,11 +18320,11 @@ void Application::registerWaterCommands() {
                 for (int z = b.bboxMin.y; z <= b.bboxMax.y; ++z) for (int x = b.bboxMin.x; x <= b.bboxMax.x; ++x) {
                     if (idx && idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) >= 0) continue;
                     bool any = false;
-                    for (const auto& [cc, ch] : chunkManager->chunkMap) {
-                        if (!ch || cc.x != floorDiv32(x) || cc.z != floorDiv32(z)) continue;
+                    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {   // F7.18
+                        if (cc.x != floorDiv32(x) || cc.z != floorDiv32(z)) return;
                         any = true;
-                        for (const auto& s : ch->getWaterSpans()) if (cc.x * 32 + s.x == x && cc.z * 32 + s.z == z) spanSum += s.top - s.bottom;
-                    }
+                        for (const auto& s : l) if (cc.x * 32 + s.x == x && cc.z * 32 + s.z == z) spanSum += s.top - s.bottom;
+                    });
                     if (any) ++cols; else ++missing;
                 }
                 row["span_sum"] = spanSum; row["diff"] = spanSum - b.mass; row["columns_checked"] = cols; row["columns_not_resident"] = missing;
@@ -19078,7 +19149,9 @@ void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
     auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
     const int cx = floorDiv32(x), cz = floorDiv32(z);
     std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
-    for (const auto& [cc, ch] : chunkManager->chunkMap) if (ch && cc.x == cx && cc.z == cz) have[cc.y] = &ch->getWaterSpans();
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {   // F7.18
+        if (cc.x == cx && cc.z == cz) have[cc.y] = &l;
+    });
     if (have.empty()) return;
     std::vector<WorldSpan> spans = assembleColumnSpans(have, cx, cz);
     bool any = false;
@@ -19093,10 +19166,7 @@ void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
     clipSpansToChunks(spans, cx, cz, cyMin, cyMax, clips);
     for (auto& [cy, list] : clips) {
         if (!have.count(cy)) continue;
-        Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-        if (!ch) continue;
-        ch->setWaterSpans(std::move(list));
-        ch->setDirty(true);
+        chunkManager->setWaterSpansAt(glm::ivec3(cx, cy, cz), std::move(list));   // F7.18
     }
     chunkManager->bumpWaterSpanRevision();
     if (r.displaced > 0.0) waterCore->displaceAt(x, z, r.displaced);
@@ -27836,18 +27906,17 @@ bool Application::siteShoreBand(std::string* err) {
     const int z0 = static_cast<int>(std::floor(centre.y - R)), z1 = static_cast<int>(std::ceil(centre.y + R));
     auto tops = std::make_shared<std::unordered_map<long long, float>>();
     auto key = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned int>(z)); };
-    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-        if (!chunk) continue;
+    chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& spans) {   // F7.18
         const int bx = cc.x * 32, bz = cc.z * 32;
-        if (bx + 31 < x0 || bx > x1 || bz + 31 < z0 || bz > z1) continue;
-        for (const auto& sp : chunk->getWaterSpans()) {
+        if (bx + 31 < x0 || bx > x1 || bz + 31 < z0 || bz > z1) return;
+        for (const auto& sp : spans) {
             const int wx = bx + sp.x, wz = bz + sp.z;
             if (wx < x0 || wx > x1 || wz < z0 || wz > z1) continue;
             const float top = static_cast<float>(cc.y) * 32.0f + sp.top;
             auto it = tops->find(key(wx, wz));
             if (it == tops->end()) (*tops)[key(wx, wz)] = top; else it->second = std::max(it->second, top);
         }
-    }
+    });
     StoredTopQuery stored = [tops, key](int wx, int wz) -> StoredTop {
         const auto it = tops->find(key(wx, wz));
         return it == tops->end() ? StoredTop{false, 0.0f} : StoredTop{true, it->second};

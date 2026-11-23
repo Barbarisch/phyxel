@@ -3190,6 +3190,13 @@ WaterManager's solid mask (`syncSolidsBox`): in a coast project booted switched,
 (27/27, red 3/27) and holds the water poured in (8.15 of 9 units on its floor, red 0). Water spans are still stored in
 today's chunk objects.
 
+**F7.18, step-7 port 1: water spans off today's Chunk objects (2026-11-22).** The step-7 gate, stated here: a
+consumer is ported when it works on the switched world with today's streaming OFF (`today_stream_off`). Every water
+span reader / writer now goes through ChunkManager (`waterSpansAt` / `setWaterSpansAt` / `forEachWaterSpans`); while
+switched they read a span store filled from `waterSpansForChunk` (the generation function, factored out). With today
+off, a 320 m walk into the sea streams 16,384 spans (0 mismatches vs the generator; red 0) and the water renders
+(4,600 wet columns; red 0); store = today's chunks exactly where both exist. Owed: saving runtime span edits (W2).
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

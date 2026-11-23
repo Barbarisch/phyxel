@@ -703,8 +703,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       bounds -- today's clamped characters to its edge).
       F8.4 done: a switched-world structure registry (saved with the world); a new structure clears those it overlaps.
       The settle is unit-tested (core/voxfound/SettleRubble.h, VoxFoundSettleRubble; red = the open-only flood).
+      F7.18: water spans ported (the step-7 gate: today_stream_off; ChunkManager span store; W2 = saving edits owed).
       NEXT (owed, in order): the
-      step-7 ports (water spans, 1/8 m furnisher, 1/8 m hydrology carving / road grading, API units, items / LOD
+      step-7 ports (water span saving (W2), 1/8 m furnisher, 1/8 m hydrology carving / road grading, API units, items / LOD
       template units, nav units) -- then the global default and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload

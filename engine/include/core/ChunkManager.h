@@ -122,6 +122,10 @@ public:
     Core::PlayBounds m_regionPlayBounds;
     Core::PlayBounds m_voxFoundPlayBounds;   // F8.3b
     bool m_voxFoundBoundsSet = false;
+    // F7.18: the water span store (the switched world's authority; see waterSpansAt)
+    bool m_vfSpansOn = false;
+    std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> m_vfSpans;
+    std::unordered_map<glm::ivec3, bool, ChunkCoordHash> m_vfSpansEdited;
     std::vector<glm::ivec3> m_regionChunkCoords;
     mutable Core::PlayBounds m_worldExtentCache;
     mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
@@ -205,6 +209,77 @@ public:
     /// ones): `b` invalid = unbounded (a streaming switched world). clearVoxFoundPlayBounds = today's again.
     void setVoxFoundPlayBounds(const Core::PlayBounds& b) { m_voxFoundPlayBounds = b; m_voxFoundBoundsSet = true; }
     void clearVoxFoundPlayBounds() { m_voxFoundPlayBounds = Core::PlayBounds{}; m_voxFoundBoundsSet = false; }
+
+    // --- Water spans (docs/VoxelFoundationPlan.md F7.18, step-7 port 1) ---------------------------------------------
+    // Every water-span reader and writer goes through these. Today's world: the spans live on the Chunk objects
+    // (generation-time, persisted in the chunk blob). The switched world: a store keyed by chunk coordinate, filled by
+    // the switched world from WorldGenerator::waterSpansForChunk (the generation function) -- no Chunk object needed.
+    using WaterSpanList = std::vector<Chunk::WaterSpanLocal>;
+    bool voxFoundSpansOn() const { return m_vfSpansOn; }
+    /// on: the store is the authority (readers stop seeing today's chunks); off: the store is dropped.
+    void setVoxFoundSpansOn(bool on) {
+        m_vfSpansOn = on;
+        if (!on) { m_vfSpans.clear(); m_vfSpansEdited.clear(); }
+    }
+    /// The spans of one chunk; nullptr when that chunk is not resident (no Chunk / not in the store).
+    const WaterSpanList* waterSpansAt(const glm::ivec3& cc) const {
+        if (m_vfSpansOn) {
+            auto it = m_vfSpans.find(cc);
+            return it == m_vfSpans.end() ? nullptr : &it->second;
+        }
+        const Chunk* ch = getChunkAtCoord(cc);
+        return ch ? &ch->getWaterSpans() : nullptr;
+    }
+    /// A runtime write. Today: the Chunk's spans (dirty when they change, so a dirty-only save keeps them); the store:
+    /// marked edited (kept when the region moves away and back, never refilled from generation). False = not resident.
+    bool setWaterSpansAt(const glm::ivec3& cc, WaterSpanList spans) {
+        if (m_vfSpansOn) {
+            auto it = m_vfSpans.find(cc);
+            if (it == m_vfSpans.end()) return false;
+            it->second = std::move(spans);
+            m_vfSpansEdited[cc] = true;
+            return true;
+        }
+        Chunk* ch = getChunkAtCoord(cc);
+        if (!ch) return false;
+        if (spans.empty()) {
+            if (!ch->getWaterSpans().empty()) { ch->clearWaterSpans(); ch->setDirty(true); }
+        } else {
+            ch->setWaterSpans(std::move(spans));
+            ch->setDirty(true);
+        }
+        return true;
+    }
+    /// f(chunkCoord, spans) for every resident chunk (the store's while switched, today's chunks otherwise).
+    template <class F> void forEachWaterSpans(F&& f) const {
+        if (m_vfSpansOn) {
+            for (const auto& [cc, spans] : m_vfSpans) f(cc, spans);
+            return;
+        }
+        for (const auto& [cc, ch] : chunkMap)
+            if (ch) f(cc, ch->getWaterSpans());
+    }
+    /// The switched world's fill: a region chunk's generated spans (an EDITED entry is kept as it is).
+    void fillVoxFoundSpans(const glm::ivec3& cc, WaterSpanList spans) {
+        if (m_vfSpansEdited.count(cc)) return;
+        m_vfSpans[cc] = std::move(spans);
+    }
+    bool voxFoundSpansHave(const glm::ivec3& cc) const { return m_vfSpans.count(cc) != 0; }
+    /// Drops store entries outside [lo, hi] that were never edited (edited ones stay: they are world state).
+    void retainVoxFoundSpans(const glm::ivec3& lo, const glm::ivec3& hi) {
+        for (auto it = m_vfSpans.begin(); it != m_vfSpans.end();) {
+            const glm::ivec3& c = it->first;
+            const bool inside = c.x >= lo.x && c.y >= lo.y && c.z >= lo.z && c.x <= hi.x && c.y <= hi.y && c.z <= hi.z;
+            if (!inside && !m_vfSpansEdited.count(c)) it = m_vfSpans.erase(it);
+            else ++it;
+        }
+    }
+    size_t voxFoundSpansChunks() const { return m_vfSpans.size(); }
+    const std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash>& voxFoundSpanStore() const {
+        return m_vfSpans;
+    }
+    /// The number of resident span holders (today's chunks or the store's entries).
+    size_t waterSpanHolderCount() const { return m_vfSpansOn ? m_vfSpans.size() : chunkMap.size(); }
     void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; m_regionChunkCoords.clear(); }
     /// The exact chunk coordinates of the scene's authored world block (set by the loader
     /// with the region play bounds): what a loading-screen settle waits for, and what the

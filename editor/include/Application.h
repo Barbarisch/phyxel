@@ -364,7 +364,12 @@ private:
     bool voxFoundOverlapStub = false;
     nlohmann::json voxFoundStructuresJson() const;
     void voxFoundStructuresLoad();
-    bool voxFoundBoundsStub = false;                             // F8.3b (tests): the switched bounds not set
+    bool voxFoundBoundsStub = false;
+    // F7.18: the water span store (step-7 port 1)
+    bool voxFoundTodayStreamOff = false;   // the step-7 gate: today's streaming off while switched
+    bool voxFoundSpanStoreStub = false;
+    bool voxFoundStreamSwapping = false;
+    void voxFoundSpansFill();                             // F8.3b (tests): the switched bounds not set
     bool voxFoundRapidStub = false;                              // F8.2 (tests): a new world rig drops the previous bodies
     bool voxFoundWaterSyncStub = false;                          // F7.17 (tests): the water sim's resyncs skipped
     // F7.16: game.json world.voxfound -- the switched world as a boot mode

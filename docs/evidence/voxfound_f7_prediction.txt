@@ -1071,3 +1071,21 @@ through ChunkManager::waterSpansAt / setWaterSpansAt / forEachWaterSpans (store 
   S3: switch off: the readers are today's again (water_ledger's span total equals the pre-switch value exactly).
 RED: span_store_stub (the store not used; readers walk today's chunks) -> S2 reads 0.
 STATED: the store's runtime-edited spans are not yet saved with the switched world (save is W2, owed).
+
+F7.18 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundWater (boot: region 4x2x4 chunks,
+streaming). Driver tools/voxfound_f718_live.py, raw: voxfound_f718_live.jsonl. Every artifact: WorldGenerator Perlin
+s20260804's hydrology bake + the switched world's 1/8 m terrain.
+  CONTROL = RED (span_store_stub: readers walk today's chunks), the gate on (today_stream_off), the camera walked
+     z 600 -> 920 (21 steps, 10 stream shifts, always inside the region): the chunks streamed in after the stop (rect
+     x 96-223, z 832-959) hold 0 spans; the render grid at the walk's end 0 wet of 16,384 columns.
+  S2 PASS: green, the same walk: those chunks hold 16,384 spans (16 of 32 chunks wet, all tops at sea level 16, depth
+     146,167), 0 mismatches against waterSpansForChunk; the render grid 4,600 wet columns at level 16 (> 1,000).
+  S1 PASS: store == today's chunks, 0 mismatches, over the start region (32 chunks in both, 1,041 spans) and over the
+     wet end region after today's streaming was turned back on (32 in both, 16,384 spans).
+  S3 PASS: switch off -> today's chunks again; over the wet end rect 16,384 spans / depth 146,167 before (today's) =
+     store = after.
+  MISREAD, recorded: the first two green runs' S1 / S3 compared EMPTY lists (the region had recentred onto dry land
+     before the check) -- vacuous; the driver now measures them over the wet end region (the third run, above).
+  Unit: *Water* / *Span* / *WorldGenerator* / *ChunkBlob* / *ChunkStreaming* / *Hydro* / *Flora*: 445 pass, 1 skipped.
+  STATED / OWED: runtime span edits in the store are not saved with the switched world (W2) and are dropped at
+     switch-off; the store covers the switched region only (today's water readers saw today's whole resident radius).
