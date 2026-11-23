@@ -15544,6 +15544,18 @@ location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py -
   round it median 9.0 / max 55 mm; OFF 0.0 (`a4_bow_measure.json`). The clip remade: **`sweep_a4_wade_v2_side_by_side.mp4`**
   (off / on; mass 19.2000007 -> 19.2000007 m^3 both) - the water round the wader disturbed and droplets thrown on the right.
 
+### 58.10 Item 1, where the first second goes now (2026-11-23). Status: MEASURED; the gate NOT met
+
+Idle GPU (2 %). `s58_windows_now.json` (the 57.6 Creek rig, 2 runs): the worst frames 108 / 119 ms at ~2 s are the host WAITING on
+the water's GPU call (`collect.1 fence wait` 43-83 ms), not host work; in the first 0.3 s the tile wakes (`mgr.2` 11-29 ms), the
+ripples (~5) and the GPU step's collect. `s58_call_log_now.json` (D9's per-call log, the 150 m lake): a call right after the splash
+is **28-41 ms of DEVICE time** - the pressure sweeps 15-22 ms of it - at 2-3 ticks x 6 substeps (the splash's speeds drive the CFL
+substeps); 85-111 frames over 33 ms in 4 s, ~25 fps through the splash. It feeds itself: a long frame -> more ticks in the next call
+-> a longer call. **What is left for the gate is the solver's device cost in the burst, and every lever changes behaviour, not only
+cost:** (a) cap the ticks a call (the water runs briefly slower than real time, catching up after), (b) fewer sweeps in the burst
+(20 is owner-signed, 26.35), (c) a cheaper solve (MG preconditioning on the patch: 53.x). By the owner's rule ("test, do not ask
+feel") the next step builds (a) behind a switch, measures the gate, and shows both in a clip.
+
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
 55.5's open surf-zone side edges (the band's swash vs a record waterline held at the still level: 15.9 cm worst,
