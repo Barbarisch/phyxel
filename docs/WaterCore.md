@@ -15544,6 +15544,20 @@ location"*. New clip **`sweep_a2i_scenes_v2.mp4`** (`tools/water_sweep_clip.py -
   round it median 9.0 / max 55 mm; OFF 0.0 (`a4_bow_measure.json`). The clip remade: **`sweep_a4_wade_v2_side_by_side.mp4`**
   (off / on; mass 19.2000007 -> 19.2000007 m^3 both) - the water round the wader disturbed and droplets thrown on the right.
 
+### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
+
+55.5's open surf-zone side edges (the band's swash vs a record waterline held at the still level: 15.9 cm worst,
+`TheSwellMeetsTheBandWithNoStep`). Tried the cheapest of 55.5's three fixes - **the band's side strips not swell-driven on shore
+columns (held at the still level)** - with that test's waterline metric as the target and the swell-driven sides as the control:
+- held wherever the side strip's drawn still depth < 1 m: waterline corners **15.9 -> 0 cm**, but the open-water corners beside
+  them **0.9 -> 28.9 cm** (the record draws depth-limited swell over that shallow water; the band now held flat there);
+- held only on the columns beside a dry column: waterline 0 cm, open water **0.9 -> 23.9 cm** (one column seaward the record's
+  drawn swell is already up to ~0.24 m).
+A hard hold cannot meet both sides: the record's drawn swell is large right up to the waterline corner, while the band's swash runs
+past it. **Reverted** (no change shipped). What is left is 55.5's third option - the record's waterline corners NEAR the band drawn
+from the band's edge (a blend over the few corners along the box's side, from the band's live edge heights) - a design step: the
+record tile would read live band heights each frame (a draw-time coupling the record does not have today).
+
 ### 58.8 Item 6: the far ripple approximation - the design step (2026-11-23). Status: DESIGNED (`/design-check` READY), not built
 
 **The owner:** *"ideally we would have some cheap method to approximate things so that there isnt such drastic changes from
