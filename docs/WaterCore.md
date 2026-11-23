@@ -15414,8 +15414,11 @@ NOT checked: other poses / a moving camera (the clip's own moves).
   0 boxes, 0 patches, rest 89.923. Looked at (crops at 3.6 / 4.0 / 4.5 s): ON the water round the blocks is disturbed as they go in;
   whether it reads as a splash is the owner's call. The frame rate in both clips (9-27 fps) is the machine in use (a game on the GPU),
   not measured as cost.
-- **A margin tile wake's seed rides the volume's call** is in the same commit (above: its parity exact; its live gain unmeasured -
-  the A/B was unreadable under the same load; `water_coupling test_seed_defer_off` re-runs it).
+- **A margin tile wake's seed rides the volume's call** is in the same commit (above: its parity exact). **Its live A/B re-run on an
+  idle GPU (the game closed, 5 %; `s58_ab_seeddefer_{1..4}_off{0,1}.json`, sessions alternating deferred / blocking, 2 runs each):**
+  the worst frame of the first 2 s **23.4 / 27.0 / 28.3 / 24.2 ms deferred vs 35.3 / 33.5 / 56.8 / 35.0 blocking**; `mgr.2` (the
+  tile wakes) 9.5-12.2 vs 12.2-13.9 ms. Better in every run; the gate (~7 ms) still not met. A foreign GPU process was listed in 7
+  of 8 runs (another checkout's) - alternating sessions share it.
 - Not done: the W4 clip's other half (no hole in motion - the clip's camera moves, frame by frame); the A/B for the deferred seed on an
   idle GPU; a body over the record past drawM (no patch: stated above).
 - **Seen in the remade clip, measured, cause found, NOT fixed (needs a design step): a dark stepped line across the lake at 29 s, only
