@@ -714,8 +714,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       LOD template chain: not used inside the region -- the far tier is a question for the switch), items / LOD
       template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world); the global default ON
       (F7.27: projects without world.voxfound boot switched; opt-out "voxfound":{"enabled":false}). OWED before the
-      deletion (F7.28 pictures): grass / foliage blades on the switched world, character shadows onto the switched
-      terrain, the FPS gap (55 vs 81 at Emberwake's pose), the conversion cost (~2.2 min for 1,200 chunks, main thread).
+      deletion: grass blades on the switched world (shadows / FPS were an early-capture artifact -- withdrawn; the
+      switched Emberwake runs 132 FPS vs today's 81), pits on the boot project's ground, the conversion cost (~2.2 min,
+      6.9 GB for 1,200 chunks).
       (Big worlds now convert whole; the +12.5 % on converted 1/3 m content is quantization by construction.)
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload

@@ -1541,3 +1541,14 @@ F7.27 CORRECTION + F7.28 (2026-11-23, measured; the results above stand as recor
      are missing and the CHARACTER CASTS NO SHADOW on the ground (today's world shows both); 55 vs 81 FPS at that pose.
      Owed before the deletion: grass / foliage blades on the switched world; character shadows onto the switched
      terrain; the frame-rate gap measured and closed.
+
+F7.28 CORRECTION (2026-11-23, measured): the "no character shadow" and "55 vs 81 FPS" findings above came from the
+driver's screenshot 3 s after a 2-minute conversion (frame_ms_max 129,909 ms; the first reads 31 ms / frame, CPU-bound).
+Re-measured on the same Emberwake default boot at STEADY STATE, the same pose: the character's shadow IS drawn
+(scratchpad ember_steady.png); 131.8 - 135 FPS (cpu 7.6 ms, gpu 7.4 ms; frame_pacing: frame interval 6.87 ms, update
+0.67 ms) -- FASTER than today's world at that pose (81). A shadow A/B on the boot project (switch on vs off, same pose)
+also shows the shadow on the switched world. Both findings WITHDRAWN.
+Still standing: (1) NO GRASS BLADES on the switched world (the grass pipeline rides on today's visible chunks and packs
+whole-cube positions -- a 1/8 m ground top inside a cube needs a sub-cube height in the instance + grass.vert);
+(2) small dark square PITS scattered on the boot project's switched ground (seen in the A/B picture; cause not yet
+measured); (3) Emberwake's 1,200-chunk region: 6.9 GB private memory (today's at the same pose not measured).
