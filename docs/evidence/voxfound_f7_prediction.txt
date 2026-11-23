@@ -1190,3 +1190,18 @@ VoxFoundFurnish8Test.cpp), Release.
      *Building* / *Traversal* / *Stair*: 380 pass, 4 skipped. The editor builds.
   Next (F7.21b): the furnish stage on the 1/8 m sink path -- stamping the g8 templates at these poses, ceilings from
      the shell.
+
+F7.21b PREDICTION -- the furnish stage on the 1/8 m sink path (2026-11-22; code built, NOT yet run). StructureForge's
+furnishCanvasGrid8 (Deps::canvasFurnish): F7.21a's placements at perM 8, the 1/8 m furniture library's voxels painted
+into the shell canvas (empty cells only), quarter turns by spawnTemplateMicro's rule; the editor routes
+{"furnish":true} on the switched world here (F7.15's whole-pipeline path stays as {"furnish_legacy":true}).
+Live, VoxFoundBoot (switched, streaming off), POST /api/structure/build hall_house 16 x 7 at (8150, 28, 200):
+  CONTROL / RED: the same build without "furnish" -> no furniture (the bare exact shell; no furnish_grid8 report).
+  B1: furnish_grid8.count >= 4 pieces, refused_cells 0 (no piece painted over the shell), every piece's template found
+      (or listed in no_grid8_template -- stated, not silently dropped).
+  B2: the placement read-back is exact (voxFoundPlaceCanvas's verify: 0 mismatches) with the furniture in it.
+  B3: furniture voxels in the region: within the house box, (furnished build's solid voxels) - (bare build's) =
+      furnish_grid8.voxels exactly.
+  B4 (visual, for the owner): an interior screenshot at eye height shows the pieces standing on the floor, backs to the
+      walls, the bed's head / the fireplace's mouth facing into the room. Not a pass / fail gate by itself.
+Not in this stage (stated): item props, lights, signage, nav registration, PlacedObject metadata (sit / interact).
