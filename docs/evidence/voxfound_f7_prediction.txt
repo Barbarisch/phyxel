@@ -1581,3 +1581,12 @@ F7.29 PITS MEASURED (2026-11-23): the same pose on a copy of VoxFoundBoot booted
 no saved switched-world edits): clean ground, no pits, no lumps (f729_pits_nosave.png vs f729_grass_red.png). The pits
 and the cube-sized lumps are the boot project's SAVED TEST EDITS (F8.1's 1,000 random edits / breaks were saved and
 reloaded with the region) -- not a generator or conversion defect. Item closed.
+
+F7.30 PREDICTION -- the switched world's grass follows edits (owed by F7.29; 2026-11-23, before any code). F7.29 builds
+the grass at switch-on only: a dug meadow keeps its blades over the hole.
+THE CHANGE: per-chunk instance lists; every region edit (voxFoundLodMark) marks the chunks it touches; once edits pause
+0.25 s the marked chunks are rebuilt and the buffer re-uploaded (one device wait per burst, not per edit).
+Live, VoxFoundBoot: clear 2 x 1 x 2 cubes at the meadow's surface (the top metre: grass over dirt), wait 1 s.
+  R1: the grass count drops by exactly the metre columns whose top is no longer grass with air above (predicted 4: the
+      four cleared columns now top out on Dirt); the renderer holds the same count. RED (grass_refresh_stub): unchanged.
+  R2: placing a Grass cube back on one of them restores exactly 1 instance.
