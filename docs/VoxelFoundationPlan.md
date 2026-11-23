@@ -1840,7 +1840,7 @@ lattice, F6.2 the fill channel in the world, F6.3 crumbs as powder, F6.4 particl
 the hybrid settling back, live in the bodies lab; MISSED the live cost (CPU reference: 4-6 ms small, 25-250 ms on the
 large wall) and water pooling/drawing on an open floor** | MatSim's tests on world voxels | — |
 | **F7** | Move the consumers over (§7), default switched | full test suite green; L4 live checks | — |
-| **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step | — |
+| **F8** | Scale and stress: a whole town, 100 simultaneous breaks, 1,000 edit/break cycles, crossing chunk borders. **DONE 2026-11-22 (§9f, voxfound_f8_prediction.txt): F8.1 1,000 cycles + chunk borders 0 mismatches; F8.2 100 breaks exact per material (after the bake-previous + whole-voxel settle fix, unit-tested); F8.3 a 12-house town exact and 12/12 standable; F8.4 overlapping structures cleared. Nothing of F8 owed; the step-7 ports (F7) remain** | invariants hold at every step | — |
 
 ## 9a. F2 measurements (face counts)
 

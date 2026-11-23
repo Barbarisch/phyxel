@@ -1048,3 +1048,26 @@ pours into a pit dug in the new world and stays there.
 
 =====================================================================================================================
 F8 (scale and stress) -- predictions in docs/evidence/voxfound_f8_prediction.txt.
+
+F7.18 PREDICTION -- step-7 port 1: water spans off today's Chunk objects (2026-11-22, before any code).
+THE GATE FOR EVERY STEP-7 PORT (new, stated here): a consumer is ported when it works on the switched world with TODAY'S
+STREAMING OFF (today's chunks are not generated or landed while switched -- knob `today_stream_off`). Until now every
+switched-world run kept today's streaming running underneath, hidden; the water worked only because those hidden Chunk
+objects were generated (each carries its generation-time water spans, Chunk::waterSpans).
+Project VoxFoundWater (the coast bench booted switched, streaming). Every artifact: WorldGenerator Perlin s20260804's
+hydrology bake (sea level 16) + the switched world's 1/8 m terrain.
+CONTROL = RED (the current editor has no today_stream_off; the stub IS today's code path -- readers walk today's
+chunks): switched, streaming on, today_stream_off, the camera walked 320 m along the coast: spans over the chunks the
+switched world streamed in after the stop are 0 (no Chunk objects there); the render grid's wet columns there 0.
+THE CHANGE: a span store owned by ChunkManager (chunk coord -> spans), the authority while switched. The switched world
+fills it at every switch-on (a stream shift's included) from WorldGenerator::waterSpansForChunk -- the SAME function
+generation uses (factored out of generateChunk; pure in world position: the memoized column flood + bridge piers), for
+every region chunk; runtime span writes go to it (kept across shifts while edited). Every span reader / writer goes
+through ChunkManager::waterSpansAt / setWaterSpansAt / forEachWaterSpans (store while switched, chunks otherwise).
+  S1 (L2, equality): today's streaming ON, switched: for every chunk resident in both, store spans == the Chunk's
+     spans exactly (x, z, bottom, top) -- 0 mismatches.
+  S2 (the gate): today_stream_off, the same 320 m walk: spans in the newly streamed chunks > 0 and equal to
+     waterSpansForChunk for each; the render grid wet at the walk's end pose (> 1,000 wet columns at the coast).
+  S3: switch off: the readers are today's again (water_ledger's span total equals the pre-switch value exactly).
+RED: span_store_stub (the store not used; readers walk today's chunks) -> S2 reads 0.
+STATED: the store's runtime-edited spans are not yet saved with the switched world (save is W2, owed).
