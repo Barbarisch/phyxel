@@ -15340,10 +15340,18 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   **Test** `ARippleMaskByRowsEqualsTheFloatLookup` (a 60 m lake with a dry island, a patch pushed, 6 checks): 0 cells differ; CONTROL
   the reference mask holds >= 53,460 dry cells (the comparison can fail). **Live: `ripples.2` still 7.4-10.2 ms** in the first window
   - the mask was not its cost; the layer's step / impulses are (not split yet).
+- **`ripples.2` split (`ripples.2a-2e`, `ripples.g1-g4` inside `RippleGpu::record`; `s58_windows_ripplegpu.json`):** in a patch's first
+  live window the layer step's spike was a NEW layer's GPU state - `ripples.g1` 2.7-2.8 ms (its buffers and its two pipelines, built
+  for every patch: the last patch's layer was dropped with it) - and `label components` 1.2 ms; the mask 1.1. **Fix:** a dropped
+  state's two pipelines are kept (one spare each, rebound to the next state's buffers - no buffer kept, a dropped layer still holds
+  no device state, L2). TEST ONLY `RippleGpu::s_noPipelineSpareForTest`. **Test** (in `ARippleLayerBeyondTheReachHoldsNoDeviceState`,
+  21 layers made and 20 dropped): pipelines built 2; RED (spare off) 3 more fly-aways built 6; the device-vs-CPU ripple parity tests
+  pass. **Live** (`s58_windows_ripplespare.json`): `ripples.g1` 3.1 ms on the session's first patch (no spare yet), **1.6 ms** on the
+  second (the buffers left).
 - Seen in the full suite while ANOTHER checkout's integration suite ran on the GPU (63-100 %): `WaterRecordedPondTest.
   ARippleLayerBeyondTheReachHoldsNoDeviceState` failed 1 run in 4 (a dropped ripple layer's device state still held 6 frames after the
-  drop - freed through a 3-deep ring once the GPU finishes, late under load); it passed in every earlier run today. Re-run idle before
-  merging.
+  drop - freed through a 3-deep ring once the GPU finishes, late under load); it passed in every earlier run today. Re-run idle: it
+  passes (and in the next full suite: water unit 322 / 322, integration 107 / 109 - the known two).
 - P8 restated a fourth time: with another checkout's engine on the GPU the two immediate runs at 120 fps read 20.05 / 23.15 ms - its
   +2 ms bound sat inside the measured noise; the tolerance is now + 2 ms + the spread of the two immediate runs at that frame rate.
   P7's red control read 0 in a loaded full-suite run and 8 alone (it depends on how many stages a frame's wall-time budget fits).

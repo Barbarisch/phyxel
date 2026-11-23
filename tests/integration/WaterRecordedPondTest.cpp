@@ -656,8 +656,18 @@ TEST_F(WaterRecordedPondTest, ARippleLayerBeyondTheReachHoldsNoDeviceState) {
         maxStates = std::max({maxStates, a.gpuStates, b.gpuStates});
     }
     const auto f = frames(nearV, 6);
-    std::printf("  20 fly-aways: made %ld, dropped %ld, the most device states held %d\n", f.made, f.dropped, maxStates);
+    std::printf("  20 fly-aways: made %ld, dropped %ld, the most device states held %d | pipelines built %ld\n", f.made, f.dropped, maxStates, mgr.ripplePipelinesBuiltForTest());
     EXPECT_EQ(f.made, 21); EXPECT_EQ(f.dropped, 20);
+    // 58.3: a dropped state's two pipelines are kept for the next (a new state built both each time: 2.7 ms of a patch's first frame)
+    EXPECT_EQ(mgr.ripplePipelinesBuiltForTest(), 2) << "the 21 layers built their own pipelines";
+    {   // RED: the spare off - each new state builds its own
+        const long before = mgr.ripplePipelinesBuiltForTest();
+        RippleGpu::s_noPipelineSpareForTest = true;
+        for (int c = 0; c < 3; ++c) { frames(farV, 6); frames(nearV, 6); }
+        RippleGpu::s_noPipelineSpareForTest = false;
+        std::printf("  RED (no pipeline spare): 3 more fly-aways built %ld pipelines\n", mgr.ripplePipelinesBuiltForTest() - before);
+        EXPECT_EQ(mgr.ripplePipelinesBuiltForTest() - before, 6);
+    }
     EXPECT_LE(maxStates, 1);
     EXPECT_EQ(f.gpuStates, 1) << "near again: the layer steps on the device (else the test measured nothing)";
 }

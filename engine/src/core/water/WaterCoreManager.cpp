@@ -4082,7 +4082,7 @@ void WaterCoreManager::stepRipples(float dt) {
     const bool gpu = rippleGpuOn();
     using RClock = std::chrono::steady_clock;
     auto rms = [](RClock::time_point a) { return std::chrono::duration<double, std::milli>(RClock::now() - a).count(); };
-    { const auto tc = RClock::now(); if (gpu) m_rgpu->collect(liveRippleLayers()); m_updateCpu.rCollect = rms(tc); }   // 25.34: last frame's GPU step into the layers (heights, sleep)
+    { const auto tc = RClock::now(); if (gpu) m_rgpu->collect(liveRippleLayers()); m_updateCpu.rCollect = rms(tc); WaterHostProfile::add("ripples.2d GPU collect", rms(tc)); }   // 25.34: last frame's GPU step into the layers (heights, sleep)
     m_rstats.gpuStates = m_rgpu ? m_rgpu->statesHeld() : 0;
     assignRippleSlots();   // L2 (43.2): the renderer's atlas holds kRippleMaxLayers - off: first come, refused (22.5); on: by the reach
     m_rwindT += std::max(dt, 0.0f);   // A12 v2 (45.3) prototype: the gusts' clock
@@ -4093,7 +4093,9 @@ void WaterCoreManager::stepRipples(float dt) {
         if (av.rippleSlot < 0) continue;
         // 26.13: a WINDOW over the volume (the regions' rule - one code path); a pond that fits is the whole box,
         // exactly the layer it had (the 512-cell refusal is gone: a 100 m creek volume gets a window instead of nothing)
+        const auto tWin = RClock::now();
         RippleLayer& L = rippleWindow(av.ripple, av.minVoxel, av.maxVoxel, gpu, av.rippleReachMade);
+        WaterHostProfile::add("ripples.2e window", rms(tWin));   // 58.3
         const WaterSurfaceField& f = av.field;
         if (f.nx <= 0 || f.cols.empty()) continue;
         auto column = [&](float wx, float wz) -> const SurfaceColumn* {
@@ -4122,6 +4124,8 @@ void WaterCoreManager::stepRipples(float dt) {
             av.rippleMaskVersion = f.version; av.rippleMaskKey = maskKey;
         }
         m_updateCpu.rMask += rms(tMask);
+        WaterHostProfile::add("ripples.2a mask", rms(tMask));   // 58.3: ripples.2 split (7-10 ms in a patch's first live frames)
+        const auto tImp = RClock::now();
         if (m_rpattern.slope >= 0.0f) {   // 22.11 measurement: a uniform tilt, held (no bodies, no step)
             const float a = glm::radians(m_rpattern.azimuthDeg), gx = m_rpattern.slope * std::cos(a) * d, gz = m_rpattern.slope * std::sin(a) * d;
             std::vector<float> hp(static_cast<size_t>(L.nx()) * L.nz());
@@ -4238,7 +4242,8 @@ void WaterCoreManager::stepRipples(float dt) {
             }
             if (ho) ++m_rstats.handingOver;
         }
-        { const auto tl = RClock::now(); if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel); m_updateCpu.rLayer += rms(tl); }
+        WaterHostProfile::add("ripples.2b bodies + forcing + hand-over", rms(tImp));
+        { const auto tl = RClock::now(); if (m_rpattern.slope < 0.0f) stepLayer(L, dt, vel.empty() ? nullptr : &vel); m_updateCpu.rLayer += rms(tl); WaterHostProfile::add("ripples.2c the layer step", rms(tl)); }
         if (av.rippleHandingOver && L.asleep()) {   // A12: a CPU step sleeps the rings inside it - the pond may record before the next frame looks
             av.rippleHandingOver = false;
             m_rstats.lastHandoverS = static_cast<float>(std::chrono::duration<double>(RClock::now().time_since_epoch()).count() - av.rippleHandoverStart);

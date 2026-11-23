@@ -1,4 +1,5 @@
 #include "core/water/RippleGpu.h"
+#include "core/water/WaterCoreGpu.h"   // 58.3: WaterHostProfile (record split)
 
 #include <algorithm>
 #include <chrono>
@@ -69,6 +70,7 @@ void RippleGpu::shutdown() {
     for (Sub& sb : m_subs) { if (sb.cmd) vkFreeCommandBuffers(m_device, m_pool, 1, &sb.cmd); sb.cmd = VK_NULL_HANDLE; sb.active = false; sb.layers.clear(); }
     for (auto& [id, s] : m_states) destroyState(s);
     m_states.clear();
+    for (auto* v : {&m_spareRipple, &m_spareLimit}) { for (auto& p : *v) if (p) p->cleanup(); v->clear(); }   // 58.3
     if (m_queries) vkDestroyQueryPool(m_device, m_queries, nullptr);
     for (Sub& sb : m_subs) { if (sb.fence) vkDestroyFence(m_device, sb.fence, nullptr); sb.fence = VK_NULL_HANDLE; }
     if (m_pool) vkDestroyCommandPool(m_device, m_pool, nullptr);
@@ -117,8 +119,10 @@ void RippleGpu::destroyBuffer(Buf& b) {
 }
 
 void RippleGpu::destroyState(State& s) {
-    if (s.pipe) { s.pipe->cleanup(); s.pipe.reset(); }
-    if (s.limit) { s.limit->cleanup(); s.limit.reset(); }
+    // 58.3: the pipelines kept for the next state (one spare each; its descriptors are rewritten when taken - no submission in flight
+    // uses a state that is destroyed: collect only drops states no active submission holds, the others wait idle first)
+    if (s.pipe) { if (m_spareRipple.empty() && !s_noPipelineSpareForTest && m_device != VK_NULL_HANDLE) m_spareRipple.push_back(std::move(s.pipe)); else { s.pipe->cleanup(); s.pipe.reset(); } }
+    if (s.limit) { if (m_spareLimit.empty() && !s_noPipelineSpareForTest && m_device != VK_NULL_HANDLE) m_spareLimit.push_back(std::move(s.limit)); else { s.limit->cleanup(); s.limit.reset(); } }
     for (Buf* b : {&s.state, &s.tmp, &s.inp, &s.vel, &s.kern, &s.lab, &s.cells, &s.chunks, &s.part, &s.range, &s.means, &s.broken, &s.prevDown})
         destroyBuffer(*b);
     for (int k = 0; k < kRing; ++k) { destroyBuffer(s.up[k]); destroyBuffer(s.down[k]); }
@@ -143,10 +147,16 @@ RippleGpu::State* RippleGpu::stateFor(RippleLayer& L, std::string* err) {
         ok = createBuffer(s.up[k], 16 * n + 12 * n + 8 * n + 8 * n + 16 * maxChunks + 16 * (n + 1) + 4 * 169 + 256, 0, 1, err)
           && createBuffer(s.down[k], 4 * n + 4 * tiles, 0, 2, err);   // r | broken per tile
     if (ok) {
-        s.pipe = std::make_unique<Vulkan::ComputePipeline>();
-        s.limit = std::make_unique<Vulkan::ComputePipeline>();
-        ok = s.pipe->create(m_device, m_spv, 11, sizeof(RipplePush)) && s.limit->create(m_device, m_spvLimit, 3, sizeof(LimitPush));
-        if (!ok && err) *err = "wc_ripple pipelines failed (" + m_spv + ", " + m_spvLimit + ")";
+        if (!m_spareRipple.empty() && !m_spareLimit.empty() && !s_noPipelineSpareForTest) {   // 58.3: a dropped state's, rebound below
+            s.pipe = std::move(m_spareRipple.back()); m_spareRipple.pop_back();
+            s.limit = std::move(m_spareLimit.back()); m_spareLimit.pop_back();
+        } else {
+            s.pipe = std::make_unique<Vulkan::ComputePipeline>();
+            s.limit = std::make_unique<Vulkan::ComputePipeline>();
+            ok = s.pipe->create(m_device, m_spv, 11, sizeof(RipplePush)) && s.limit->create(m_device, m_spvLimit, 3, sizeof(LimitPush));
+            m_pipelinesBuilt += 2;
+            if (!ok && err) *err = "wc_ripple pipelines failed (" + m_spv + ", " + m_spvLimit + ")";
+        }
     }
     if (!ok) { destroyState(s); return nullptr; }
     Buf* binds[11] = {&s.state, &s.tmp, &s.inp, &s.vel, &s.kern, &s.lab, &s.cells, &s.chunks, &s.part, &s.range, &s.means};
@@ -206,7 +216,9 @@ bool RippleGpu::record(RippleLayer& L, float dt, const std::vector<glm::vec2>* v
     const float tAdv = vel ? L.planAdvect(*vel, dt) : 0.0f;
     const int nSub = L.planStep(dt);
     if (nSub <= 0 && tAdv <= 0.0f) return false;
+    auto rp = Core::Water::WaterHostProfile::Clock::now();   // 58.3: the record split (a patch's first live frames: 4.3-6.4 ms)
     State* sp = stateFor(L, err);
+    Core::Water::WaterHostProfile::lap("ripples.g1 device state", rp);
     if (!sp) return false;
     State& s = *sp;
     ensureCommands();
@@ -214,6 +226,7 @@ bool RippleGpu::record(RippleLayer& L, float dt, const std::vector<glm::vec2>* v
     const size_t N = s.n;
     const uint32_t groups = static_cast<uint32_t>((N + 255) / 256);
     L.labelComponents();
+    Core::Water::WaterHostProfile::lap("ripples.g2 label components", rp);
     if (s.labelRev == ~0u) {   // a new state: the kernel once
         const VkDeviceSize o = stage(s, L.m_kernel.data(), 4 * L.m_kernel.size());
         copyUp(s, o, s.kern, 4 * L.m_kernel.size());
@@ -239,6 +252,7 @@ bool RippleGpu::record(RippleLayer& L, float dt, const std::vector<glm::vec2>* v
         if (!range.empty()) copyUp(s, stage(s, range.data(), 4 * range.size()), s.range, 4 * range.size());
         s.labelRev = L.m_labelRev;
     }
+    Core::Water::WaterHostProfile::lap("ripples.g3 bodies upload", rp);
     if (s.dirty) {   // the CPU's levels (a new layer, a shift, a pin, sleep's zero)
         copyUp(s, stage(s, L.m_r.data(), 4 * N), s.state, 4 * N, 4 * N * static_cast<VkDeviceSize>(s.slot[0]));
         copyUp(s, stage(s, L.m_prev.data(), 4 * N), s.state, 4 * N, 4 * N * static_cast<VkDeviceSize>(s.slot[1]));
@@ -307,6 +321,7 @@ bool RippleGpu::record(RippleLayer& L, float dt, const std::vector<glm::vec2>* v
         barrier(m_cmd);
     }
     if (imp) { std::fill(L.m_impulse.begin(), L.m_impulse.end(), 0.0f); L.m_anyImpulse = false; }
+    Core::Water::WaterHostProfile::lap("ripples.g4 levels + dispatches", rp);
     m_subs[m_cur].layers.push_back({s.uid, nSub > 0});
     ++m_building.layers; if (nSub > 0) ++m_building.stepped;
     m_building.recordMs += msSince(t0);

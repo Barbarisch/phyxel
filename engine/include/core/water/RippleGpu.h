@@ -110,6 +110,14 @@ private:
     bool m_limiterFault = false;
     std::string m_spv, m_spvLimit;
     std::unordered_map<uint64_t, State> m_states;
+    // 58.3 item 1: a dropped state's two pipelines kept for the next state (rebound to its buffers) - a new layer's state was 2.7-2.8
+    // ms of a patch's first live frame, its pipelines built each time. No buffer is kept (a dropped layer holds no device state, L2)
+    std::vector<std::unique_ptr<Vulkan::ComputePipeline>> m_spareRipple, m_spareLimit;
+public:
+    static inline bool s_noPipelineSpareForTest = false;   ///< 58.3 TEST ONLY: build each state's pipelines (the reference)
+    long pipelinesBuilt() const { return m_pipelinesBuilt; }
+private:
+    long m_pipelinesBuilt = 0;
     Stats m_stats, m_building;
 };
 

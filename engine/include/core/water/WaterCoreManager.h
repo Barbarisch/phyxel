@@ -1021,6 +1021,7 @@ public:
     /// GPU; the creek's 384 x 54 window (20,736 cells) 0.57 ms CPU vs 0.35 ms GPU.
     static constexpr int kRippleGpuMinCells = 8192;
     bool rippleGpuAvailable() const { return m_rgpu && m_rgpu->ready(); }
+    long ripplePipelinesBuiltForTest() const { return m_rgpu ? m_rgpu->pipelinesBuilt() : -1; }   ///< 58.3
     const std::string& rippleGpuError() const { return m_rgpuErr; }
     /// 24.7 pond friction (1/s) for every volume, now and created later.
     void setPondFriction(float perSecond) { m_pondFriction = std::max(0.0f, perSecond); for (auto& av : m_avs) av->solver->setPondFriction(m_pondFriction); }
