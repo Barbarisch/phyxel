@@ -23,3 +23,18 @@ INTEGRATION (phyxel_integration_tests): 247 tests in 25 suites, 1,161 s. 240 pas
     GPU tests).
 VERDICT: no failure traces to this F7 work; "full suite green" is NOT met literally -- 2 standing + 3 pre-existing
 scene + 2 water-core solver tolerances fail in any order, and 4 more fail only in the suite's order / load.
+
+RE-RUN 2026-11-23 (after F7.18 - D2; Release, the full suites; NOT quiet: another checkout's integration suite
+(G:\Github\phyxel, not this work's -- left running) loaded the machine throughout).
+  UNIT 4,749 pass, 20 skipped, 4 fail -- the same four as the F7 exit: AtlasManagerTest.BuildAtlasFromSourcePNGs and
+    FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes (the two STANDING failures),
+    WaterCouplingTest.BlastBesideThePondMovesItAndItSettles (documented order-dependent), WorldReads.Cost (the timing
+    guard). New tests since (VoxFoundSettleRubble, VoxFoundRoadGrade, VoxFoundBridge8, VoxFoundFurnish8,
+    VoxFoundNavGrid8) all pass.
+  INTEGRATION 240 pass, 7 fail -- the three SceneIntegrationTest and the two water-core tolerance rows as at the F7 exit;
+    VoxFoundBodySimGpu.F55mPrimalSplit and VoxFoundBodySimGpuNarrow.F55a4PrimalDeterministicAndCost: GPU TIMING
+    assertions (an ordering between profiled copy times; repeats swing -14 % / -45 % / +9 %) under the other suite's load;
+    alone, F55m still fails on the same timing ordering (0.110 vs 0.214 ms) -- no body-simulation code changed in this
+    work (F7.18 - D2 touched none of it). Recorded as contention-sensitive timing rows; re-run quiet before the deletion
+    stages are judged.
+VERDICT: nothing new fails; the deletion stages (D3, D4) start from this baseline.
