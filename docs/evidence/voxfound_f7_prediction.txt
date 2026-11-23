@@ -1224,3 +1224,19 @@ voxfound_f721b_live.jsonl. Every artifact: StructureForge's hall_house (1/8 m sh
   NOT in this stage (stated in every reply, "not_in_this_stage"): item props, lights, signage, nav, PlacedObject
      metadata (sit / interact). Routing: {"furnish":true} on the switched world = this stage; F7.15's whole-pipeline
      path = {"furnish_legacy":true}.
+
+F7.21c PREDICTION -- lights for the 1/8 m furnished structures (2026-11-22, before any code). Today's stageFurnish
+registers a point light per emitting fixture (wall lantern, chandelier, ... -- FurniturePlacer::emitterFor) and per
+hearth (the shell's measured fire anchor), and persists them on the structure. The 1/8 m stage (F7.21b) registers none:
+a furnished house is black inside.
+THE CHANGE: after the sink places the canvas (its reply carries the canvas origin), the forge registers the same lights
+through Deps::addPointLight at the same positions today uses -- a fixture: base cell + (0.5 m, its flame height, 0.5 m);
+a hearth: its fire anchor cell centre -- converted at 1/8 m from the canvas origin; the reply lists them. The editor
+attaches them to the switched world's structure registry (F8.4): saved with it, re-registered at the boot, removed when
+an overlapping build clears the structure.
+Live, VoxFoundBoot, hall_house 16 x 7 at (8150, 28, 200), furnish:true (as F7.21b):
+  L1: lights registered = emitting pieces + hearths in the reply (expected 4: 3 wall lanterns + the fireplace);
+      GET /api/lights grows by exactly that. CONTROL / RED (no furnish): +0.
+  L2: every light inside the house box; a lantern's light within 0.75 m of its piece's cells.
+  L3: save_world, relaunch: the registry's lights are back (same count, positions within 1e-3 m).
+  L4: a second furnished house overlapping the first: the first's lights removed -- the light count = the second's.
