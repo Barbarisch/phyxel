@@ -15114,13 +15114,15 @@ void Application::voxFoundBoot() {
             c.params = {{"stream", true}};
             handleVoxFoundPreview(c, st);
         }
+        voxFoundTodayStreamOff = v.value("today_stream_off", false);   // F7.26: the step-7 gate from the boot
     }
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     voxFoundBootReport = {{"booted", !r.contains("error") && !on.contains("error")}, {"region_request", req},
                           {"build_error", r.value("error", std::string())}, {"build_ms", ms(t0, t1)},
                           {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
-                          {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}}};
+                          {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}},
+                          {"today_stream_off", voxFoundTodayStreamOff}};
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 

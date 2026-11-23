@@ -1441,3 +1441,14 @@ boot stay resident, nothing more is generated or landed), and the earlier driver
   G3 F7.22 (tools/voxfound_f722_live.py furnish): nav at 8, into and out of a furnished house.
   G4 F7.21b (tools/voxfound_f721b_live.py furnish): 20 pieces, 0 refused, verify 0.
 Any miss names a consumer that still depends on today's chunks being streamed -- the next port.
+
+F7.26 RESULTS (2026-11-22; the prediction above untouched). Release; project VoxFoundGate8 (VoxFoundBoot + boot
+today_stream_off: the boot report confirms today_stream_off true in every run), each driver on a fresh copy of the
+boot DB; the drivers unchanged; raw lines appended to their own jsonl files.
+  G1 PASS (F8.2): 100 rapid breaks, 4,444,316 voxels broken: census diff {} (every material), 0 lost, 0 unplaced; max
+     apply 0.384 s.
+  G2 PASS (F8.3): the 12-house town -- T1 12 / 12 exact (verify 0, clipped 0), T2 12 / 12 on their floors, 0 drift,
+     T3 0 of today's cubes changed; job 13.3 s.
+  G3 PASS (F7.22): nav at 8 cells / m, both ways through a furnished house's door (10 nodes).
+  G4 PASS (F7.21b): 20 pieces, 0 refused, verify 0, census = report (2,178).
+No consumer in these four paths depends on today's chunks being streamed.

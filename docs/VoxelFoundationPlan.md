@@ -3231,6 +3231,10 @@ pasted / moved / restored box equals its source voxel for voxel, sub-cube detail
 floated them up to 1.75 m: the top of the cube holding the ground). The LOD template chain (today's distant tree tier)
 is not used inside the switched region -- recorded for the switch's render tier, not ported.
 
+**F7.26, the gate from the boot (2026-11-22).** world.voxfound.today_stream_off switches today's streaming off from the
+boot. Re-run unchanged under it: F8.2's 100 breaks (exact per material), F8.3's town (12/12 exact and standable, today
+untouched), F7.22's nav, F7.21b's furnish -- all hold.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still
