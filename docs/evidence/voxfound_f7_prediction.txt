@@ -1252,3 +1252,18 @@ emitterFor values), on WorldGenerator Perlin s7 + flora.
      holds 4 (= the second's), not 8.
   L3 PASS: save_world, relaunch (boot): the registry's 4 lights re-registered (valid ids), positions identical to the
      saved ones; the engine holds 4.
+
+F7.21d PREDICTION -- item props on the 1/8 m furnished surfaces (2026-11-22, before any code). Today's stageFurnish
+scatters tableware (surfaceItemsFor) on every table / counter / bar via FurniturePlacer::placeSurfaceItems, which
+rasterises a 1/9 m VoxelTemplate (C/S/M primitives) and converts at / 9. The 1/8 m stage spawns none.
+THE CHANGE: placeSurfaceItems' core takes primitive BOXES and the grid (perM); today's VoxelTemplate entry builds its
+C/S/M boxes and calls it at 9 -- its cell thresholds re-expressed in metres that round back to today's at 9 (headroom
+1/3 m = 3 cells, area 20/81 m^2 = 20 cells, extent 2/9 m = 2 cells, merge 1 cell); the 1/8 m stage feeds the 1/8 m
+template's boxes at 8 with the piece's anchor + rotation, after the sink (the canvas origin), and spawns the props
+(ItemPropManager, static). Their ids belong to the structure registry (removed with an overlapped structure); the props
+themselves persist as placed objects (category item), as today.
+  S1 (legacy): every furniture / structure / surface-item test unchanged (byte-identical at 9).
+  S2 (live, VoxFoundBoot hall_house furnish:true): > 0 props on the two tables; every prop rests ON a furniture top: the
+      1/8 m voxel just below its base is solid and the one just above is air. CONTROL / RED (no furnish): 0 props.
+  S3: a furnished house built over it removes its props (the prop count = the second house's).
+  S4: save_world + relaunch: the second house's props are back (same count).
