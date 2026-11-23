@@ -3878,7 +3878,8 @@ void Application::update(float deltaTime) {
     if (!voxFoundLodDirty.empty()) voxFoundLodRefresh(1);   // F7.6d: one dirty chunk's coarse levels per frame
     voxFoundStreamTick();                                   // F7.9b: the switched world follows the camera
     if (voxFoundBootPending && voxFoundBootConfig.contains("voxfound") &&
-        voxFoundBootConfig["voxfound"].value("source", std::string()) == "today" && chunkManager) {
+        (voxFoundBootConfig["voxfound"].value("source", std::string()) == "today" ||
+         voxFoundBootConfig["voxfound"].value("source", std::string()) == "world_db") && chunkManager) {
         // F7.27: today's world must have LANDED before it is converted -- no deferred DB loads, no generation pending,
         // and the resident set unchanged since the last frame (VillageChat booted on 27 of its chunks while loading)
         static size_t s_lastResident = 0;
@@ -13643,6 +13644,38 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"grass_stub", voxFoundGrassStub}, {"grass_instances", voxFoundGrassCount}};
             return;
         }
+        if (cmd.params.value("stored_check", false) && chunkManager) {   // D1b (tests): overlaid chunks == their blobs
+            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+            size_t checked = 0, bad = 0, notStored = 0;
+            nlohmann::json firstBad = nlohmann::json::array();
+            for (size_t i = 0; i < voxFoundEdit.chunkCount() && ws; ++i) {
+                const glm::ivec3 cc = voxFoundEdit.chunk(i).chunk;
+                std::vector<uint8_t> blob;
+                if (!ws->readChunkBlob(cc, blob) || blob.empty()) { ++notStored; continue; }
+                Core::VoxFound::BlockStore s;
+                std::vector<std::string> names;
+                if (!Core::VoxFound::convertPxb2(blob.data(), blob.size(), s, names, nullptr, nullptr)) { ++bad; continue; }
+                ++checked;
+                const auto& rs = voxFoundEdit.chunk(i).store;
+                size_t diff = 0;
+                for (int x = 0; x < 256 && diff == 0; ++x)
+                    for (int y = 0; y < 256 && diff == 0; ++y)
+                        for (int z = 0; z < 256; ++z) {
+                            const uint8_t a = s.at({x, y, z}), b = rs.at({x, y, z});
+                            std::string an = a < names.size() ? names[a] : "?";
+                            if (a != 0 && !Core::MaterialRegistry::instance().getMaterial(an)) an = "Default";   // retired
+                            const std::string bn = b == 0 ? "" : (b < voxFoundPalette.size() ? voxFoundPalette[b] : "?");
+                            if ((a == 0) != (b == 0) || (a != 0 && an != bn)) { ++diff; break; }
+                        }
+                if (diff) {
+                    ++bad;
+                    if (firstBad.size() < 5) firstBad.push_back({cc.x, cc.y, cc.z});
+                }
+            }
+            response = {{"checked", checked}, {"mismatching_chunks", bad}, {"not_stored", notStored},
+                        {"first_bad", firstBad}, {"overlaid_total", voxFoundOverlaidTotal}};
+            return;
+        }
         if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
             voxFoundGrassRefreshStub = cmd.params["grass_refresh_stub"].get<bool>();
             response = {{"grass_refresh_stub", voxFoundGrassRefreshStub}};
@@ -15147,9 +15180,14 @@ void Application::voxFoundReadBootConfig(const std::string& gameJsonPath) {
         if (!topOptOut && !g.contains("scenes") && (noWorld || !g["world"].contains("voxfound"))) {
             nlohmann::json w = noWorld ? nlohmann::json::object() : g["world"];
             for (auto it = w.begin(); it != w.end();) it = it->is_null() ? w.erase(it) : std::next(it);   // null fields: absent
-            if (w.value("streaming", false))
+            if (w.contains("type") && w["type"].is_string()) {   // D1b: "flat" -> "Flat" (the generator's names)
+                std::string t = w["type"].get<std::string>();
+                for (size_t k = 0; k < t.size(); ++k) t[k] = char(k == 0 ? std::toupper(uint8_t(t[k])) : std::tolower(uint8_t(t[k])));
+                w["type"] = t;
+            }
+            if (w.value("streaming", false) || w.contains("type"))   // D1b: typed = generated around the camera
                 w["voxfound"] = {{"enabled", true}, {"size", {4, 2, 4}}, {"y_from", 0}, {"load_saved", true},
-                                 {"stream", true}, {"default", true}};
+                                 {"stream", true}, {"default", true}, {"overlay_world_db", true}};
             else
                 w["voxfound"] = {{"enabled", true}, {"source", "world_db"}, {"load_saved", true}, {"stream", false},
                                  {"default", true}};   // D1: the DB's stored chunks -- no Chunk object read
@@ -15215,6 +15253,13 @@ void Application::voxFoundBoot() {
     c.params = req;
     handleVoxFoundPreview(c, r);
     const auto t1 = std::chrono::steady_clock::now();
+    nlohmann::json overlay;
+    if (!r.contains("error") && v.value("overlay_world_db", false)) {   // D1b: the DB's stored chunks over the generated
+        voxFoundOverlayDb = true;
+        std::vector<glm::ivec3> coords;
+        for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) coords.push_back(voxFoundEdit.chunk(i).chunk);
+        overlay = voxFoundOverlayStored(coords);
+    }
     if (!r.contains("error")) {
         c.params = {{"world_switch", true}, {"load_saved", v.value("load_saved", true)}};
         handleVoxFoundPreview(c, on);
@@ -15232,7 +15277,7 @@ void Application::voxFoundBoot() {
                           {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}},
                           {"today_stream_off", voxFoundTodayStreamOff},
                           {"source", fromDb ? "world_db" : fromToday ? "today" : "generator"},
-                          {"source_fallback", dbFallback}, {"default", v.value("default", false)},
+                          {"source_fallback", dbFallback}, {"default", v.value("default", false)}, {"overlay", overlay},
                           {"build_timing", {{"generate_ms", r.value("generate_ms", 0.0)}, {"build_wall_ms", r.value("build_wall_ms", 0.0)},
                                             {"gpu_face_build_ms_sum", r.value("gpu_face_build_ms_sum", 0.0)},
                                             {"region_lod_ms", r.value("region_lod_ms", 0.0)},
@@ -15398,6 +15443,55 @@ void Application::voxFoundGrassRefreshTick() {
     voxFoundGrassDirty.clear();
     voxFoundGrassUpload();
     ++voxFoundGrassRefreshes;
+}
+
+// D1b (step 7, stage D1): the DB's STORED chunks (today's PXB2 blobs) over the region -- each through the converter
+// (convertPxb2: cubes exact, thirds / ninths by volume), mapped to the region palette and loaded whole. No Chunk object
+// is read. The switched world's own saves (loaded at the switch-on, after this) still win.
+nlohmann::json Application::voxFoundOverlayStored(const std::vector<glm::ivec3>& coords) {
+    using namespace Core::VoxFound;
+    auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+    if (!ws || !ws->getDb()) return {{"overlaid", 0}, {"note", "no world storage"}};
+    size_t overlaid = 0;
+    std::map<std::string, size_t> unknownMapped;   // retired materials -> Default (chunks)
+    nlohmann::json errors = nlohmann::json::array();
+    for (const glm::ivec3& cc : coords) {
+        const int i = voxFoundEdit.indexOf(cc);
+        if (i < 0) continue;
+        std::vector<uint8_t> blob;
+        if (!ws->readChunkBlob(cc, blob) || blob.empty()) continue;
+        BlockStore s;
+        std::vector<std::string> names;
+        std::string err;
+        if (!convertPxb2(blob.data(), blob.size(), s, names, nullptr, &err)) {
+            errors.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"error", err}});
+            continue;
+        }
+        std::vector<uint8_t> map(names.size(), 0);
+        bool ok = true;
+        for (size_t k = 1; k < names.size() && ok; ++k) {
+            int m = voxFoundMaterial(names[k], &err);
+            if (m < 0 && Core::MaterialRegistry::instance().getMaterial(names[k]) == nullptr) {
+                // a RETIRED material (e.g. Cork): today draws it as the missing-texture fallback; here it is Default
+                m = voxFoundMaterial("Default", &err);
+                ++unknownMapped[names[k]];
+            }
+            ok = m >= 0;
+            if (ok) map[k] = uint8_t(m);
+        }
+        if (!ok) {
+            errors.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"error", err}});
+            continue;
+        }
+        s.remapMaterials(map);
+        const RegionEdit::Stats st = voxFoundEdit.loadChunk(size_t(i), s);
+        voxFoundOccBump(std::vector<size_t>{size_t(i)});
+        voxFoundLodMark(st);
+        ++overlaid;
+    }
+    if (overlaid) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    voxFoundOverlaidTotal += overlaid;
+    return {{"overlaid", overlaid}, {"errors", errors}, {"retired_materials_as_default", unknownMapped}};
 }
 
 // F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back
@@ -15658,6 +15752,7 @@ nlohmann::json Application::voxFoundStreamSwap() {
     voxFoundStreamSwapping = false;
     voxFoundEdit.rebox(job.lo, job.hi);
     for (auto& c : job.ready) voxFoundEdit.insertChunk(std::move(c));
+    if (voxFoundOverlayDb) voxFoundOverlayStored(job.entering);   // D1b: stored chunks entering the region
     if (voxFoundBuilder) voxFoundBuilder->dropResident();
     // the preview: one entry per chunk in the store's order; level 0 only (coarse levels dropped: stated)
     voxFoundPreview.chunks.assign(voxFoundEdit.chunkCount(), PreviewChunk{});

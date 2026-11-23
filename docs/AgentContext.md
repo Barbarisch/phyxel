@@ -705,7 +705,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       The settle is unit-tested (core/voxfound/SettleRubble.h, VoxFoundSettleRubble; red = the open-only flood).
       F7.18 / F7.19: water spans ported (the step-7 gate: today_stream_off; ChunkManager span store; region edits run
       the span edit; edited spans saved / loaded).
-      STEP 7 STAGED (plan section 9f "Step 7, the deletion -- staged"): D1 a source with no Chunk object, D2 generation
+      STEP 7 STAGED (plan section 9f "Step 7, the deletion -- staged"): D1 DONE (typed worlds: generator + DB overlay;
+      DB-only: stored chunks; retired materials -> Default), D2 generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into

@@ -374,6 +374,10 @@ private:
     bool voxFoundStreamSwapping = false;
     void voxFoundSpansFill();
     void voxFoundGrassFill();   // F7.29
+    // D1b: the DB's stored chunks overlaid on a generated region
+    bool voxFoundOverlayDb = false;
+    size_t voxFoundOverlaidTotal = 0;
+    nlohmann::json voxFoundOverlayStored(const std::vector<glm::ivec3>& coords);
     // F7.30: per-chunk grass, refreshed after edits
     std::vector<std::vector<GrassInstanceData>> voxFoundGrassPerChunk;
     std::set<size_t> voxFoundGrassDirty;

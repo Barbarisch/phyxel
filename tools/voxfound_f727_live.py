@@ -39,6 +39,10 @@ def main():
     out["switched"] = status.get("switched")
     out["build_timing"] = rep.get("build_timing")
     out["source_fallback"] = rep.get("source_fallback")
+    out["overlay"] = rep.get("overlay")
+    if mode == "default" and rep.get("booted"):
+        out["stored_check"] = call("POST", P, {"stored_check": True})
+        out["region_materials"] = sorted(call("POST", P, {"census": True}).get("census", {}).keys())
     if mode == "default" and rep.get("source") in ("today", "world_db"):
         today = call("POST", P, {"today_census": True}).get("today_voxels_by_material", {})
         region = call("POST", P, {"census": True}).get("census", {})

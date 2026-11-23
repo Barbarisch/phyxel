@@ -1636,3 +1636,17 @@ converts today's world after the landing wait. Type names are normalized ("flat"
       blob exactly (stored_check: 0 mismatching chunks); CharacterTestbed as run 1.
   Q2: TavernTest's tavern (its stored chunks) is in the region: the overlaid chunks' census includes its building
       materials (Thatch, WoodPlanks, Bricks).
+
+D1b RESULTS (2026-11-23; the prediction above untouched). Release, copies of the projects; raw voxfound_f727_live.jsonl.
+Every artifact: the engine generator (1/8 m) around each project's camera + the project's stored PXB2 chunks through
+convertPxb2 (DB-only worlds: the stored chunks alone).
+  Q1 PASS: TavernTest (Flat, 4 stored chunks) boots generator + overlay -- 4 overlaid, stored_check 0 of 4 chunks
+     mismatching; Emberwake (Flat, nothing stored) boots generated (0 overlaid); CharacterTestbed (DB-only) world_db,
+     99 chunks checked, 0 mismatching. VillageChat run 1 REFUSED its 4 stored chunks: "unknown material Cork" -- a
+     RETIRED material (CLAUDE.md: Cork no longer exists; today draws it as the missing-texture fallback). Policy added:
+     a retired material converts to Default, counted (retired_materials_as_default). Re-run: 4 overlaid (Cork -> Default
+     in 4 chunks), 0 mismatching.
+  Q2 PASS: TavernTest's region holds its tavern's materials (Bricks, Thatch, WoodPlanks, Wood).
+  The landing wait now also covers the world_db default (its today fallback converted a partial Emberwake in run 1).
+D1 DONE: no fixed-world boot reads a Chunk object any more (typed: generator + the DB overlay, streaming; DB-only: the
+stored chunks); the only remaining Chunk reader at the boot is the fallback for an untyped world with an empty DB.
