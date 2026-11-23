@@ -3202,7 +3202,9 @@ switched world and read back at the boot (relaunch exact).
 **F7.20, road grading on the 1/8 m terrain (2026-11-22).** sampleColumn records the graded continuous height (bedHeight,
 the water's bed, untouched); the 1/8 m terrain reads it. Road top faces follow the plan's grade (0 / 1,230 columns
 outside 0.375 m; red 209, worst 0.75 m), off-road areas byte-identical, seam-free. Read, not built: the river carve and
-road material were already reproduced (bedHeight, surfaceMat). Owed: bridge decks / rails / piers on the 1/8 m terrain.
+road material were already reproduced (bedHeight, surfaceMat). **F7.23:** WorldForge bridges on the 1/8 m terrain -- the
+deck, the parapet (5/8 of its metre) and piers that reach the continuous ground (which lies up to 0.65 m below the cube
+pier's first metre); seam-free.
 
 **F7.21a, the furnisher takes the grid (2026-11-22).** FurniturePlacer's cell math (poses, reservation spans, plan wall
 thicknesses, mount heights) takes perM (default 9 = today, byte-identical except the fix below). On a 1/8 m shell with

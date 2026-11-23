@@ -1328,3 +1328,16 @@ channel; skipped if the seed has none, as there):
   B3: every pier column: solid without a gap from the ground's top voxel up through metre pierTopY (all 64 voxel
       columns).
   B4: an area across the bridge = its two halves built separately (seam-free); FastAreaEqualsReference still passes.
+
+F7.23 RESULTS (2026-11-22; the prediction above untouched). Unit test VoxFoundBridge8 (tests/core/VoxFoundBridge8Test.cpp),
+Release.
+  B1 PASS: 25 deck columns (of 70 bridged columns sampled on the BridgeWorld span), metre deckY Wood in all 512 voxels
+     each; RED (setBridgeStub): 0 Wood voxels there.
+  B2 PASS: 11 rail columns, exactly 5 / 8 layers WoodPlanks (320 voxels) each.
+  B3 VACUOUS on the BridgeWorld span (0 pier columns: piers only on spans >= 2 x kPierSpacing) -- recorded; measured on
+     RoadFieldSeamTest's long-span fixture (Mountains 424242, 8 sites) instead: PASS 60 pier columns, 0 gapped voxel
+     columns from the ground up through metre pierTopY; RED 3,840 (= all). Measured there: the continuous ground lies
+     up to 0.654 m below the cube pier's first metre (surfaceY + 1) -- a pier emitted by the cube rule alone would float.
+  B4 PASS: a 16 x 23 x 16 m area across the bridge (12,800 Wood voxels) = its two halves built separately (0 differing).
+  Regression: VoxFoundTerrainGenRate (FastAreaEqualsReference) / VoxFoundStorageLab / VoxFoundRoadGrade / RoadFieldSeam /
+     WorldForge / Flora: 89 pass, 1 skipped.

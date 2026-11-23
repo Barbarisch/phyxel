@@ -33,9 +33,33 @@ std::atomic<bool> g_roadGradeStub{false};   // F7.20 (tests): the graded height 
 inline float groundOf(const WorldGenerator::ColumnSample& c) {
     return (c.graded && !g_roadGradeStub.load()) ? c.gradedHeight : c.bedHeight;
 }
+std::atomic<bool> g_bridgeStub{false};   // F7.23 (tests): bridges not stamped (the red)
+/// F7.23: a WorldForge bridge in one 1/8 m voxel column, as generateChunk emits it in cubes -- the plank deck fills metre
+/// deckY (Wood), the parapet the lower 2/3 of metre deckY + 1 on rail columns (WoodPlanks; centre sampling: 5 of 8
+/// voxels), both only above the column's surface metre; a pier fills Stone from the 1/8 m ground (h + 0.5) up through
+/// metre pierTopY, air voxels only (in cubes it starts at surfaceY + 1; the continuous ground can lie below that, so
+/// the pier would float).
+template <class IdOf>
+void stampBridgeColumn(VoxelArea& a, const WorldGenerator::ColumnSample& c, int vx, int vz, float h, IdOf&& idOf) {
+    if (c.bridgeDeckY == INT_MIN || g_bridgeStub.load()) return;
+    const glm::ivec3 o = a.originVoxel;   // in 1/8 m voxels
+    for (int vy = 0; vy < a.grid.dim.y; ++vy) {
+        const float wy = (float(o.y + vy) + 0.5f) / kVoxelsPerM;
+        const int my = int(std::floor(wy));
+        if (my > c.surfaceY && my == c.bridgeDeckY) {
+            a.grid.set({vx, vy, vz}, idOf("Wood"));
+        } else if (my > c.surfaceY && c.bridgeRail && my == c.bridgeDeckY + 1 && wy - float(my) < 2.0f / 3.0f) {
+            a.grid.set({vx, vy, vz}, idOf("WoodPlanks"));
+        } else if (c.bridgePierTopY != INT_MIN && my <= c.bridgePierTopY && wy >= h + 0.5f &&
+                   !a.grid.at({vx, vy, vz})) {
+            a.grid.set({vx, vy, vz}, idOf("Stone"));
+        }
+    }
+}
 }
 void setTerrainLegacy(bool on) { g_terrainLegacy = on; }
 void setRoadGradeStub(bool on) { g_roadGradeStub = on; }
+void setBridgeStub(bool on) { g_bridgeStub = on; }
 
 VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
     VoxelArea a;
@@ -96,6 +120,7 @@ VoxelArea buildTerrainAreaReference(WorldGenerator& gen, glm::ivec3 o, glm::ivec
                 cc.surfaceY = surfaceMetre;
                 a.grid.set({vx, vy, vz}, idOf(gen.columnMaterialAt(my, cc)));
             }
+            stampBridgeColumn(a, c, vx, vz, h, [&](const char* m) { return idOf(m); });   // F7.23
         }
     }
     return a;
@@ -173,6 +198,7 @@ VoxelArea buildTerrainArea(WorldGenerator& gen, glm::ivec3 o, glm::ivec3 sz) {
                 }
                 a.grid.set({vx, vy, vz}, uint8_t(id));
             }
+            stampBridgeColumn(a, c, vx, vz, h, [&](const char* m) { return idOf(m); });   // F7.23
         }
     }
     return a;

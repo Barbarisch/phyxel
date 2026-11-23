@@ -709,8 +709,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into
       the shell on the sink path; F7.21c lights + F7.21d item props (registry-owned, saved); owed signage, nav,
       sit/interact metadata; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
-      before furnish on the sink path; g8 furniture readable only by loadGridTemplate), bridges on the 1/8 m terrain
-      (F7.20 did grading; carve + road material were already there), API units, items / LOD
+      before furnish on the sink path; g8 furniture readable only by loadGridTemplate); bridges DONE F7.23 (grading
+      F7.20); API units, items / LOD
       template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world) -- then the global default
       and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
