@@ -180,3 +180,12 @@ tools/voxfound_f84_live.py. Every artifact: StructureForge's hall houses (1/8 m 
   O2 PASS: the registry holds 1 structure (B, id 2); a drop in B rests on its floor (23.25 = 23.25).
   O3 PASS: save_world, relaunch, the boot loads the registry back (1 structure, B's box).
   Stated: a cleared structure's slab / foundation below its floor surface stays (the clear runs from the floor up).
+
+F8.2 UNIT TEST (owed by F8.2; 2026-11-22). The settle's decisions moved into core/voxfound/SettleRubble.h
+(settleIntoWholeVoxels); the editor's voxFoundSettleRubble now calls it (the test pins the shipped code, not a copy).
+VoxFoundSettleRubble: ExactCountsFullestFirstNeverOverSolids, EnclosedPocketDoesNotStrandWhatIsOwed.
+  RED: a mutation restoring the earlier open-only flood (a defect F8.2 hit live) -> both tests fail (flooded 0 of 9; a
+       candidate buried in solids strands its material).
+  GREEN: 2 / 2 (+ VoxFoundBodyRest 10 / 10). Live re-run on the refactored editor (tools/voxfound_f82_live.py green,
+       voxfound_f82_live.jsonl): R1 census diff {}, R2 100 blasts census diff {} lost 0 unplaced 0, R3 max 0.446 s --
+       identical to the F8.2 record.

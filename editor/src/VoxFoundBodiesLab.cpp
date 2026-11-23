@@ -62,6 +62,7 @@
 #include <chrono>
 
 #include "core/AssetManager.h"
+#include "core/voxfound/SettleRubble.h"   // F8.2
 #include "core/MaterialRegistry.h"
 #include "graphics/RenderCoordinator.h"
 
@@ -509,8 +510,6 @@ nlohmann::json Application::voxFoundSettleRubble() {
         if (const uint8_t m = MS::worldMaterialOfRubble(id))
             if (w.in(v)) cand[m][w.idx(v)] += u;
     std::map<size_t, uint8_t> write;   // one entry per cell: the last decision wins
-    size_t placed = 0, remainder = 0, stacked = 0, unplaced = 0;
-    std::vector<char> taken(w.size(), 0);
     for (size_t i = 0; i < w.size(); ++i) {   // every rubble cell drawn by the half rule goes to air first
         if (w.mat[i] || w.fill.empty() || !w.fill[i]) continue;
         if (!MS::worldMaterialOfRubble(MS::cellMaterial(w.fill[i]))) continue;
@@ -518,52 +517,9 @@ nlohmann::json Application::voxFoundSettleRubble() {
         if (i < lab.fluidDrawn.size()) lab.fluidDrawn[i] = 0;
         write[i] = 0;
     }
-    for (auto& [m, u] : units) {
-        size_t n = size_t(u / 256);
-        remainder += size_t(u % 256);
-        std::vector<std::pair<uint64_t, size_t>> order;
-        for (const auto& [i, uu] : cand[m]) order.push_back({uu, i});
-        std::stable_sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
-        auto put = [&](size_t i) {
-            w.mat[i] = m;
-            taken[i] = 1;
-            write[i] = m;
-            ++placed;
-            --n;
-        };
-        for (const auto& [uu, i] : order) {
-            if (!n) break;
-            if (!w.mat[i] && !taken[i]) put(i);
-        }
-        // fewer open candidates than voxels owed: flood outward through open cells from the candidates (a pile around
-        // the rubble), nearest first, lower first among equals
-        if (n) {
-            std::vector<char> seen(w.size(), 0);
-            std::vector<size_t> frontier;
-            for (const auto& [uu, i] : order) frontier.push_back(i), seen[i] = 1;
-            if (frontier.empty()) {   // no candidate inside the window (its matter flew out): the surface at the centre
-                glm::ivec3 c(w.dim.x / 2, w.dim.y - 1, w.dim.z / 2);
-                while (c.y > 0 && !w.mat[w.idx(c - glm::ivec3(0, 1, 0))]) --c.y;
-                frontier.push_back(w.idx(c)), seen[frontier[0]] = 1;
-                if (!w.mat[frontier[0]] && !taken[frontier[0]] && n) put(frontier[0]), ++stacked;
-            }
-            static const glm::ivec3 N6[6] = {{0, -1, 0}, {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0}};
-            for (size_t h = 0; h < frontier.size() && n; ++h) {
-                const glm::ivec3 v = w.pos(frontier[h]);
-                for (const auto& d : N6) {
-                    const glm::ivec3 q = v + d;
-                    if (!w.in(q)) continue;
-                    const size_t qi = w.idx(q);
-                    if (seen[qi]) continue;
-                    seen[qi] = 1;
-                    frontier.push_back(qi);   // through solids too (an enclosed pocket must not strand the voxels owed);
-                                              // only open cells are filled
-                    if (!taken[qi] && !w.mat[qi] && n) put(qi), ++stacked;
-                }
-            }
-        }
-        unplaced += n;
-    }
+    // F8.2: the decisions (exact counts, fullest candidates first, a flood through solids into open cells) live in
+    // core/voxfound/SettleRubble.h, pinned by VoxFoundSettleRubble tests
+    const SettleStats ss = settleIntoWholeVoxels(w, units, cand, write);
     lab.fluid.reset();   // the fluid's matter is in the grid now (as solids): nothing left to step or count twice
     std::vector<std::pair<glm::ivec3, uint8_t>> cells;
     for (const auto& [i, m] : write) cells.push_back({lab.originVoxel + w.pos(i), m});
@@ -574,7 +530,7 @@ nlohmann::json Application::voxFoundSettleRubble() {
         voxFoundLodMark(es);
         voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
     }
-    return {{"settled", placed}, {"stacked", stacked}, {"unplaced", unplaced}, {"remainder_units", remainder}};
+    return {{"settled", ss.placed}, {"stacked", ss.flooded}, {"unplaced", ss.unplaced}, {"remainder_units", ss.remainderUnits}};
 }
 
 // F6.5: drawn vs the rule over every lab voxel (status {"fluid_check":true})
