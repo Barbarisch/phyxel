@@ -15587,6 +15587,19 @@ near its edge** (the record's stored water untouched - the books never move).
 7. **Tiers:** a vertex term on record tiles near a live box (a few thousand vertices); M is the knob. No outcome changes (draw).
 **Verdict: READY.** It replaces the per-seam attempts of 58.4 / 58.5 / 58.9 with one mechanism.
 
+**BUILT (2026-11-23), OFF by default:** `engine/include/core/water/EdgeBlend.h` (`EdgeProfile`, `edgeBlendLift`; the vertex shader
+carries it line for line), `WaterCoreManager::edgeProfiles()` (a patch / reach / band: its box and each side's drawn top every
+metre, from its surface field), the ripple buffer's header gains the edge block (params, 8 boxes, their sample counts, 8 x 4 x 96
+tops) and its binding is visible to the vertex stage; `water_surface.vert` lifts a top-face vertex. API `water_ripples
+{edge_blend: {on, m}}` (echo: on, m, profiles published). **Tests** `WaterEdgeBlendTest`: for the three seams' sizes (1 / 12 / 16 cm)
+the record drawn at the box edge = the volume's level (to 1e-4 m), back to the record's at M, the largest jump over 5 cm 0.2 / 3.0 /
+4.0 mm (no step of its own); RED (off) the full step; inside a box 0, a dry side 0, the nearest of two boxes wins.
+**Live, the 58.4 seam (`w58_edge_on.mp4` vs `w58_seam_probe3.mp4`, the last frame): the line is UNCHANGED** - one profile published,
+but that seam is not at the patch's BOX edge: it is INSIDE the box, between the patch's awake water (89.99) and its own recorded
+tiles (90.0), and record vertices inside a live box are left alone by design. So the box-edge blend covers the reach's and the
+band's outer edges, not a patch's internal awake / recorded boundary. Next for it: the profile published per awake region's
+outline (tile by tile), not per box - the same lift, a finer boundary. Not yet measured on the reach and the band live.
+
 ### 58.10 Item 1, where the first second goes now (2026-11-23). Status: MEASURED; the gate NOT met
 
 Idle GPU (2 %). `s58_windows_now.json` (the 57.6 Creek rig, 2 runs): the worst frames 108 / 119 ms at ~2 s are the host WAITING on

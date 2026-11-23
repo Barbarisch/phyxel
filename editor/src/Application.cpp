@@ -4125,6 +4125,7 @@ void Application::update(float deltaTime) {
                 { const auto tr = WClock::now(); m_rippleLayers = waterCore->rippleLayers(); m_waterCpu.feedRipples = wms(tr); }   // 22
                 renderCoordinator->setWaterCoreRipples(&m_rippleLayers, waterCore->rippleStats().smooth);
                 renderCoordinator->setWaterCoreRippleFade(waterCore->rippleFade());   // L2 (43.2): the ripples' fade by distance
+                renderCoordinator->setWaterEdgeProfiles(waterCore->edgeProfiles(), Core::Water::WaterCoreManager::s_edgeBlendOn ? Core::Water::WaterCoreManager::s_edgeBlendM : 0.0f);   // 58.11
                 if (!m_watchPoints.empty() && m_watchRows.size() < 20000) {   // water_av_watch: every frame
                     std::vector<float> row;
                     row.push_back(static_cast<float>(std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_watchT0));
@@ -14696,6 +14697,12 @@ void Application::registerWaterCommands() {
             Core::Water::WaterCoreManager::s_farRippleTiles = WP::s_farRippleOn;   // the record tiles carry the patch's slot
             if (cmd.params["far"].contains("gain")) WP::s_farRippleGain = std::clamp(cmd.params["far"].value("gain", 1.0f), 0.0f, 4.0f);
         }
+        // 58.11 LOOK switch: {edge_blend: {on, m (0-8)}} - the record's drawn surface near a live box lifted toward its edge; echoed
+        if (cmd.params.contains("edge_blend") && cmd.params["edge_blend"].is_object()) {
+            using M = Core::Water::WaterCoreManager;
+            M::s_edgeBlendOn = cmd.params["edge_blend"].value("on", M::s_edgeBlendOn);
+            if (cmd.params["edge_blend"].contains("m")) M::s_edgeBlendM = std::clamp(cmd.params["edge_blend"].value("m", 3.0f), 0.0f, 8.0f);
+        }
         if (cmd.params.contains("river") && cmd.params["river"].is_object()) {
             auto rv = waterCore->riverRipple();
             rv.on = cmd.params["river"].value("on", rv.on);
@@ -14751,6 +14758,7 @@ void Application::registerWaterCommands() {
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              // L2 (43.3 item 5): slots held of kRippleMaxLayers, ponds within reach waiting for one, layers made / dropped (session),
              // the ripple GPU's device states held, the window side in force, the draw's fade (near, far; far < 0 = none)
+             {"edge_blend", {{"on", Core::Water::WaterCoreManager::s_edgeBlendOn}, {"m", Core::Water::WaterCoreManager::s_edgeBlendM}, {"profiles", waterCore->edgeProfiles().size()}}},   // 58.11
              {"far", {{"on", Graphics::WaterSurfaceRenderPipeline::s_farRippleOn}, {"gain", Graphics::WaterSurfaceRenderPipeline::s_farRippleGain},
                       {"record_tiles_with_layer", waterCore->recordTilesWithRippleLayer()},
                       {"bands", [&] { nlohmann::json a = nlohmann::json::array();   // 58.8: each layer's octave slopes (as the draw writes them)

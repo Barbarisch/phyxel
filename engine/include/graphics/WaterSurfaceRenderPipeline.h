@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/water/EdgeBlend.h"   // 58.11
 #include "core/water/RippleLayer.h"
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -116,7 +117,10 @@ public:
     /// L2 (43.2): the ripples' fade by distance - (viewer x, viewer z, near, far); far < 0 = none (weight 1)
     void setRippleFade(const glm::vec4& f) { m_rippleFade = f; }
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
-    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 48;   ///< vec4 fade, vec4 geo[8], ivec4 meta[8], vec4 far[8] (58.8)
+    /// vec4 fade, vec4 geo[8], ivec4 meta[8], vec4 far[8] (58.8); 58.11's edge blend: vec4 edgeParams (M, count), vec4 edgeBox[8],
+    /// ivec4 edgeN[8], float edgeTops[8 x 4 x 96]
+    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 48 + 16 + 8 * 16 + 8 * 16 + 8 * 4 * 96 * 4;
+    void setEdgeProfiles(std::vector<Core::Water::EdgeProfile> p, float m) { m_edgeProfiles = std::move(p); m_edgeM = m; }   ///< 58.11
     /// 58.8 (item 6, a LOOK switch - OFF until the owner has seen it): the far ripple - past a layer's window and its distance fade, a
     /// procedural slope carrying the layer's own roughness (FarRipple.h). gain scales it (1 = equal roughness at the edge)
     static inline bool s_farRippleOn = false;
@@ -162,6 +166,7 @@ private:
     VkDeviceSize m_rippleSlotBytes = 0;
     const std::vector<const Core::Water::RippleLayer*>* m_ripples = nullptr;
     bool m_rippleSmooth = false;
+    std::vector<Core::Water::EdgeProfile> m_edgeProfiles; float m_edgeM = 0.0f;   // 58.11
     glm::vec4 m_rippleFade{0.0f, 0.0f, 0.0f, -1.0f};
     uint32_t m_lastVertices = 0;
     std::chrono::high_resolution_clock::time_point m_startTime;

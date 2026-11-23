@@ -160,6 +160,7 @@ void WaterSurfaceRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout
     binds[0].binding = 0; binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; binds[0].descriptorCount = 1; binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     binds[1] = binds[0]; binds[1].binding = 1;
     binds[2] = binds[0]; binds[2].binding = 2; binds[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;   // 22: ripples
+    binds[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;   // 58.11: the vertex stage reads the edge blend's profiles
     VkDescriptorSetLayoutCreateInfo li{}; li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; li.bindingCount = 3; li.pBindings = binds.data();
     if (vkCreateDescriptorSetLayout(m_device, &li, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) throw std::runtime_error("water-surface descriptor set layout");
     std::array<VkDescriptorSetLayout, 2> sets = {uboLayout, m_descriptorSetLayout};
@@ -236,6 +237,18 @@ void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
     std::memcpy(base, &m_rippleFade[0], 16);
     auto* geo = reinterpret_cast<float*>(base + 16); auto* meta = reinterpret_cast<int32_t*>(base + 16 + kRippleIndices * 16);
     auto* far = reinterpret_cast<float*>(base + 16 + kRippleIndices * 32);   // 58.8: (the octaves' slopes x gain, on)
+    {   // 58.11: the edge blend's profiles (edgeParams, edgeBox[8], edgeN[8], edgeTops[8][4][96])
+        char* e = base + 16 + kRippleIndices * 48;
+        auto* params = reinterpret_cast<float*>(e); auto* box = reinterpret_cast<float*>(e + 16); auto* en = reinterpret_cast<int32_t*>(e + 16 + 128);
+        auto* tops = reinterpret_cast<float*>(e + 16 + 256);
+        const size_t nb = std::min(m_edgeProfiles.size(), static_cast<size_t>(Core::Water::kEdgeBoxes));
+        params[0] = m_edgeM; params[1] = static_cast<float>(nb);
+        for (size_t b = 0; b < nb; ++b) {
+            const auto& p = m_edgeProfiles[b];
+            box[b * 4 + 0] = p.lo.x; box[b * 4 + 1] = p.lo.y; box[b * 4 + 2] = p.hi.x; box[b * 4 + 3] = p.hi.y;
+            for (int s = 0; s < 4; ++s) { en[b * 4 + s] = p.n[s]; std::memcpy(tops + (b * 4 + s) * Core::Water::kEdgeSamplesMax, p.tops[s], sizeof(float) * Core::Water::kEdgeSamplesMax); }
+        }
+    }
     auto* heights = reinterpret_cast<float*>(base + kRippleHeaderBytes);
     size_t used = 0;
     if (m_ripples)

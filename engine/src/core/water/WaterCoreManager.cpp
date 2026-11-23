@@ -1760,6 +1760,46 @@ WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const
 // the highest surface + 1 m: a slept box's reach). Bodies inside it over dry ground are read (capped a call) and refused
 // (generatedBoxFor). Beyond the record tiles' reach no body is reported: a splash there makes no patch (the skin draws that water,
 // unsimulated - §27's "simulate where it counts"; the reach is locality's drawM).
+// 58.11: each live volume bordering the record (a patch, a reach, a shore band) - its box and, along each side every metre, the
+// drawn top of its outermost row of sub-columns there (the mean of the wet ones; dry -> kEdgeDry). Read from its surface field.
+std::vector<EdgeProfile> WaterCoreManager::edgeProfiles() const {
+    std::vector<EdgeProfile> out;
+    if (!s_edgeBlendOn) return out;
+    for (const auto& av : m_avs) {
+        if (!(av->isPatch || av->isReach || av->isShoreBand) || out.size() >= static_cast<size_t>(kEdgeBoxes)) continue;
+        const WaterSurfaceField& f = av->field;
+        if (f.nx <= 0 || f.nz <= 0 || f.cols.size() != static_cast<size_t>(f.nx) * f.nz) continue;
+        const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
+        EdgeProfile p;
+        p.lo = glm::vec2(static_cast<float>(av->minVoxel.x), static_cast<float>(av->minVoxel.z));
+        p.hi = glm::vec2(static_cast<float>(av->maxVoxel.x + 1), static_cast<float>(av->maxVoxel.z + 1));
+        const int sx = av->maxVoxel.x - av->minVoxel.x + 1, sz = av->maxVoxel.z - av->minVoxel.z + 1;
+        auto topOf = [&](int fx, int fz) -> float {   // a sub-column's top run, or kEdgeDry
+            if (fx < 0 || fz < 0 || fx >= f.nx || fz >= f.nz) return kEdgeDry;
+            const auto& c = f.at(fx, fz); const int n = std::min(static_cast<int>(c.runs + 0.5f), kSurfaceMaxRuns);
+            return n > 0 ? c.top[n - 1] : kEdgeDry;
+        };
+        auto sample = [&](int s, int m) {   // side s, metre m: the mean of the wet sub-columns on the outermost row
+            double sum = 0.0; int wet = 0;
+            for (int k = 0; k < per; ++k) {
+                int fx, fz;
+                if (s < 2) { fx = (av->minVoxel.x + m) * per + k - f.origin.x; fz = (s == 0 ? av->minVoxel.z * per : (av->maxVoxel.z + 1) * per - 1) - f.origin.z; }
+                else       { fz = (av->minVoxel.z + m) * per + k - f.origin.z; fx = (s == 2 ? av->minVoxel.x * per : (av->maxVoxel.x + 1) * per - 1) - f.origin.x; }
+                const float t = topOf(fx, fz);
+                if (t > kEdgeDry * 0.5f) { sum += t; ++wet; }
+            }
+            return wet ? static_cast<float>(sum / wet) : kEdgeDry;
+        };
+        for (int s = 0; s < 4; ++s) {
+            const int len = std::min(s < 2 ? sx : sz, kEdgeSamplesMax);
+            p.n[s] = len;
+            for (int m = 0; m < len; ++m) p.tops[s][m] = sample(s, m);
+        }
+        out.push_back(p);
+    }
+    return out;
+}
+
 std::vector<std::pair<glm::vec3, glm::vec3>> WaterCoreManager::recordReachBoxesWorld() const {
     std::vector<std::pair<glm::vec3, glm::vec3>> out;
     if (!s_generatedWake || !s_patchWake || !s_wakeOnTouch) return out;

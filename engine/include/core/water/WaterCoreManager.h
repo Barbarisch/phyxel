@@ -6,6 +6,7 @@
 // existing cell renderer at 1-voxel column resolution so Phase B has eyes without new rendering.
 // Solids come from a three-state micro-occupancy query the engine binds (Empty / Solid / Unknown
 // per world micro cell, 9 per voxel per axis); Unknown is a hold wall (§5.1).
+#include "core/water/EdgeBlend.h"   // 58.11
 #include "core/water/WaterCore.h"
 #include "core/water/WaterLocality.h"   // 40 (L1): the viewer distances
 #include "core/water/WaterDisplaceGate.h"   // 44 (A10): who shoves the water
@@ -831,6 +832,11 @@ public:
     /// record round it (generatedBoxFor) so the patch path runs as over a recorded lake; generated water woke nothing before. ON by
     /// default; off = the red control. Never a whole-box wake: a generated box only ever wakes patches.
     static inline bool s_generatedWake = true;
+    /// 58.11: the edge blend - the live volumes that border the record (patch / reach / shore band) publish their drawn edge tops;
+    /// the record's drawn surface within s_edgeBlendM of their boxes is lifted toward them (draw only). A look switch: OFF by default.
+    static inline bool s_edgeBlendOn = false;
+    static inline float s_edgeBlendM = 3.0f;
+    std::vector<EdgeProfile> edgeProfiles() const;
     /// 58.8: the far ripple's fields - a lake's record tiles carry its live patch's ripple slot (set with water_ripples {far: {on}})
     static inline bool s_farRippleTiles = false;
     int recordTilesWithRippleLayer() const { int n = 0; for (const auto& [k, t] : m_recordTiles) n += (t.wet && t.field.rippleLayer >= 0) ? 1 : 0; return n; }   ///< 58.8

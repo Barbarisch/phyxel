@@ -39,6 +39,45 @@ layout(location = 4) out float fragFoam;
 layout(location = 5) out vec2  fragFlow;
 layout(location = 6) flat out float fragRipple;
 
+// 58.11 (the edge blend; engine/include/core/water/EdgeBlend.h's edgeBlendLift LINE FOR LINE): the record's top within M metres of a
+// live volume's box is lifted toward the volume's drawn edge (w = 1 at the box, 0 at M; draw only). The Ripples buffer's prefix up to
+// the edge block (water_surface.frag declares the whole of it).
+layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; vec4 far[8];
+    vec4 edgeParams; vec4 edgeBox[8]; ivec4 edgeN[8]; float edgeTops[3072]; } rip;
+const float kEdgeDry = -1.0e30;
+float edgeTopAt(int b, int s, float a) {
+    const int n = rip.edgeN[b][s];
+    if (n <= 0) return kEdgeDry;
+    const float c = clamp(a - 0.5, 0.0, float(n - 1));
+    const int i = min(int(c), n - 1), j = min(i + 1, n - 1);
+    const float t0 = rip.edgeTops[(b * 4 + s) * 96 + i], t1 = rip.edgeTops[(b * 4 + s) * 96 + j];
+    if (t0 <= kEdgeDry * 0.5 || t1 <= kEdgeDry * 0.5) return t0 > kEdgeDry * 0.5 ? t0 : t1;
+    return t0 + (t1 - t0) * (c - float(i));
+}
+float edgeBlendLift(vec3 v) {
+    const float M = rip.edgeParams.x;
+    const int nb = int(rip.edgeParams.y + 0.5);
+    if (M <= 0.0 || nb <= 0) return 0.0;
+    float best = M, lift = 0.0;
+    for (int b = 0; b < nb && b < 8; ++b) {
+        const vec2 lo = rip.edgeBox[b].xy, hi = rip.edgeBox[b].zw;
+        const bool inX = v.x >= lo.x && v.x <= hi.x, inZ = v.z >= lo.y && v.z <= hi.y;
+        if (inX && inZ) return 0.0;
+        const float cx = clamp(v.x, lo.x, hi.x), cz = clamp(v.z, lo.y, hi.y);
+        const float d = length(vec2(v.x - cx, v.z - cz));
+        if (d >= best) continue;
+        int s; float a;
+        if (inX) { s = v.z < lo.y ? 0 : 1; a = cx - lo.x; }
+        else if (inZ) { s = v.x < lo.x ? 2 : 3; a = cz - lo.y; }
+        else { s = v.z < lo.y ? 0 : 1; a = cx - lo.x; }
+        const float top = edgeTopAt(b, s, a);
+        if (top <= kEdgeDry * 0.5) continue;
+        const float t = clamp(d / M, 0.0, 1.0), w = 1.0 - t * t * (3.0 - 2.0 * t);
+        best = d; lift = w * (top - v.y);
+    }
+    return lift;
+}
+
 // SeaDraw.h seaDrawFade, rule for rule
 float seaDrawFadeG(float dist) {
     if (pc.sea1.z < 0.5) return 0.0;
@@ -71,6 +110,7 @@ void main() {
             n = normalize(vec3(-dx, 1.0, -dz));
         }
     }
+    if (inSide < 0.5) p.y += edgeBlendLift(p);   // 58.11: a top face only (a side face's foot stays on the bed)
     fragWorldPos = p;
     fragDepth    = inDepth;
     fragSide     = inSide;
