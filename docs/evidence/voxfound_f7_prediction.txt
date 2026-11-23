@@ -1552,3 +1552,16 @@ Still standing: (1) NO GRASS BLADES on the switched world (the grass pipeline ri
 whole-cube positions -- a 1/8 m ground top inside a cube needs a sub-cube height in the instance + grass.vert);
 (2) small dark square PITS scattered on the boot project's switched ground (seen in the A/B picture; cause not yet
 measured); (3) Emberwake's 1,200-chunk region: 6.9 GB private memory (today's at the same pose not measured).
+
+F7.29 PREDICTION -- grass blades on the switched world (owed by F7.28's pictures; 2026-11-23; the change built, NOT yet
+run). Today's grass rides on today's visible chunks (empty while switched) and roots blades on whole-cube tops.
+THE CHANGE: GrassInstanceData tex bits 20-22 = the sink of the ground top below the cube top in 1/8 m (grass.vert /
+grass_shadow.vert drop the blade base by it; 0 = today, unchanged); RenderCoordinator::setVoxFoundGrass draws the
+switched world's instances with today's grass pipeline (scene + near shadow); the switched world builds them at
+switch-on: per metre column, the top 1/8 m voxel of its centre column, a grass material with air above. Stated
+simplifications: sky 15, no block light, edge-ness 8, the topmost surface only, not refreshed by edits yet.
+Live, VoxFoundBoot (switched), a meadow pose:
+  B1: grass instances > 1,000 over the region, all handed to the renderer; RED (grass_stub): 0.
+  B2 (visual, for the owner): blades stand on the 1/8 m ground (not floating above it, not buried), at the pose of
+      the F7.28 A/B; red: bare ground.
+  B3: today's world unchanged: with the switch off at a today-resident pose, today's grass draws as before (picture).
