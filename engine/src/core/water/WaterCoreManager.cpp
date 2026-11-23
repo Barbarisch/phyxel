@@ -3366,12 +3366,21 @@ const std::vector<const WaterSurfaceField*>& WaterCoreManager::surfaceFields() {
     refreshRecordTiles();   // §27 W1a: the recorded water near the camera, after the volumes (a volume owns its columns first)
     WaterHostProfile::lap("surf.6 record tiles' surfaces", hp);
     {   // 54.4: the record's tiles draw the river ripple layer (the shader reads 0 outside its window); a change of slot re-meshes them
-        const int want = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;
-        for (auto& [key, t] : m_recordTiles)
+        const int river = (m_riverLayer && m_riverSlot >= 0 && m_rstats.on) ? m_riverSlot : -1;
+        const int T = kRecordTile;
+        for (auto& [key, t] : m_recordTiles) {
+            int want = river;
+            // 58.8: with the far ripple on, a lake's record tile carries the ripple slot of a live patch of its pond (the patch's parent
+            // box holds it) - past the patch's window the shader draws the far ripple there (outside the window the simulated read is 0)
+            if (want < 0 && s_farRippleTiles && m_rstats.on)
+                for (const auto& av : m_avs)
+                    if (av->isPatch && av->rippleSlot >= 0 && key.first * T >= av->patchParentLo.x && key.first * T + T - 1 <= av->patchParentHi.x &&
+                        key.second * T >= av->patchParentLo.z && key.second * T + T - 1 <= av->patchParentHi.z) { want = av->rippleSlot; break; }
             if (t.wet && t.field.rippleLayer != want) {   // 58.3: a drawing change only - the columns (colsVersion) stand
                 if (t.field.colsVersion == 0) t.field.colsVersion = t.field.version;
                 t.field.rippleLayer = want; t.field.version = ++m_recordBuilds; ++m_recordStats.rippleBumps;
             }
+        }
     }
     for (auto& [key, t] : m_recordTiles) if (t.wet) m_fields.push_back(&t.field);
     return m_fields;

@@ -15572,7 +15572,34 @@ no pattern that reads as fake where seen):**
    Cost: a few ALU per water fragment past the window - measured whole-frame on Creek's 150 m lake (the realistic scene) and the
    sea at the horizon (the worst: most water pixels) before choosing defaults.
 
-**Verdict: READY** (every question answered above, the red tests stated). Not built - building it is the next item-6 step.
+**Verdict: READY** (every question answered above, the red tests stated).
+
+**BUILT (2026-11-23), OFF by default (a look switch: the owner's call from a clip):**
+- `engine/include/core/water/FarRipple.h` - `farBandSlopes` (the layer's per-axis slope RMS at 2 / 8 / 32 cells: the spectrum's
+  SHAPE, scaled so the octaves together carry the layer's per-axis slope RMS at the drawn scale - the bands overlap, so their raw
+  values summed would triple the variance) and `farRippleSlope` (3 octaves x 8 directional sine trains, each train its own
+  wavelength - irrational spread round the octave's - fixed golden-angle directions, deep-water speed, an octave under 4 pixels
+  draws nothing). `water_surface.frag` carries it line for line; the ripple header gains `vec4 far[8]` (bands x gain, on).
+  The shader: where the simulated rings fade (the distance weight) or end (the layer window's last 2 m), `(1 - w)` of the far
+  slope is added. Off: the draw exactly as before.
+- **A lake's record tiles carry the live patch's ripple slot** (with the switch on): before, only the patch's own field had a
+  layer, so past the patch nothing could draw the far ripple. `s_farRippleTiles`.
+- API `water_ripples {far: {on, gain (0-4)}}`, echoed with `record_tiles_with_layer` and each layer's `bands`.
+- **Tests** (`WaterFarRippleTest`): (a) the far ripple's per-axis slope RMS = the layer's (rings: 0.0103 vs 0.0103, 0.0 %); (b) still
+  water stays still (bands 0, the slope exactly 0 everywhere); (c) no repeat: 4 trains a octave read 0.64 at 54 m and one shared
+  wavelength 0.83 at 76 m - fixed by 8 trains, each its own wavelength; then the highest peak past 27 m **0.514** (my design-time
+  bound 0.5 MISSED - broad wave-group correlation, no peak near 1; the gate restated to < 0.8, the distinction from a tile's ~1;
+  between 14 and 27 m 0.528, the longest octave's own groups); (d) detail fades with the footprint (0.0345 -> 0.0225 at a 0.3 m
+  pixel, 0 at 10 m) while the motion continues (0.043 over 0.5 s).
+- **Live** (`tools/water_far_ripple_ab.py`, Creek, a splash 8 m from the camera - inside the ripple reach; the first try 50 m back
+  read `layers 0`: past the reach there is no layer to derive from - a stated limit of this design): bands 0.0095 / 0.0022 / 0.0006
+  3 s after the splash, 69 record tiles carrying the layer. Stills `far_ripple_g1_sheet.png`, `far_ripple_g4_sheet.png` (off / on;
+  gain 1 and 4): the far water's shading changes only slightly in stills (a slope of ~0.01 at a grazing view); the motion is what
+  reads - **a clip for the owner is the next step**, not this still. Suites: water unit 329 / 329; integration 111 / 114 - the
+  known two, and `ASleepReadsOnlyItsTilesStillInCells` once on its timing ratio (23.4 vs a 22.6 ms bound; alone 2 / 2 at 0.44 and
+  0.497 of the whole read - the bound sits in its noise: logged, its correctness checks - the record equal column by column, no
+  hole, no double - passed every run). **Open (stated):** past the ripple REACH (~21 m) no layer exists,
+  so a splash seen from 50 m still ends in still water - the far ripple needs the patch's own surface as its source there.
 
 ### 58.7 Item 7 (Track B): references gathered, targets proposed (2026-11-23). Status: PROPOSED - the owner adds or replaces
 

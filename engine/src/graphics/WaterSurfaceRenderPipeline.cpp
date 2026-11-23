@@ -1,3 +1,4 @@
+#include "core/water/FarRipple.h"   // 58.8
 #include "graphics/DepthConvention.h"
 #include "graphics/WaterSurfaceRenderPipeline.h"
 #include "graphics/Camera.h"
@@ -234,6 +235,7 @@ void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
     std::memset(base, 0, kRippleHeaderBytes);
     std::memcpy(base, &m_rippleFade[0], 16);
     auto* geo = reinterpret_cast<float*>(base + 16); auto* meta = reinterpret_cast<int32_t*>(base + 16 + kRippleIndices * 16);
+    auto* far = reinterpret_cast<float*>(base + 16 + kRippleIndices * 32);   // 58.8: (the octaves' slopes x gain, on)
     auto* heights = reinterpret_cast<float*>(base + kRippleHeaderBytes);
     size_t used = 0;
     if (m_ripples)
@@ -246,6 +248,10 @@ void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
             geo[li * 4 + 0] = L->origin().x * Core::Water::RippleLayer::kPitch; geo[li * 4 + 1] = L->origin().y * Core::Water::RippleLayer::kPitch;
             geo[li * 4 + 2] = 1.0f / Core::Water::RippleLayer::kPitch;
             meta[li * 4 + 0] = static_cast<int32_t>(used); meta[li * 4 + 1] = L->nx(); meta[li * 4 + 2] = L->nz(); meta[li * 4 + 3] = m_rippleSmooth ? 1 : 0;
+            if (s_farRippleOn) {   // 58.8: the layer's roughness, its spectrum's shape (sampled every 8 cells: a cost bound)
+                const glm::vec3 S = Core::Water::farBandSlopes(L->heights(), L->nx(), L->nz(), Core::Water::RippleLayer::kPitch, 8) * s_farRippleGain;
+                far[li * 4 + 0] = S.x; far[li * 4 + 1] = S.y; far[li * 4 + 2] = S.z; far[li * 4 + 3] = 1.0f;
+            }
             used += n;
         }
 }

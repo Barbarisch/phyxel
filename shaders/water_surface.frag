@@ -68,7 +68,7 @@ layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 // 22 (WaterCore.md 22.4): the ripple layers - per layer geo = (world origin x, z, 1/pitch, -), meta = (offset, nx, nz,
 // smooth); heights in metres, row-major per layer. L2 (43.2): fade = (viewer x, viewer z, near, far) - the ripples' weight by the
 // HORIZONTAL distance to the viewer, a pure function of world position (far < 0 = none, weight 1).
-layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; float rh[]; } rip;
+layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; vec4 far[8]; float rh[]; } rip;   // far: 58.8
 // WaterLocality::detail: 1 at or under near, 0 at or over far, a smoothstep between (far <= near: a hard reach at near)
 float rippleWeight(vec2 xz) {
     const vec4 f = rip.fade;
@@ -103,6 +103,40 @@ vec3 rippleSample(int L, vec2 xz) {
     const float h00 = rippleAt(L, i.x, i.y), h10 = rippleAt(L, i.x + 1, i.y), h01 = rippleAt(L, i.x, i.y + 1), h11 = rippleAt(L, i.x + 1, i.y + 1);
     const float dx = mix(h10 - h00, h11 - h01, t.y) * g.z, dz = mix(h01 - h00, h11 - h10, t.x) * g.z;
     return vec3(dx, dz, mix(mix(h00, h10, t.x), mix(h01, h11, t.x), t.y));
+}
+
+// 58.8 (item 6): the far ripple - engine/include/core/water/FarRipple.h's farRippleSlope LINE FOR LINE (WaterFarRippleTest pins the
+// rules there): 3 octaves x 8 directional sine trains (each its own wavelength), fixed incommensurate directions (no tiling, no cell borders), deep-water speed,
+// each octave's per-axis slope RMS = its band's S; an octave under kFarPixelsPerWave pixels draws nothing (detail fades, motion never)
+const float kFarLambda[3] = float[3](0.45, 1.8, 7.1);
+const float kFarAngle0[3] = float[3](0.37, 1.91, 4.27);
+const float kFarPhase[8] = float[8](0.0, 2.1, 4.4, 1.3, 5.7, 3.2, 0.9, 2.6);
+const float kFarSpread[8] = float[8](0.7745967, 0.8366600, 0.9055385, 0.9746794, 1.0488088, 1.1180340, 1.2041595, 1.2884099);
+vec2 farRippleSlope(vec2 xz, float t, vec3 S, float pixelM) {
+    vec2 slope = vec2(0.0);
+    for (int b = 0; b < 3; ++b) {
+        if (S[b] <= 0.0) continue;
+        const float lambda = kFarLambda[b];
+        const float vis = clamp(lambda / (4.0 * max(pixelM, 1e-6)) - 1.0, 0.0, 1.0);
+        if (vis <= 0.0) continue;
+        for (int i = 0; i < 8; ++i) {
+            const float k = 6.2831853 / (lambda * kFarSpread[i]), w = sqrt(9.81 * k);
+            const float a = S[b] * sqrt(4.0 / 8.0) / k;
+            const float ang = kFarAngle0[b] + 2.399963 * float(i);
+            const vec2 d = vec2(cos(ang), sin(ang));
+            const float ph = k * dot(d, xz) - w * t + kFarPhase[i];
+            slope += vis * a * k * cos(ph) * d;
+        }
+    }
+    return slope;
+}
+// 58.8: 1 inside the layer's window, 0 past it, a linear ramp over its last 2 m (the simulated rings hand over to the far ripple there)
+float rippleWindowWeight(int L, vec2 xz) {
+    const vec4 g = rip.geo[L]; const ivec4 m = rip.meta[L];
+    if (m.y <= 0) return 0.0;
+    const vec2 c = (xz - g.xy) * g.z;
+    const float edge = min(min(c.x, float(m.y) - c.x), min(c.y, float(m.z) - c.y)) / g.z;   // metres to the nearest window edge
+    return clamp(edge / 2.0, 0.0, 1.0);
 }
 
 // Must match water_surface.vert's block exactly. 128 bytes.
@@ -143,6 +177,12 @@ void main() {
     vec3 rs = vec3(0.0);
     if (rl >= 0 && rl < 8 && fragSide < 0.5) {
         rs = rippleSample(rl, fragWorldPos.xz) * rippleWeight(fragWorldPos.xz);   // L2: tilt and height faded alike
+        if (rip.far[rl].w > 0.5) {   // 58.8: where the simulated rings fade (distance) or end (the window), the far ripple takes over
+            const float w = rippleWeight(fragWorldPos.xz) * rippleWindowWeight(rl, fragWorldPos.xz);
+            const vec2 fw = fwidth(fragWorldPos.xz);
+            rs = rippleSample(rl, fragWorldPos.xz) * w;
+            rs.xy += (1.0 - w) * farRippleSlope(fragWorldPos.xz, pc.camPosTime.w, rip.far[rl].xyz, max(fw.x, fw.y));
+        }
         if (n.y > 0.0) n = normalize(n + vec3(-rs.x, 0.0, -rs.y));
     }
     if (dbg == 7) { outColor = vec4(vec3(clamp(0.5 + rs.z * 25.0, 0.0, 1.0)), 1.0); return; }   // 22 tap: ripple height, +-2 cm = black / white (after L2's fade)

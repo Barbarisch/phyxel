@@ -16,6 +16,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/water/WaterSpanWriteBack.h"   // Phase D: span clip/assemble/merge
 #include "core/water/WaterSpanEdit.h"        // Phase D2: edits never create water
 #include "core/water/WaterCoreGpu.h"         // 26.9: the still-water guess A/B switch
+#include "core/water/FarRipple.h"            // 58.8: the far ripple's bands (echo)
 #include "core/DebrisApiCommands.h"
 #include <cmath>
 #include <cstdlib>
@@ -14687,6 +14688,14 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("smooth")) waterCore->setRippleSmooth(cmd.params.value("smooth", false));
         // 54.4 (W5.3): {river: {on}} the river ripple layer (the record's river and its reaches alike, one window round the viewer);
         // omitted = unchanged; its reach is ripple_m (water_locality). Echoed under "river".
+        // 58.8 (item 6) LOOK switch: {far: {on, gain}} the far ripple past a layer's window / fade (OFF by default until the owner has
+        // seen it); gain clamped 0..4 (1 = the layer's roughness at the edge). Echoed under "far".
+        if (cmd.params.contains("far") && cmd.params["far"].is_object()) {
+            using WP = Graphics::WaterSurfaceRenderPipeline;
+            WP::s_farRippleOn = cmd.params["far"].value("on", WP::s_farRippleOn);
+            Core::Water::WaterCoreManager::s_farRippleTiles = WP::s_farRippleOn;   // the record tiles carry the patch's slot
+            if (cmd.params["far"].contains("gain")) WP::s_farRippleGain = std::clamp(cmd.params["far"].value("gain", 1.0f), 0.0f, 4.0f);
+        }
         if (cmd.params.contains("river") && cmd.params["river"].is_object()) {
             auto rv = waterCore->riverRipple();
             rv.on = cmd.params["river"].value("on", rv.on);
@@ -14742,6 +14751,12 @@ void Application::registerWaterCommands() {
         r = {{"enabled", s.on}, {"smooth", s.smooth}, {"layers", s.layers}, {"awake", s.awake}, {"cells", s.cells}, {"refused", s.refused},
              // L2 (43.3 item 5): slots held of kRippleMaxLayers, ponds within reach waiting for one, layers made / dropped (session),
              // the ripple GPU's device states held, the window side in force, the draw's fade (near, far; far < 0 = none)
+             {"far", {{"on", Graphics::WaterSurfaceRenderPipeline::s_farRippleOn}, {"gain", Graphics::WaterSurfaceRenderPipeline::s_farRippleGain},
+                      {"record_tiles_with_layer", waterCore->recordTilesWithRippleLayer()},
+                      {"bands", [&] { nlohmann::json a = nlohmann::json::array();   // 58.8: each layer's octave slopes (as the draw writes them)
+                          for (const auto* L : waterCore->rippleLayers()) { if (!L) continue; const glm::vec3 S = Core::Water::farBandSlopes(L->heights(), L->nx(), L->nz(), Core::Water::RippleLayer::kPitch, 8);
+                              a.push_back({S.x, S.y, S.z}); }
+                          return a; }()}}},   // 58.8
              {"slots_held", s.slotsHeld}, {"slots", Core::Water::WaterCoreManager::kRippleMaxLayers}, {"waiting", s.waiting},
              {"made", s.made}, {"dropped", s.dropped}, {"gpu_states", s.gpuStates}, {"window_side", s.windowSide},
              {"fade", {{"near_m", fade.z}, {"far_m", fade.w}, {"viewer_xz", {fade.x, fade.y}}}},

@@ -116,7 +116,11 @@ public:
     /// L2 (43.2): the ripples' fade by distance - (viewer x, viewer z, near, far); far < 0 = none (weight 1)
     void setRippleFade(const glm::vec4& f) { m_rippleFade = f; }
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
-    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 32;   ///< vec4 fade, vec4 geo[8], ivec4 meta[8]
+    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 48;   ///< vec4 fade, vec4 geo[8], ivec4 meta[8], vec4 far[8] (58.8)
+    /// 58.8 (item 6, a LOOK switch - OFF until the owner has seen it): the far ripple - past a layer's window and its distance fade, a
+    /// procedural slope carrying the layer's own roughness (FarRipple.h). gain scales it (1 = equal roughness at the edge)
+    static inline bool s_farRippleOn = false;
+    static inline float s_farRippleGain = 1.0f;
     static constexpr size_t kRippleFloats = 4u * 512u * 512u;        ///< heights per frame slot (4 layers of 512 x 512, the manager's budget)
     bool scatterLegacy() const { return m_scatterLegacy; }
     uint32_t lastVertices() const { return m_lastVertices; }

@@ -827,6 +827,9 @@ public:
     /// record round it (generatedBoxFor) so the patch path runs as over a recorded lake; generated water woke nothing before. ON by
     /// default; off = the red control. Never a whole-box wake: a generated box only ever wakes patches.
     static inline bool s_generatedWake = true;
+    /// 58.8: the far ripple's fields - a lake's record tiles carry its live patch's ripple slot (set with water_ripples {far: {on}})
+    static inline bool s_farRippleTiles = false;
+    int recordTilesWithRippleLayer() const { int n = 0; for (const auto& [k, t] : m_recordTiles) n += (t.wet && t.field.rippleLayer >= 0) ? 1 : 0; return n; }   ///< 58.8
     /// 58.5: TEST ONLY - record tiles drawn with no flow (u = w = 0: before 58.5; the red control of the record's current drawn)
     static inline bool s_recordFlowOffForTest = false;
     static constexpr int kGeneratedBoxTiles = 4;        ///< the box is the touch's 8 m record tile and this many each side (9 x 9 tiles, 72 m): strictly wider than a patch (k = 2)
