@@ -15499,6 +15499,14 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    reach stands at its downstream edge's level plus its own friction head; the falling stage removed the record's uphill part,
    not the friction head), and only 2-3 ring pairs were wet enough to sample. The reach's current here: 0.38 x the record's (off:
    0.43) - not a change. Next for the seam: the reach's edges taking the record's SLOPE, not one level.
+   **Tried (2026-11-23), measured, REVERTED: the reach's Manning n from the record's slope** (a uniform flow carries v at slope S with
+   n = R^(2/3) sqrt(S) / v - the hypothesis: the 0.12 m is the reach's own friction head at the fixed 0.035). The reach rig with a
+   SLOPED record (0.6 mm a metre along a 0.6 m/s current; `ASimulatedReachCarriesTheRecordsRiver`, measured against the record's own
+   level at each column): n from the record **0.0648** -> the worst level **23.9 mm**; the RED, n fixed 0.035: **14.8 mm** - the
+   calibrated n is WORSE, both worst at the INFLOW edge's column (x 0), so the step there is the head that drives the inflow, not
+   friction. The hypothesis is wrong; nothing shipped. Left: the inflow edge's head - its column held at the record's level while
+   the water just inside must stand higher to accelerate the inflow; candidates: the inflow columns held at the record's level
+   MINUS the measured head (54.2's 25 mm at x 0 in the flat rig too), or the inflow written as a discharge (q) not a level.
    - Suites: water unit 322 / 322; integration 111 / 114 - the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` failing
      2-5 of its 20 cycles every run with another checkout's engine holding the GPU at 99-100 %. Its "freed within 6 frames" measured
      the GPU's latency (the ring frees a state once the GPU has finished with it), not the release: restated - after the 6 frames, up
