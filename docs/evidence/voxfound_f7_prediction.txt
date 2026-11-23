@@ -1089,3 +1089,21 @@ s20260804's hydrology bake + the switched world's 1/8 m terrain.
   Unit: *Water* / *Span* / *WorldGenerator* / *ChunkBlob* / *ChunkStreaming* / *Hydro* / *Flora*: 445 pass, 1 skipped.
   STATED / OWED: runtime span edits in the store are not saved with the switched world (W2) and are dropped at
      switch-off; the store covers the switched region only (today's water readers saw today's whole resident radius).
+
+F7.19 PREDICTION -- water span EDITS on the switched world, saved (W2, owed by F7.18; 2026-11-22, before any code).
+Today: an edit (place / break / blast) fires ChunkManager's voxel-edit callback -> applyWaterSpanEdit, so digging under
+a lake lets its water down and a block placed in water displaces it; the edited spans are saved in the chunk blob.
+The switched world's edits never fire that callback (they go through RegionEdit) -- so under the gate
+(today_stream_off) a lake ignores digging and building, and edited spans are lost on save.
+THE CHANGE: every region edit (the one hook all of them pass, voxFoundLodMark) runs the span edit over its box's WET
+columns: a 1 m cell counts as solid when >= 256 of its 512 voxels are (the half rule, stated); applyWaterSpanEdit is
+called per cell of those columns. save_world writes the store's edited entries (world_meta "voxfound_spans"); the boot
+(load_saved) puts them back after the fill.
+Project VoxFoundWaterSave (a copy of VoxFoundWater, its boot load_saved: true so E3 can read the save back), booted
+switched, the gate on, the region walked into the sea (as F7.18). Column C = a wet
+column in the region (its stored depth d0, bottom b0).
+  E1: /api/world/clear one 1 m cube directly under C's bed -> C's span bottom b0 - 1, depth d0 + 1.
+  E2: /api/world/fill one 1 m Stone cube inside C's water (mid-depth) -> C no longer has water in that cell (its span
+      split or shortened; depth decreases by 1 m in that column).
+  E3: save_world; relaunch (boot, load_saved), the gate on, walk back to C: C's spans equal those after E2.
+RED: span_edit_stub (the span edit skipped) -> E1 / E2 leave C unchanged; E3 then shows the unedited spans.
