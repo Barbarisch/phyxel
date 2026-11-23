@@ -3190,6 +3190,15 @@ WaterManager's solid mask (`syncSolidsBox`): in a coast project booted switched,
 (27/27, red 3/27) and holds the water poured in (8.15 of 9 units on its floor, red 0). Water spans are still stored in
 today's chunk objects.
 
+**F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
+writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
+to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still
+carries: every project that does not opt into the boot mode (the global default stays off); the generation-time water
+spans and the tier-A water record (stored in Chunk objects); the 1/9 m furnisher (FurniturePlacer, FC's owed item);
+the hydrology carving and road grading the 1/8 m terrain generator does not reproduce; the HTTP / MCP voxel API's
+cube / subcube semantics outside the switched routes; items' and the LOD template chain's 1/9 units; nav agent units.
+Each is a port of its own; F8 does not depend on them and goes next.
+
 ## 10. Performance tiers
 
 The knobs that scale cost:

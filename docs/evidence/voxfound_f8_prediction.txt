@@ -1,0 +1,21 @@
+F8 -- scale and stress on the switched world (docs/VoxelFoundationPlan.md section 9: "a whole town, 100 simultaneous
+breaks, 1,000 edit/break cycles, crossing chunk borders | invariants hold at every step"). Project VoxFoundBoot (the
+F7.16 boot mode; its own world.db).
+
+F8.1 PREDICTION -- 1,000 edit / break cycles across chunk borders (2026-11-22, before any code: only a driver script).
+CONTROL: F3.5 proved 1,000 edits exact on a static region preview (no switch: no physics overrides, water sync, light
+occupancy, reads routing, undo, save of the switched world). Nothing has run 1,000 edits through the SWITCHED world's
+whole fan-out.
+THE RUN (the engine as is): 1,000 edits on the booted switched world through the routed paths -- brushes of 1 / 2 / 4
+/ 8 voxels, break and place (Stone / Dirt / Bricks / Glass), 40 % of them straddling a chunk border (x or z within 8
+voxels of a 256-voxel boundary), plus a blast (DamageSystem) every 100 edits. Every edit: the response's voxels_changed
+equals the voxels it really changed (the store read back over its box: a before / after diff). Every 25: "verify"
+(a full face rebuild equal to the incremental one). Every 100: reads_check (512 routed reads = the region), a 400-point
+physics probe (overlapsTerrain = the region), a light-occupancy revision bump seen for each touched chunk.
+At the end: 20 undos restore the store 20 edits back (hashes); save_world, relaunch, the boot loads it back (hashes).
+  S1: 0 mismatches at every check (counts, verify, reads, physics), all 1,000 steps.
+  S2: undo and save / reload exact (hashes equal).
+  S3: no edit over 5 ms median (F3.5: <= 0.42 ms at the region; the switched fan-out adds physics, water, occupancy,
+      LOD marks); the p99 and the max reported.
+RED: none needed for an invariant run -- the checks are the red (a defect makes them non-zero); the run is preceded by
+a deliberately corrupted check (a voxels_changed claim off by one, fed to the checker) to show the checker can fail.

@@ -1045,3 +1045,6 @@ tools/voxfound_f717_live.py. Every artifact: WorldGenerator Perlin s20260804 + f
      already follows the switch (F7.3b).
 CONCLUSION: the CA water sim reads the switched world's solids, from the switch on and after every region edit: water
 pours into a pit dug in the new world and stays there.
+
+=====================================================================================================================
+F8 (scale and stress) -- predictions in docs/evidence/voxfound_f8_prediction.txt.
