@@ -15217,7 +15217,12 @@ void Application::voxFoundBoot() {
                           {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
                           {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}},
                           {"today_stream_off", voxFoundTodayStreamOff},
-                          {"source", fromToday ? "today" : "generator"}, {"default", v.value("default", false)}};
+                          {"source", fromToday ? "today" : "generator"}, {"default", v.value("default", false)},
+                          {"build_timing", {{"generate_ms", r.value("generate_ms", 0.0)}, {"build_wall_ms", r.value("build_wall_ms", 0.0)},
+                                            {"gpu_face_build_ms_sum", r.value("gpu_face_build_ms_sum", 0.0)},
+                                            {"region_lod_ms", r.value("region_lod_ms", 0.0)},
+                                            {"convert_ms", r.contains("converted") && r["converted"].is_object()
+                                                               ? r["converted"].value("convert_ms", 0.0) : 0.0}}}};   // F7.31
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 
@@ -16714,7 +16719,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                 {"load_saved", loadSaved},   // F3.3
                 {"source", fromToday ? "today (resident chunks through VoxFound::convertPxb2)"
                                      : fromWorldDb ? "world_db (PXB2 through VoxFound::convertPxb2)" : "generator"},
-                {"converted", fromWorldDb ? nlohmann::json{{"chunks_stored", stored.chunksStored},
+                {"converted", (fromWorldDb || fromToday) ? nlohmann::json{{"chunks_stored", stored.chunksStored},
                                                            {"chunks_missing", stored.chunksMissing},
                                                            {"cubes", stored.sum.cubes}, {"subcubes", stored.sum.subcubes},
                                                            {"microcubes", stored.sum.microcubes},

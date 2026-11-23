@@ -1598,3 +1598,11 @@ Perlin s7 + flora + two voxel-API edits (a clear of 2 x 4 x 2 cubes from the mea
      rebuilt).
   R1 PASS: 14,403 -> 14,399 (exactly the 4 cleared columns), the renderer 14,399; one refresh for the burst.
   R2 PASS: the Grass cube put back -> 14,400 (+1), the renderer equal; a second refresh.
+
+F7.31 MEASURED (2026-11-23, an instrument, no lever): the default boot's cost on Emberwake (1,200 chunks, Release,
+the region build's own timers, copied into the boot report as build_timing): total 136.3 s = build 134.9 s + switch
+1.3 s. Inside the build: reading today's chunks 32.6 s (ChunkBlobCodec encode ~29.3 s + convertPxb2 3.3 s), then the
+region assembly 102.3 s wall (of which the GPU face build 13.7 s summed; the rest CPU-side per-chunk work on the main
+thread). TIME-BOXED (memory broad-strokes-first): recorded as the gap -- levers left: thread the encode (main-thread
+reads only), thread the per-chunk assembly, reuse today's meshing-free path. Not the stop condition; the plan moves
+to the deletion.
