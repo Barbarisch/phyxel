@@ -15472,6 +15472,25 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
      the surface's normal over +-k cells (draw only; the mesh unchanged). Measured: little change to the glints at 3 or 9 cells
      (`reach_look_sheet.png`) - consistent with the glints being the ripple layer's, not the quads'.
    - **The owner's call:** the river ripple layer's glints on a flowing reach (`f_sheet` top row: on / off) - keep, tone down, or off.
+5. **54.2's falling stored level - BUILT, not signed off** (the agent's recommendation, the owner: "idk" - it stands; `/design-check`
+   READY, run inline in the session: chunk-free by construction, a recipe flag, L2 + red). **What:** a river's stage falls
+   downstream. Per river cell (order >= 3) its segment sampled every 4 m: the running minimum of the valley floor, entered at the
+   minimum of its upstream cells' ends (cells by ascending accumulation) - `WorldGenerator::buildStageProfiles`, right after the
+   flow field (before any column the bake floods is sampled), riding the hydro cache entry and its key. A column's stage =
+   min(its valley floor, the profile at its t on its segment) - set BEFORE the carve, so the bed is cut against the stage that
+   stands; the carve's eligibility stays 51.14's (ground within 1 m of the FLOOR - the relief toward a channel's edges stays bank),
+   the cut goes to the lower stage. `valleyFloorAt` = sampleColumn's valley floor alone (pinned equal at 4,096 columns).
+   **Recipe `fallingRiverStage`** (absent -> false: existing worlds and the benches keep 51.14's levels; new worlds get it).
+   **Tests** (`WaterGeneratedContainmentTest`, the RiverCarve recipe, both 768 m regions): `RiverStageFallsDownstream` - 24,042
+   river columns located on their segments, stages binned in 32 per segment: the largest rise **0.256 m (RED, 51.14's stage) ->
+   0.000** along a segment and 0.006 -> 0.000 across a segment end; the stage never above its column's floor; the river centre wet
+   9,350 / 9,972 both ways; 51.14's census with it on: 0 river edges, 0 steps, 0 lake walls. `TheLevelRiverIsTheSameChunkedOrWhole`
+   runs both flags (0 differ, 0 cache vs direct); `ValleyFloorAtMatchesTheColumn` 0 of 4,096 differ.
+   **The cost, measured (a look trade for the owner):** 23,362 of 24,042 river columns lowered (< 5 cm 1,241 | to 1/3 m 6,752 | to
+   1 m 8,873 | >= 1 m 6,496; at most 2.67 m) - the valley floor is not monotone along the drainage, so the running minimum drags
+   long stretches down - and the channels are cut deeper: bank faces over the water (north | 51.4c view) 4-8 m **16 -> 104 | 137 ->
+   528**, 2-4 m 407 -> 1,075 | 658 -> 2,139, >= 8 m 0 -> 0 | 34 -> 34. Not yet seen in a clip (a new world is needed - the benches'
+   recipes predate the flag); the 54.2 seam re-measure on such a world is the L4 still to run.
    - Suites: water unit 322 / 322; integration 111 / 114 - the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` failing
      2-5 of its 20 cycles every run with another checkout's engine holding the GPU at 99-100 %. Its "freed within 6 frames" measured
      the GPU's latency (the ring frees a state once the GPU has finished with it), not the release: restated - after the 6 frames, up

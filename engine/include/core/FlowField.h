@@ -114,6 +114,7 @@ public:
         return (c >= 0 && static_cast<size_t>(c) < m_downstream.size()) ? m_downstream[c] : c;
     }
 
+    int accumOfCell(int c) const { return (c >= 0 && static_cast<size_t>(c) < m_accum.size()) ? m_accum[c] : 0; }   // 58.5: upstream-first order
     int maxAccum() const { return m_maxAccum; }
     int cellsX() const { return m_cellsX; }
     int cellsZ() const { return m_cellsZ; }

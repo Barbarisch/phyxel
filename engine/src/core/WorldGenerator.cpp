@@ -277,10 +277,11 @@ struct HydroBakeKey {
     bool floods = false;
     int  minStride = 0;   // 51.13: the cell-minimum sample spacing (0 when floods is off)
     bool levelRivers = false;   // 51.14: carves river beds below the stage - the drain's exit surface and the cell minima change
+    bool fallingStage = false;  // 58.5: the stage falls downstream - the beds (and the cell minima) change
     std::vector<float> biomeHeight;   // (heightScale, heightOffset) per biome, in order; empty when the drain is off
     bool operator==(const HydroBakeKey& o) const {
         if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
-            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || minStride != o.minStride || levelRivers != o.levelRivers ||
+            seaLevel != o.seaLevel || drains != o.drains || floods != o.floods || minStride != o.minStride || levelRivers != o.levelRivers || fallingStage != o.fallingStage ||
             biomeHeight != o.biomeHeight) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
@@ -292,6 +293,7 @@ struct HydroBake {
     std::shared_ptr<HydrologyMap> hydro;
     std::shared_ptr<FlowField> flow;
     std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
+    std::shared_ptr<const std::vector<std::vector<float>>> stage;   // 58.5: the falling stage profiles
     // 51.17: how the bake was made, reported by every generator sharing it
     WorldGenerator::BakeStoreStats store;
     double seconds = 0.0;
@@ -321,6 +323,7 @@ uint64_t hydroStoreKey(const HydroBakeKey& k) {
     for (const auto& p : k.spline) { f.put(p.x); f.put(p.y); }
     f.put(static_cast<uint8_t>(k.drains)); f.put(static_cast<uint8_t>(k.floods)); f.put(k.minStride);
     f.put(static_cast<uint8_t>(k.levelRivers));
+    if (k.fallingStage) f.put(static_cast<uint8_t>(0x5A));   // 58.5 (absent when off: stores made before it keep their key)
     f.put(static_cast<uint32_t>(k.biomeHeight.size()));
     for (float v : k.biomeHeight) f.put(v);
     return f.h;
@@ -424,7 +427,7 @@ void WorldGenerator::rebuildCoarseModel() {
         m_coarse = std::make_shared<CoarseWorldModel>(makeMapCoarseSource(m_mapSource),
                                                       m_mapSource->blocksPerPixel);
         m_hydro.reset();
-        m_flow.reset();
+        m_flow.reset(); m_stageProfile.reset();   // 58.5
         m_waterBodies.reset();
         return;   // no hydrology → no worldforge plan (heightmap worlds are a logged gap)
     }
@@ -459,7 +462,7 @@ void WorldGenerator::rebuildCoarseModel() {
     // members null; sampleColumn's carve is guarded on m_flow).
     if (!isHeightBased() || generationType == GenerationType::Flat) {
         m_hydro.reset();
-        m_flow.reset();
+        m_flow.reset(); m_stageProfile.reset();   // 58.5
         m_waterBodies.reset();
         return;
     }
@@ -471,6 +474,7 @@ void WorldGenerator::rebuildCoarseModel() {
     key.floods = m_bakeFloodsTerrain;
     key.minStride = m_bakeFloodsTerrain ? m_bakeMinStride : 0;
     key.levelRivers = m_levelRivers;
+    key.fallingStage = m_levelRivers && m_fallingRiverStage;   // 58.5 (the stage exists only with level rivers)
     m_shoreLip = false;     // 51.13: no sample taken while this bake is made may carry the shore guarantee
     m_bakeSeconds = 0.0;
     for (double& t : m_bakePhase) t = 0.0;
@@ -485,6 +489,7 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_hydro = e.second.hydro;
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
+                m_stageProfile = e.second.stage;   // 58.5
                 m_bakeStoreStats = e.second.store;   // 51.17: report the bake this generator shares
                 m_bakeStoreStats.fromMemory = true;
                 m_bakeSeconds = e.second.seconds;
@@ -521,6 +526,7 @@ void WorldGenerator::rebuildCoarseModel() {
     const auto flowT0 = std::chrono::steady_clock::now();
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
                                           kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
+    buildStageProfiles();   // 58.5: before any column is sampled for the bake (the stage shapes the carved beds it floods)
     // 51.13: THE LAKES FLOOD THE TERRAIN THE GENERATOR MAKES. The coarse height above stood a median 16.9 m (max 35.8) above the
     // generated column at the same point on RiverCarve (no biome blend, no valley, no carve), so the bake perched lakes on rims
     // the terrain does not have - free-standing walls. With the recipe's flag on, a corner's height is the generated column's
@@ -704,7 +710,7 @@ void WorldGenerator::rebuildCoarseModel() {
         for (const auto& e : g_hydroCache)
             if (e.first == key) present = true;  // someone else inserted it; ours is identical
         if (!present) {
-            HydroBake b{m_hydro, m_flow, m_waterBodies, m_bakeStoreStats, m_bakeSeconds, {}};
+            HydroBake b{m_hydro, m_flow, m_waterBodies, m_stageProfile, m_bakeStoreStats, m_bakeSeconds, {}};
             for (int p = 0; p < 5; ++p) b.phase[p] = m_bakePhase[p];
             g_hydroCache.push_back({key, b});
             if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
@@ -1205,6 +1211,73 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
         }
 }
 
+// 58.5: sampleColumn's valley floor (col.valleyFloor = the coarse base + the biomes' blended height offset), alone: the climate
+// warp, the climate fields and the Gaussian biome blend exactly as sampleColumn computes them (ValleyFloorAtMatchesTheColumn pins it)
+float WorldGenerator::valleyFloorAt(int wx, int wz) {
+    auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+    const float cf = terrainParams.climateFrequency;
+    const float warpAmp = 16.0f, warpF = cf * 2.0f;
+    const float swx = wx + perlinNoise3D(wx * warpF, 500.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    const float swz = wz + perlinNoise3D(wx * warpF, 600.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    const float temperature = expandContrast(to01(perlinNoise3D(swx * cf, 100.0f, swz * cf, 4, 0.5f, 2.0f)));
+    const float moisture = expandContrast(to01(perlinNoise3D(swx * cf, 200.0f, swz * cf, 4, 0.5f, 2.0f)));
+    const CoarseSample coarse = m_coarse->sample(static_cast<float>(wx), static_cast<float>(wz));
+    float totalW = 0.0f, blendOffset = 0.0f;
+    constexpr float kSigma2 = 2.0f * 0.15f * 0.15f;
+    for (const Biome& b : m_biomes) {
+        const float dt = temperature - (b.tempMin + b.tempMax) * 0.5f, dm = moisture - (b.moistMin + b.moistMax) * 0.5f;
+        const float dc = coarse.continentalness - (b.contMin + b.contMax) * 0.5f;
+        const float w = std::exp(-(dt * dt + dm * dm + dc * dc) / kSigma2);
+        totalW += w; blendOffset += w * b.heightOffset;
+    }
+    blendOffset = totalW > 0.0f ? blendOffset / totalW : 0.0f;
+    return coarse.baseHeight + blendOffset;
+}
+
+// 58.5 (54.2's call): A RIVER'S STAGE FALLS DOWNSTREAM. 51.14 set the stage to the column's valley floor - smooth, level across the
+// channel, but not monotone along it (RiverCarve: +0.3 m over 40 m downstream - a reach stood 0.45 m above the record at its upstream
+// edge and a dam's pool was refilled backwards from below). Per river cell (order >= 3), its segment (the cell's centre to its
+// downstream cell's) sampled every 4 m: the running minimum of the valley floor, entered at the minimum of the upstream cells' ends
+// (cells processed by ascending accumulation: every upstream cell first). A pure function of the bake - the same in any order and
+// for any chunk. A column's stage is then min(its valley floor, the profile at its t) - never above its own floor (the banks hold
+// it); the profile is sampled on the segment's straight line where the column sits on the meandered channel, so a column can sit a
+// little below the profile and a neighbour back on it (bounded and measured by RiverStageFallsDownstream).
+void WorldGenerator::buildStageProfiles() {
+    m_stageProfile.reset();
+    if (!m_levelRivers || !m_fallingRiverStage || !m_flow) return;
+    const FlowField& F = *m_flow;
+    const int n = F.cellsX() * F.cellsZ();
+    auto prof = std::make_shared<std::vector<std::vector<float>>>(static_cast<size_t>(n));
+    std::vector<int> cells;
+    for (int c = 0; c < n; ++c) if (F.orderOfCell(c) >= 3) cells.push_back(c);
+    std::stable_sort(cells.begin(), cells.end(), [&F](int a, int b) { return F.accumOfCell(a) < F.accumOfCell(b); });
+    std::vector<float> capIn(static_cast<size_t>(n), std::numeric_limits<float>::infinity());
+    for (int c : cells) {
+        const int d = F.downstreamOfCell(c);
+        const glm::vec2 a = F.cellCentre(c), b = (d != c && d >= 0) ? F.cellCentre(d) : a;
+        std::vector<float>& p = (*prof)[static_cast<size_t>(c)];
+        p.resize(kStageSamples + 1);
+        float run = capIn[static_cast<size_t>(c)];
+        for (int k = 0; k <= kStageSamples; ++k) {
+            const glm::vec2 q = a + (b - a) * (static_cast<float>(k) / kStageSamples);
+            run = std::min(run, valleyFloorAt(static_cast<int>(std::floor(q.x)), static_cast<int>(std::floor(q.y))));
+            p[static_cast<size_t>(k)] = run;
+        }
+        if (d != c && d >= 0 && F.orderOfCell(d) >= 3) capIn[static_cast<size_t>(d)] = std::min(capIn[static_cast<size_t>(d)], run);
+    }
+    m_stageProfile = prof;
+}
+
+float WorldGenerator::stageProfileAt(int cell, float t) const {
+    if (!m_stageProfile || cell < 0 || static_cast<size_t>(cell) >= m_stageProfile->size()) return std::numeric_limits<float>::quiet_NaN();
+    const auto& p = (*m_stageProfile)[static_cast<size_t>(cell)];
+    if (p.empty()) return std::numeric_limits<float>::quiet_NaN();
+    const float x = std::clamp(t, 0.0f, 1.0f) * kStageSamples;
+    const int i = std::min(static_cast<int>(x), kStageSamples - 1);
+    const float f = x - static_cast<float>(i);
+    return p[static_cast<size_t>(i)] + (p[static_cast<size_t>(i) + 1] - p[static_cast<size_t>(i)]) * f;
+}
+
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     ColumnSample col;
     // Low-frequency climate fields, decorrelated via distinct sample offsets, mapped to [0,1].
@@ -1350,14 +1423,21 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                         // centreline: level across the channel and smooth along it (neighbours differ by <= 0.02 m). The bed is cut
                         // at least kMinRiverDepth below it (deeper at the centreline), never raised: depth in [m, m + 1).
                         constexpr float kMinRiverDepth = 1.0f / 3.0f;   // the subcube step; a look default (the owner's call)
-                        const float S = col.valleyFloor;
+                        float S = col.valleyFloor;
+                        if (m_fallingRiverStage && m_stageProfile) {   // 58.5: the stage falls downstream - never above the local floor;
+                            // set BEFORE the carve below (the bed is cut against the stage that stands, not the floor's)
+                            const FlowField::ChannelSeg sg = m_flow->channelSegAt(mwx, mwz);
+                            const float P = sg.hit ? stageProfileAt(sg.cell, sg.t) : std::numeric_limits<float>::quiet_NaN();
+                            if (!std::isnan(P) && P < S) S = P;
+                        }
                         const float m = std::max(ch.depth, kMinRiverDepth);
                         const int stageBed = static_cast<int>(std::floor(S - m)) - 1;   // bed top = floor(S - m) <= S - m
                         // Cut only where the carved ground is within kMaxRiverCut of the stage. Higher ground (the relief term left
                         // toward a wide channel's edges, up to ~10 m) stays as BANK above the water - cutting it to the stage made
                         // 4-8+ m gorge walls along every river (51.14's first try: 2,812 bank faces >= 8 m in the view).
                         constexpr float kMaxRiverCut = 1.0f;   // = the D4 carve depth (orders 3-5)
-                        if (static_cast<float>(carved + 1) <= S + kMaxRiverCut) col.surfaceY = std::min(carved, stageBed);
+                        // 58.5: eligibility against the FLOOR (51.14's rule: relief left toward the edges stays bank), the cut to the stage that stands
+                        if (static_cast<float>(carved + 1) <= col.valleyFloor + kMaxRiverCut) col.surfaceY = std::min(carved, stageBed);
                         col.bedHeight = std::min(col.bedHeight, static_cast<float>(col.surfaceY + 1));
                         col.riverStage = S;
                     }
@@ -1974,6 +2054,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     r.bakeFloodsTerrain = true;   // 51.13 step 2: new worlds' lakes flood the cell minima and the shore guarantee holds them
     r.bakeMinStride = m_bakeMinStride;
     r.levelRivers = true;   // 51.14: new worlds' rivers hold level water
+    r.fallingRiverStage = true;   // 58.5: new worlds' rivers fall downstream
     return r;
 }
 
@@ -2029,6 +2110,7 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     m_carveDrainsBasins = recipe.carveDrainsBasins;   // 51.12: a bake input - the rebuild below re-bakes with it
     m_bakeFloodsTerrain = recipe.bakeFloodsTerrain;   // 51.13: likewise
     m_levelRivers = recipe.levelRivers;   // 51.14: terrain and a bake input - the rebuild below re-bakes with it
+    m_fallingRiverStage = recipe.fallingRiverStage;   // 58.5: likewise
     // 51.13: clamped here - 0 would never advance the sampling loop, and above one cell (128 m) the "minimum" is the corner
     // sample alone, step 1's failure (it moved the walls).
     m_bakeMinStride = std::clamp(recipe.bakeMinStride, 1, 128);

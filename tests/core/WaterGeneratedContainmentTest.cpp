@@ -33,7 +33,7 @@ namespace {
 
 // drains: WorldRecipe::carveDrainsBasins (51.12). The bench's own recipe predates it (no key -> false).
 // floods: WorldRecipe::bakeFloodsTerrain (51.13), also absent from the bench's recipe.
-bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false, bool levels = false) {
+bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false, bool levels = false, bool falling = false) {
     std::ifstream f("tests/core/golden/rivercarve_recipe.json");
     if (!f) return false;
     std::stringstream ss; ss << f.rdbuf();
@@ -41,6 +41,7 @@ bool loadRiverCarve(WorldGenerator& g, bool drains = false, bool floods = false,
     r.carveDrainsBasins = drains;
     r.bakeFloodsTerrain = floods;
     r.levelRivers = levels;   // 51.14
+    r.fallingRiverStage = falling;   // 58.5
     g.applyRecipe(r);
     return g.hydrology() != nullptr;
 }
@@ -666,8 +667,9 @@ TEST(WaterGeneratedContainmentTest, RiversHoldLevelWater) {
 // 51.14 - the level river and its bank guarantee are the same chunked or whole: a window across the 51.4c view's worst D4 edge,
 // spans in 32 x 32 blocks against one pass, and the column cache against the direct sample.
 TEST(WaterGeneratedContainmentTest, TheLevelRiverIsTheSameChunkedOrWhole) {
+  for (bool falling : {false, true}) {   // 58.5: the falling stage too
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
-    ASSERT_TRUE(loadRiverCarve(g, true, true, true));
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true, falling));
     const int x0 = -1792, z0 = -1280, W = 128;
     std::vector<WaterSpan> whole; std::vector<uint8_t> hasWhole;
     g.waterSpansForBlock(x0, z0, W, W, whole, hasWhole);
@@ -693,8 +695,23 @@ TEST(WaterGeneratedContainmentTest, TheLevelRiverIsTheSameChunkedOrWhole) {
     std::printf("window x %d z %d (%d^2): %ld river columns with a stage; %ld differ chunked vs whole, %ld cache vs direct\n", x0, z0, W,
                 staged, differ, cacheDiffer);
     EXPECT_GT(staged, 100) << "the window must hold a river";
+    EXPECT_EQ(differ, 0) << "falling " << falling;
+    EXPECT_EQ(cacheDiffer, 0) << "falling " << falling;
+  }
+}
+
+// 58.5 - valleyFloorAt (the stage profiles' sample) is sampleColumn's valley floor exactly, at 4,096 columns over both regions
+TEST(WaterGeneratedContainmentTest, ValleyFloorAtMatchesTheColumn) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+    ASSERT_TRUE(loadRiverCarve(g, true, true, true, true));
+    long differ = 0; float worst = 0.0f;
+    for (int k = 0; k < 4096; ++k) {
+        const int x = -2112 + (k * 37) % 768, z = (k & 1 ? -3136 : -1216) + (k * 53) % 768;
+        const float d = std::abs(g.valleyFloorAt(x, z) - g.sampleSurface(x, z).valleyFloor);
+        if (d > 0.0f) { ++differ; worst = std::max(worst, d); }
+    }
+    std::printf("valleyFloorAt vs the column: %ld of 4096 differ, worst %.6f m\n", differ, worst);
     EXPECT_EQ(differ, 0);
-    EXPECT_EQ(cacheDiffer, 0);
 }
 
 // 51.14 - the flag off leaves the D4 river: every river column's span is bed + carve depth and no column carries a stage.
@@ -1105,4 +1122,85 @@ TEST(WaterGeneratedContainmentTest, DISABLED_DiagRiverCurrentSlopeAndTurns) {
         }
     }
     std::printf("centre-band columns %ld, warp det <= 0: %ld\n", centre, negDet);
+}
+
+// WaterCore.md 58.5 (54.2's call) - A RIVER'S STAGE FALLS DOWNSTREAM. Both RiverCarve regions, every carved river column located on its
+// channel segment (channelSegAt at its meandered position: the flow cell and t along it); the stages binned per cell in 32 bins of t.
+// The rise = a bin's highest stage above the previous bin's highest (along a segment), and a cell's first bin above the highest last
+// bin of the cells draining into it (across a confluence / a segment end). Prediction: with the flag, no rise over 2 cm anywhere; the
+// across-channel spread within a bin unchanged in kind. RED: the flag off (51.14's stage = the valley floor) rises - 54.2 measured
+// +0.3 m over 40 m on this world. Also: the stage never stands above the column's own valley floor; the falling stage is the same
+// chunked or whole (TheLevelRiverIsTheSameChunkedOrWhole runs both flags below).
+TEST(WaterGeneratedContainmentTest, RiverStageFallsDownstream) {
+    struct Out { float rise = 0.0f, riseAcross = 0.0f, above = 0.0f; long cols = 0, bins = 0; int rx = 0, rz = 0; float lowered = 0.0f; long changed = 0, lowBy[4] = {0, 0, 0, 0}, centre = 0, centreWet = 0; };
+    auto measure = [](bool falling) {
+        Out o;
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+        EXPECT_TRUE(loadRiverCarve(g, true, true, true, falling));
+        const FlowField* F = g.riverNetwork();
+        if (!F) { ADD_FAILURE() << "no flow field"; return o; }
+        struct Bin { float hi = -1e30f; int x = 0, z = 0; };
+        std::map<int, std::vector<Bin>> byCell;
+        for (const auto& r : {std::pair<int, int>{-2112, -3136}, std::pair<int, int>{-2112, -1216}})
+            for (int z = r.second; z < r.second + 768; ++z) for (int x = r.first; x < r.first + 768; ++x) {
+                const auto cs = g.sampleSurface(x, z);
+                if (cs.riverOrder < 3 || cs.riverStage < -1e29f) continue;
+                const glm::vec2 m = g.meanderedChannelPosForTest(static_cast<float>(x), static_cast<float>(z));
+                const auto sg = F->channelSegAt(m.x, m.y);
+                if (!sg.hit) continue;
+                ++o.cols;
+                o.above = std::max(o.above, cs.riverStage - cs.valleyFloor);
+                if (cs.riverStage < cs.valleyFloor - 1e-4f) {
+                    ++o.changed; const float lw = cs.valleyFloor - cs.riverStage; o.lowered = std::max(o.lowered, lw);
+                    ++o.lowBy[lw < 0.05f ? 0 : lw < 1.0f / 3.0f ? 1 : lw < 1.0f ? 2 : 3];
+                }
+                if (cs.channelDepth > 0.8f) { ++o.centre; if (cs.riverStage - static_cast<float>(cs.surfaceY + 1) >= kMinSpanDepth) ++o.centreWet; }
+                auto& v = byCell[sg.cell]; if (v.empty()) v.resize(32);
+                Bin& b = v[std::min(31, static_cast<int>(sg.t * 32.0f))];
+                if (cs.riverStage > b.hi) { b.hi = cs.riverStage; b.x = x; b.z = z; }
+            }
+        std::map<int, float> lastHi, firstHi;
+        for (const auto& [cell, v] : byCell) {
+            float prev = -1e30f; bool first = true;
+            for (const Bin& b : v) {
+                if (b.hi < -1e29f) continue;
+                ++o.bins;
+                if (first) { firstHi[cell] = b.hi; first = false; }
+                else if (b.hi - prev > o.rise) { o.rise = b.hi - prev; o.rx = b.x; o.rz = b.z; }
+                prev = b.hi;
+            }
+            if (!first) lastHi[cell] = prev;
+        }
+        for (const auto& [cell, hiEnd] : lastHi) {   // a segment's end against the next segment's start (the cell it drains into)
+            const int d = F->downstreamOfCell(cell);
+            const auto it = firstHi.find(d);
+            if (d != cell && it != firstHi.end()) o.riseAcross = std::max(o.riseAcross, it->second - hiEnd);
+        }
+        return o;
+    };
+    const Out off = measure(false), on = measure(true);
+    std::printf("  RED (51.14's stage): %ld river columns, %ld bins; the largest rise along a segment %.3f m (at %d, %d), across a segment end %.3f m\n",
+                off.cols, off.bins, off.rise, off.rx, off.rz, off.riseAcross);
+    std::printf("  FALLING: %ld river columns, %ld bins; the largest rise along a segment %.3f m (at %d, %d), across a segment end %.3f m; "
+                "stage above its column's floor at most %.4f m; %ld columns lowered, by at most %.2f m\n",
+                on.cols, on.bins, on.rise, on.rx, on.rz, on.riseAcross, on.above, on.changed, on.lowered);
+    std::printf("  lowered by < 5 cm %ld | 5 cm - 1/3 m %ld | 1/3 - 1 m %ld | >= 1 m %ld; river centre wet: RED %ld / %ld, FALLING %ld / %ld\n",
+                on.lowBy[0], on.lowBy[1], on.lowBy[2], on.lowBy[3], off.centreWet, off.centre, on.centreWet, on.centre);
+    EXPECT_GE(on.centreWet * 10, on.centre * 9) << "the river's centre must stay wet (51.14's rule)";
+    {   // 51.14's census with the falling stage: no river edge, no step, no lake wall; the banks (a river column's dry neighbour over the
+        // water) reported - the deeper cut where the stage was lowered raises them
+        WorldGenerator g(WorldGenerator::GenerationType::Mountains, 20260729u);
+        ASSERT_TRUE(loadRiverCarve(g, true, true, true, true));
+        for (const auto& r : {std::pair<int, int>{-2112, -3136}, std::pair<int, int>{-2112, -1216}}) {
+            const Census c = census(g, r.first, r.second, 768, 768);
+            report("falling", r.first, r.second, 768, 768, c);
+            EXPECT_EQ(c.riverSpanEdges, 0); EXPECT_EQ(c.riverSteps, 0);
+            EXPECT_EQ(c.wallRiver + c.wallDrains + c.wallUnreached, 0);
+        }
+    }
+    EXPECT_GT(std::max(off.rise, off.riseAcross), 0.1f) << "RED: 51.14's stage must rise somewhere (54.2: +0.3 m)";
+    EXPECT_LE(on.rise, 0.02f);
+    EXPECT_LE(on.riseAcross, 0.02f);
+    EXPECT_LE(on.above, 1e-4f) << "the stage stands above its own valley floor (the banks would not hold it)";
+    EXPECT_GT(on.changed, 0);
 }

@@ -212,6 +212,15 @@ public:
     bool levelRivers() const { return m_levelRivers; }
     // 51.14: changes terrain and therefore the bake (its cell minima) - re-bakes.
     void setLevelRivers(bool on) { if (on != m_levelRivers) { m_levelRivers = on; clearColumnCache(); rebuildCoarseModel(); } }
+    // 58.5: a river's stage falls downstream (the recipe's fallingRiverStage) - terrain and a bake input, re-bakes
+    bool fallingRiverStage() const { return m_fallingRiverStage; }
+    void setFallingRiverStage(bool on) { if (on != m_fallingRiverStage) { m_fallingRiverStage = on; clearColumnCache(); rebuildCoarseModel(); } }
+    /// 58.5: the valley floor at a column - sampleColumn's col.valleyFloor without the relief, the carve or the cache (the stage profiles'
+    /// samples; ValleyFloorAtMatchesTheColumn pins the two equal)
+    float valleyFloorAt(int wx, int wz);
+    /// 58.5: the falling stage profile of river cell `cell` at t in [0, 1] along its segment (NaN = none: not a river cell / off)
+    float stageProfileAt(int cell, float t) const;
+    glm::vec2 meanderedChannelPosForTest(float wx, float wz) const { return meanderedChannelPos(wx, wz); }   ///< 58.5 TEST ONLY
     // 51.13: the memoized chunk-column samples, for the chunked-vs-direct equality test of the shore guarantee.
     std::shared_ptr<const std::vector<ColumnSample>> columnsForChunkForTest(const glm::ivec2& c) { return columnsForChunk(c); }
     double bakeSeconds() const { return m_bakeSeconds; }
@@ -458,7 +467,13 @@ private:
     bool m_carveDrainsBasins = false;   // 51.12: from the recipe (WorldRecipe::carveDrainsBasins); a bake input
     bool m_bakeFloodsTerrain = false;   // 51.13: from the recipe (WorldRecipe::bakeFloodsTerrain); a bake input
     int  m_bakeMinStride = 8;           // 51.13: from the recipe (WorldRecipe::bakeMinStride); a bake input, 1..128
-    bool m_levelRivers = false;         // 51.14: from the recipe (WorldRecipe::levelRivers); terrain AND a bake input
+    bool m_levelRivers = false;
+    bool m_fallingRiverStage = false;   // 58.5: from the recipe (WorldRecipe::fallingRiverStage); terrain AND a bake input
+    // 58.5: per flow cell, the falling stage along its segment (kStageSamples + 1 values, t = k / kStageSamples), empty for a
+    // non-river cell; built once a bake right after the flow field (rides the hydro cache entry), immutable after
+    std::shared_ptr<const std::vector<std::vector<float>>> m_stageProfile;
+    static constexpr int kStageSamples = 32;   // 4 m apart on a 128 m segment
+    void buildStageProfiles();         // 51.14: from the recipe (WorldRecipe::levelRivers); terrain AND a bake input
     // 51.13: the SHORE GUARANTEE is live - set once a bake with bakeFloodsTerrain is in place, false while one is being made (the
     // bake samples the terrain WITHOUT it; its worker copies are made while it is false).
     bool m_shoreLip = false;

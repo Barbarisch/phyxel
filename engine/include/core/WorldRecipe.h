@@ -84,6 +84,10 @@ struct WorldRecipe {
     // changes terrain (river beds, a few banks) and the bake (the cell minima see the beds), so absent -> false; new worlds get it
     // from makeRecipe(). Written only when true.
     bool levelRivers = false;
+    // WaterCore.md 58.5 (54.2's call): a generated river's stage FALLS downstream (never rises) - the running minimum of the valley
+    // floor along the channel from its sources. Changes river levels (a few tenths of a metre in places), so absent -> false; new
+    // worlds get it from makeRecipe(). Written only when true.
+    bool fallingRiverStage = false;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -126,6 +130,7 @@ struct WorldRecipe {
         if (carveDrainsBasins) root["carveDrainsBasins"] = true;
         if (bakeFloodsTerrain) { root["bakeFloodsTerrain"] = true; root["bakeMinStride"] = bakeMinStride; }
         if (levelRivers) root["levelRivers"] = true;
+        if (fallingRiverStage) root["fallingRiverStage"] = true;
         return root.dump(2);
     }
 
@@ -182,6 +187,7 @@ struct WorldRecipe {
             r.bakeFloodsTerrain = root.value("bakeFloodsTerrain", false);
             r.bakeMinStride = root.value("bakeMinStride", 8);
             r.levelRivers = root.value("levelRivers", false);
+            r.fallingRiverStage = root.value("fallingRiverStage", false);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }
