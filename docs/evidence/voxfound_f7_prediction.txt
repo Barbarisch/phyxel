@@ -1430,3 +1430,14 @@ definitions, on WorldGenerator Perlin s7 + flora.
      lights and 4 props).
   Regression (remove() skips the world for "fixture" as for "item"): *PlacedObject* / *Interaction* / *Seat* /
      *Furnish* / *Furniture* / *Structure* / *Building* / *ItemProp*: 324 pass, 4 skipped.
+
+F7.26 PREDICTION -- the step-7 gate across the board (2026-11-22; the boot key written, NOT yet built or run). Until
+now the gate (today's streaming off while switched) was applied port by port. Here it is ON FROM THE BOOT
+(world.voxfound.today_stream_off) in a copy of VoxFoundBoot (VoxFoundGate8; today's chunks loaded from the DB before the
+boot stay resident, nothing more is generated or landed), and the earlier drivers are re-run unchanged:
+  G1 F8.2 (tools/voxfound_f82_live.py green): 100 rapid breaks -- census diff {} per material, 0 lost, 0 unplaced.
+  G2 F8.3 (tools/voxfound_f83_live.py): the 12-house town -- T1 12 / 12 exact, T2 12 / 12 standable, T3 today's world
+     untouched.
+  G3 F7.22 (tools/voxfound_f722_live.py furnish): nav at 8, into and out of a furnished house.
+  G4 F7.21b (tools/voxfound_f721b_live.py furnish): 20 pieces, 0 refused, verify 0.
+Any miss names a consumer that still depends on today's chunks being streamed -- the next port.
