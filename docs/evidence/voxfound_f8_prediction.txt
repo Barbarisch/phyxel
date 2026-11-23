@@ -139,3 +139,13 @@ F8.3 RE-RUN RESULTS (after the addendum's fix; runs kept in voxfound_f83_live.js
      motion after), not the spawn gate (the response reported no relocation), not phantom solids (the physics world =
      the region at 10 heights over the floor: 10 / 10). Cause NOT found (time-boxed); owed: trace the character's first
      frames on the switched world (the controller's kinematic resolve / any old-world read in its first update).
+
+F8.3b PREDICTION -- the post-spawn displacement (2026-11-22, the cause found by reading the code, before the change).
+CAUSE: the characters' play bounds (G-169, ChunkManager::effectivePlayBounds) are TODAY's world's: VoxFoundBoot's
+static world spans chunks z 2..5, its edge z = 192, and a character's whole body is held inside -- z clamped to
+192 - 0.25 (half width) = 191.75, exactly where every probe in rows 1-2 stood. The switched region spans z 160..287.
+THE CHANGE: while switched, the play bounds are the switched world's -- none while it streams (as a streaming world),
+else the region's box; authored bounds still win. Set at every switch-on (a shift's included), cleared at switch-off.
+  P1: T2 re-run: >= 11 / 12 drops rest within 1/8 m of a region surface (a shell feature may catch one); the drops stay
+      at their spawn x / z (within 0.5 m).
+  P2: switch off -> the bounds are today's again (playBoundsSource).
