@@ -13605,6 +13605,16 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             response = {{"struct_stub", voxFoundStructStub}};
             return;
         }
+        if (cmd.params.contains("overlap_stub")) {   // F8.4 (tests): overlapping structures not cleared (the red)
+            voxFoundOverlapStub = cmd.params["overlap_stub"].get<bool>();
+            response = {{"overlap_stub", voxFoundOverlapStub}};
+            return;
+        }
+        if (cmd.params.value("struct_registry", false)) {   // F8.4
+            response = voxFoundStructuresJson();
+            response["count"] = voxFoundStructures.size();
+            return;
+        }
         if (cmd.params.contains("bounds_stub")) {   // F8.3b (tests): the switched world's play bounds not set (the red)
             voxFoundBoundsStub = cmd.params["bounds_stub"].get<bool>();
             if (voxFoundBoundsStub && chunkManager) chunkManager->clearVoxFoundPlayBounds();
@@ -13868,6 +13878,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (on && (voxFoundSwitchLoadSaved || !voxFoundStreamCache.empty())) {   // F7.6a / F7.9b
                 const auto t0 = std::chrono::steady_clock::now();
                 loadReport = loadVoxFoundSaved(voxFoundSwitchLoadSaved);   // false: the stream cache only
+                if (voxFoundSwitchLoadSaved) voxFoundStructuresLoad();   // F8.4
                 loadReport["wall_ms"] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             }
             voxFoundPhysSwitch(on);   // F7.8: the physics occupancy follows the switch
@@ -14388,6 +14399,7 @@ void Application::handleVoxFoundSave(nlohmann::json& response) {
         rows.push_back({{"chunk", {c.chunk.x, c.chunk.y, c.chunk.z}}, {"bytes", blob.size()}, {"blob_hash", std::to_string(bh)},
                         {"store_bytes", c.store.memoryBytes()}, {"encode_ms", ms(t0, t1)}});
     }
+    ws->setMeta("voxfound_structures", voxFoundStructuresJson().dump());   // F8.4: the structure registry
     size_t savedCache = 0;   // F7.9b: edited chunks outside the region (they left it while streaming)
     for (const auto& [k, blob] : voxFoundStreamCache) {
         const glm::ivec3 c(std::get<0>(k), std::get<1>(k), std::get<2>(k));
@@ -14815,6 +14827,28 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
     std::vector<char> vegetation(256, 0);
     for (size_t m = 1; m < voxFoundPalette.size() && m < 256; ++m)
         vegetation[m] = voxFoundPalette[m].rfind("Leaf", 0) == 0 || voxFoundPalette[m].rfind("Log", 0) == 0;
+    // F8.4: registered structures this one's footprint overlaps are cleared first (no stacking -- the old pipeline's
+    // rule): air over each one's box from its floor surface up (its slab / foundation stay)
+    nlohmann::json overlapsCleared = nlohmann::json::array();
+    if (!voxFoundOverlapStub) {
+        const int fx0 = ox8 + clo.x, fx1 = ox8 + chi.x, fz0 = oz8 + clo.z, fz1 = oz8 + chi.z;
+        std::vector<VoxFoundStructure> keep;
+        for (const auto& st : voxFoundStructures) {
+            const bool overlap = st.lo.x <= fx1 && st.hi.x >= fx0 && st.lo.z <= fz1 && st.hi.z >= fz0;
+            if (!overlap) {
+                keep.push_back(st);
+                continue;
+            }
+            std::vector<std::pair<glm::ivec3, uint8_t>> air;
+            for (int x = st.lo.x; x <= st.hi.x; ++x)
+                for (int y = st.floor; y <= st.hi.y; ++y)
+                    for (int z = st.lo.z; z <= st.hi.z; ++z)
+                        if (voxFoundEdit.voxelAt({x, y, z})) air.push_back({{x, y, z}, uint8_t(0)});
+            const nlohmann::json cr = voxFoundPaintCells("clear_overlapping_structure", air);
+            overlapsCleared.push_back({{"id", st.id}, {"voxels", cr.value("voxels_changed", size_t(0))}});
+        }
+        voxFoundStructures.swap(keep);
+    }
     // F8.3: the floor seats at the MEDIAN ground top under the footprint (the old pipeline's pad level,
     // StructureGenerator::planPadLevel) -- the highest top floated houses 10 m over a slope; each column is then filled
     // up to the shell's lowest cell (a foundation) and cut above the floor (the excavation below)
@@ -14907,6 +14941,16 @@ nlohmann::json Application::voxFoundPlaceCanvas(const Core::MicroCanvas& canvas,
     r["excavated"] = excavated;
     r["cleared_tree_voxels"] = clearedTrees;
     r["foundation_voxels"] = foundation;   // F8.3
+    r["overlaps_cleared"] = overlapsCleared;   // F8.4
+    if (r.value("success", false)) {   // F8.4: registered
+        VoxFoundStructure st;
+        st.lo = origin + clo;
+        st.hi = origin + chi;
+        st.floor = groundTop + 1;
+        st.id = voxFoundStructureNext++;
+        voxFoundStructures.push_back(st);
+        r["structure_id"] = st.id;
+    }
     r["floor_y_voxel"] = groundTop + 1;
     r["origin"] = {origin.x, origin.y, origin.z};
     nlohmann::json logged = r;   // F7.12: kept for struct_log (without the bulky samples)
@@ -14972,6 +15016,33 @@ void Application::voxFoundBoot() {
                           {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
                           {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}}};
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
+}
+
+// F8.4: the structure registry as JSON (world_meta "voxfound_structures") and back
+nlohmann::json Application::voxFoundStructuresJson() const {
+    nlohmann::json a = nlohmann::json::array();
+    for (const auto& s : voxFoundStructures)
+        a.push_back({{"id", s.id}, {"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"floor", s.floor}});
+    return {{"next", voxFoundStructureNext}, {"structures", a}};
+}
+void Application::voxFoundStructuresLoad() {
+    auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+    if (!ws || !ws->hasMeta("voxfound_structures")) return;
+    try {
+        const nlohmann::json j = nlohmann::json::parse(ws->getMeta("voxfound_structures"));
+        voxFoundStructures.clear();
+        for (const auto& e : j.at("structures")) {
+            VoxFoundStructure s;
+            s.id = e.at("id").get<int>();
+            s.lo = {e["lo"][0].get<int>(), e["lo"][1].get<int>(), e["lo"][2].get<int>()};
+            s.hi = {e["hi"][0].get<int>(), e["hi"][1].get<int>(), e["hi"][2].get<int>()};
+            s.floor = e.at("floor").get<int>();
+            voxFoundStructures.push_back(s);
+        }
+        voxFoundStructureNext = j.value("next", int(voxFoundStructures.size()) + 1);
+    } catch (const std::exception& e) {
+        LOG_WARN("VoxFound", std::string("voxfound_structures not read: ") + e.what());
+    }
 }
 
 // F7.9b: the switched world streams. A shift keeps every edited region chunk (codec v3, F3.3) in voxFoundStreamCache,

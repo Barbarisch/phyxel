@@ -3208,7 +3208,8 @@ the settlement generator, every house exact, today's world untouched. Standabili
 overlap (that guess was wrong) -- the sink seated each house on its footprint's HIGHEST ground, floating houses 10 m on
 slopes; fixed (median seat + a Dirt foundation, the old pad's rule). The re-run's 4/12 was today's play bounds
 (G-169) clamping characters to today's static world's edge (z 191.75); the switched world now sets its own (none while
-streaming, else the region box): 12/12 standable, 0 drift.
+streaming, else the region box): 12/12 standable, 0 drift. F8.4: a switched-world structure registry (saved with the
+world): a new structure clears the ones it overlaps -- no stacking, as the old pipeline.
 
 ## 10. Performance tiers
 

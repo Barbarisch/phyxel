@@ -701,7 +701,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F8 done (voxfound_f8_prediction.txt): 1,000 edits exact; 100 rapid breaks conserve exactly (two fixes);
       a 12-house town exact and 12/12 standable (fixes: median seat + foundation; the switched world's own play
       bounds -- today's clamped characters to its edge).
-      NEXT (owed, in order): overlap handling for structures; the settle's unit test; the
+      F8.4 done: a switched-world structure registry (saved with the world); a new structure clears those it overlaps.
+      NEXT (owed, in order): the settle's unit test; the
       step-7 ports (water spans, 1/8 m furnisher, 1/8 m hydrology carving / road grading, API units, items / LOD
       template units, nav units) -- then the global default and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and

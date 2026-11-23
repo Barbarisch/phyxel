@@ -356,6 +356,14 @@ private:
     nlohmann::json voxFoundLastPrevBake;                         // F8.2: the pre-bake's report
     nlohmann::json voxFoundLastBreak;                            // F8.2
     nlohmann::json voxFoundSettleRubble();                       // F8.2: a world rig's rubble into whole voxels
+    // F8.4: the switched world's structures (box in world voxels, floor surface voxel) -- a new one clears those it
+    // overlaps; saved in world_meta "voxfound_structures"
+    struct VoxFoundStructure { glm::ivec3 lo{0}, hi{0}; int floor = 0; int id = 0; };
+    std::vector<VoxFoundStructure> voxFoundStructures;
+    int voxFoundStructureNext = 1;
+    bool voxFoundOverlapStub = false;
+    nlohmann::json voxFoundStructuresJson() const;
+    void voxFoundStructuresLoad();
     bool voxFoundBoundsStub = false;                             // F8.3b (tests): the switched bounds not set
     bool voxFoundRapidStub = false;                              // F8.2 (tests): a new world rig drops the previous bodies
     bool voxFoundWaterSyncStub = false;                          // F7.17 (tests): the water sim's resyncs skipped

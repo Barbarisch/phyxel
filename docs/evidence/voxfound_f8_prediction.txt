@@ -171,3 +171,12 @@ structure whose footprint overlaps its own (air over that structure's box above 
   O2: the registry holds 1 structure (B); a drop in B rests on B's floor.
   O3: save_world, relaunch (boot): the registry comes back (1 entry, B's box).
 RED: overlap_stub (the clear skipped) -> the control.
+
+F8.4 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot. Evidence: voxfound_f84_live.jsonl;
+tools/voxfound_f84_live.py. Every artifact: StructureForge's hall houses (1/8 m shells), WorldGenerator Perlin s7 + flora.
+  CONTROL (the F8.3b editor) / RED (overlap_stub): at (8151.5, 201.5) -- inside A, outside B -- a solid run at 28.5 m
+     (A's roof) stands over the 23.25 m ground after B.
+  O1 PASS: B cleared A first (100,506 voxels from A's floor up); the column holds only the ground (23.25).
+  O2 PASS: the registry holds 1 structure (B, id 2); a drop in B rests on its floor (23.25 = 23.25).
+  O3 PASS: save_world, relaunch, the boot loads the registry back (1 structure, B's box).
+  Stated: a cleared structure's slab / foundation below its floor surface stays (the clear runs from the floor up).
