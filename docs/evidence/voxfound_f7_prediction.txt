@@ -1120,3 +1120,21 @@ copy of the project DB, then a relaunch), raw: voxfound_f719_live.jsonl.
   E3 PASS: save_world; relaunch (boot, load_saved): 2 edited span entries loaded, C = depth 9 / top 14 (= after E2).
   Stated: span_check's "mismatch_vs_generator" now counts edited entries (1 here: C's chunk) -- edits differ from
      generation by design. The span edit runs over the box's WET columns only (dry columns: no store entry to edit).
+
+F7.20 PREDICTION -- road grading on the 1/8 m terrain (step-7 port: "the road grading the 1/8 m terrain generator does
+not reproduce"; 2026-11-22, before any code).
+Today's cube terrain grades WorldForge road corridors: sampleColumn pulls surfaceY to the plan's slope-limited gradeY
+(w = 1 on the road, blended over a 3 m shoulder; dry columns only). The 1/8 m terrain follows bedHeight (the continuous
+ground, which includes the river carve) and ignores grading -- so on the switched world roads drape the bumps.
+Also checked by reading, stated: the river CARVE is already reproduced (bedHeight carries it as a continuous depth) and
+road MATERIAL is (columnMaterialAt reads the column's surfaceMat). Bridges (decks / piers) are NOT in the 1/8 m terrain
+-- the next increment.
+THE CHANGE: sampleColumn also records the graded CONTINUOUS height where it grades (gradedHeight = (gradeY + 0.5) w +
+bedHeight (1 - w): its top face at gradeY + 1 where w = 1, as today's top cube) -- bedHeight (the water's bed) is left
+alone; the 1/8 m terrain reads gradedHeight where a column is graded.
+Unit test VoxFoundRoadGrade (RoadFieldSeamTest's ForgeWorld: Perlin 20260816, 3 WorldForge sites):
+  G1: at every road centerline vertex (dry, graded), the 1/8 m top face of the voxel columns within 0.5 m of the vertex
+      is within 1/8 m + (the plan's max grade x 0.5 m) of gradeY + 1. CONTROL / RED (grade stub): at least one vertex
+      outside that band (the natural bumps) -- the red's worst deviation recorded.
+  G2: an area with no road within 8 m: byte-identical with and without the change.
+  G3: a 2 x 1 chunk area across a road = its two chunks built separately (seam-free; a pure function of position).
