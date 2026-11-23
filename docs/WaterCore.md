@@ -15444,9 +15444,14 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    **Measured:** NOT the simulated heights - the reach rig (`ASimulatedReachCarriesTheRecordsRiver`, now printing its roughness):
    grid-scale RMS **0.002 mm** (max 0.01), slope RMS 0.0002 over 8,748 interior sub-columns of a 0.58 m/s reach; foam is 0 on the
    GPU surface (`wc_surface.comp`). So the noise is in the live draw path (the device-drawn surface over real terrain, the reach's
-   resolved look, or the W5.3 ripple layer on it - W5.2b predates the layer and shows it, so not the layer alone). Next: a live
-   capture of the reach with `debug/tonemap {curve:0}` and the surface's normal / look debug views, one quantity a capture (the
-   lighting doc's rule) - needs an idle GPU (the machine was in use).
+   resolved look, or the W5.3 ripple layer on it - W5.2b predates the layer and shows it, so not the layer alone).
+   **Measured live (idle GPU, `reach_noise.py`: the W5.2b flight's first pose, the reach under the camera, its host field in a 6 m
+   window, the same metric):** grid-scale RMS **0.82-0.84 mm (max 9-12 mm), slope RMS 0.038** with the river ripple layer OFF,
+   1.18 mm / 0.041 with it on - the SIMULATED HEIGHTS are rough live, ~400x the flat rig. Narrowed in the rig, one variable at a
+   time: a voxel bed (1 m shelves + scattered 1 m bumps) 0.030 mm / slope 0.0048 (15x the flat bed); + realtime stepping (async
+   calls, as live) 0.031 - not it. Left: the live river's own geometry (shallow water over 1 m steps on a falling stage, its edges'
+   inflow / level-only mix) - physical chop over the steps or a grid-scale numerical mode, not yet told apart. Next: rebuild the live
+   reach's bed and stage in the rig (from `water_surface_dump` + the record) and split the roughness by distance to a bed step.
 2. **The box edge:** a straight line where the reach meets the record (the reach box's edge) - the same class as 58.4's seam.
 3. **Hitches while flying the river:** 2-25 fps, the longest frames 420-520 ms around each reach make (the clips' captions) - item 1's
    territory (a reach make is a wake).

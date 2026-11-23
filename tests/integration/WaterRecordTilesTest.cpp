@@ -2799,11 +2799,15 @@ struct ReachRun { double flo = 0.0, midU = 0.0, levelWorst = 0.0, books = 0.0, e
 }
 TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    auto run = [&](bool boundaries, bool dam) {
+    auto run = [&](bool boundaries, bool dam, bool stepped = false, bool realtime = false) {
         ReachRun out;
-        auto state = [dam](const glm::ivec3& m) -> int {
+        // 58.5: stepped = a voxel bed (1 m shelves along both banks, scattered 1 m bumps) - the live reach's bed, not the rig's flat one
+        auto bedAt = [stepped](int wx, int wz) { if (!stepped) return 0; return (wz < 16 || wz > 23 || ((wx * 7 + wz * 3) % 5 + 5) % 5 == 0) ? 1 : 0; };
+        auto state = [dam, bedAt](const glm::ivec3& m) -> int {
             constexpr int M = 9;   // micro cells a metre
             if (m.y < 0) return 1;
+            {   const int wx = m.x >= 0 ? m.x / M : -((-m.x + M - 1) / M), wz = m.z >= 0 ? m.z / M : -((-m.z + M - 1) / M);
+                if (m.y < bedAt(wx, wz) * M) return 1; }
             if (m.z < 13 * M || m.z >= 27 * M) return 1;                                   // the banks
             if (dam && m.x >= 12 * M && m.x < 12 * M + 3 && m.y < static_cast<int>(2.3f * M)) return 1;   // the dam
             return 0;
@@ -2813,7 +2817,7 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
         if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { out.err = err; return out; }
         mgr.setDroplets(false);
         FakeRecord record; record.install(mgr);
-        for (int x = -8; x < 32; ++x) for (int z = 13; z <= 26; ++z) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        for (int x = -8; x < 32; ++x) for (int z = 13; z <= 26; ++z) { ColumnRun r; r.bottomY = static_cast<float>(bedAt(x, z)); r.topY = 2.0f; r.mass = r.topY - r.bottomY; record.cols[{x, z}].push_back(r); }
         mgr.setRecordCurrent([](int, int wz, float, float) { return (wz >= 13 && wz <= 26) ? glm::vec2(0.6f, 0.0f) : glm::vec2(0.0f); });
         const auto rr = mgr.makeRiverReach(glm::vec2(12.0f, 20.0f), 8.0f, 2.0f, "gpu");
         if (!rr.id) { out.err = rr.error; return out; }
@@ -2821,7 +2825,8 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
         if (!boundaries) mgr.setBoundaries(rr.id, {}, &err);
         const float dt = 1.0f / 60.0f;
         AvRecord rec;
-        for (int k = 0; k < 1800; ++k) mgr.step(rr.id, 1, dt, &rec);
+        if (realtime) { mgr.setRealtime(true); for (int k = 0; k < 1800; ++k) mgr.update(dt); }   // 58.5: as live (async calls)
+        else for (int k = 0; k < 1800; ++k) mgr.step(rr.id, 1, dt, &rec);
         auto meanU = [&](int x0, int x1) {
             double s = 0.0; int n = 0;
             for (int x = x0; x <= x1; ++x) for (float z : {16.5f, 19.5f, 22.5f}) { const auto p = mgr.probe(glm::vec3(x + 0.5f, 1.0f, z)); s += p.velocity.x; ++n; }
@@ -2871,12 +2876,14 @@ TEST_F(WaterRecordTilesTest, ASimulatedReachCarriesTheRecordsRiver) {
         out.ok = true;
         return out;
     };
-    const ReachRun g = run(true, false), red = run(false, false), dam = run(true, true);
+    const ReachRun g = run(true, false), red = run(false, false), dam = run(true, true), st = run(true, false, true), rt = run(true, false, true, true);
     ASSERT_TRUE(g.ok) << g.err; ASSERT_TRUE(red.ok) << red.err; ASSERT_TRUE(dam.ok) << dam.err;
     std::printf("  reach: ring %d columns (%d inflow, %d level only); seeded %.3f m^3\n", g.columns, g.inflow, g.levelOnly, g.seeded);
     std::printf("  GREEN: mid u %.3f m/s (record 0.600); level worst %.1f mm (column %d, %d); exchanged %+.4f m^3; books %+.2e m^3 (the fills' remainders %+.2e)\n", g.midU, g.levelWorst * 1000.0, g.worstX, g.worstZ, g.exchange, g.books, g.flo);
     std::printf("  RED (no boundaries): mid u %.3f m/s\n", red.midU);
     std::printf("  ROUGHNESS (58 item 4): %ld sub-columns, grid-scale RMS %.3f mm (max %.2f), slope RMS %.4f\n", g.roughCols, g.checkerMm, g.checkerMaxMm, g.slopeRms);
+    std::printf("  STEPPED BED (58.5): mid u %.3f m/s; %ld sub-columns, grid-scale RMS %.3f mm (max %.2f), slope RMS %.4f (live reach: 0.824 mm, max 9.07, slope 0.0379)\n", st.midU, st.roughCols, st.checkerMm, st.checkerMaxMm, st.slopeRms);
+    std::printf("  STEPPED + REALTIME (58.5): mid u %.3f m/s; %ld sub-columns, grid-scale RMS %.3f mm (max %.2f), slope RMS %.4f\n", rt.midU, rt.roughCols, rt.checkerMm, rt.checkerMaxMm, rt.slopeRms);
     std::printf("  DAM: level above it %.3f m (+%.3f); below it u %.3f m/s, level %.3f m; books %+.2e m^3\n", dam.upLevel, dam.upLevel - 2.0, dam.downU, dam.downLevel, dam.books);
     EXPECT_GT(g.inflow, 0); EXPECT_GT(g.levelOnly, 0);
     EXPECT_TRUE(g.overlapRefused) << "a reach over a live reach must be refused";
