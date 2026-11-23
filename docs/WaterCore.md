@@ -15489,8 +15489,16 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
    **The cost, measured (a look trade for the owner):** 23,362 of 24,042 river columns lowered (< 5 cm 1,241 | to 1/3 m 6,752 | to
    1 m 8,873 | >= 1 m 6,496; at most 2.67 m) - the valley floor is not monotone along the drainage, so the running minimum drags
    long stretches down - and the channels are cut deeper: bank faces over the water (north | 51.4c view) 4-8 m **16 -> 104 | 137 ->
-   528**, 2-4 m 407 -> 1,075 | 658 -> 2,139, >= 8 m 0 -> 0 | 34 -> 34. Not yet seen in a clip (a new world is needed - the benches'
-   recipes predate the flag); the 54.2 seam re-measure on such a world is the L4 still to run.
+   528**, 2-4 m 407 -> 1,075 | 658 -> 2,139, >= 8 m 0 -> 0 | 34 -> 34. Not yet seen in a clip.
+   **L4 - 54.2's seam re-measured on two FRESH worlds (2026-11-23):** `WaterBench_RiverFallOn` (the RiverCarve game.json, no DB: the
+   recipe new worlds get - drains, floods, level rivers, falling stage) and `WaterBench_RiverFallOff` (its DB copied, the one key
+   `fallingRiverStage` removed - the only difference), `tools/water_w52_reach.py --auto-level` (new: the site's level from the
+   record; the old site column is BANK on the falling world - the nearest wet column 0.7 m off, its surface 19.61 m vs 20.0):
+   **the reach's seam (the surface 1.5 m inside vs 1.5 m outside its ring) max 0.40 m (off; 0.27 in a first run) -> 0.12 m (on),
+   mean 0.146 -> 0.064 m**; books 2e-5 m^3 both. **My prediction (<= 3 cm) MISSED:** 0.12 m remains - 54.2's other half (the
+   reach stands at its downstream edge's level plus its own friction head; the falling stage removed the record's uphill part,
+   not the friction head), and only 2-3 ring pairs were wet enough to sample. The reach's current here: 0.38 x the record's (off:
+   0.43) - not a change. Next for the seam: the reach's edges taking the record's SLOPE, not one level.
    - Suites: water unit 322 / 322; integration 111 / 114 - the known two, and `ARippleLayerBeyondTheReachHoldsNoDeviceState` failing
      2-5 of its 20 cycles every run with another checkout's engine holding the GPU at 99-100 %. Its "freed within 6 frames" measured
      the GPU's latency (the ring frees a state once the GPU has finished with it), not the release: restated - after the 6 frames, up

@@ -1,0 +1,238 @@
+{
+ "bench": "WaterBench_RiverCarve",
+ "red": false,
+ "reach": {
+  "edges": true,
+  "error": "",
+  "half_m": 20.0,
+  "id": 3,
+  "inflow_columns": 45,
+  "level_only_columns": 179,
+  "make_ms": 171.4492,
+  "max": [
+   -1713,
+   22,
+   -1025
+  ],
+  "min": [
+   -1752,
+   17,
+   -1064
+  ],
+  "record_q_in_m3s": 7.080970647724318,
+  "record_q_out_m3s": 11.150412974975854,
+  "ring_columns": 224,
+  "seeded_m3": 727.2147134478907,
+  "success": true
+ },
+ "current": {
+  "river_columns": 33,
+  "speed_ratio_mean": 0.383,
+  "speed_ratio_min": 0.012,
+  "speed_ratio_max": 0.841,
+  "angle_mean_deg": 71.9,
+  "angle_max_deg": 173.5,
+  "sources": [
+   "core"
+  ]
+ },
+ "seam": {
+  "pairs": 2,
+  "max_abs_m": 0.1206,
+  "mean_abs_m": 0.0643,
+  "worst": {
+   "inside": [
+    -1715.5,
+    -1025.5
+   ],
+   "in_src": "core",
+   "in_y": 19.743053436279297,
+   "out_src": "record",
+   "out_y": 19.622417449951172,
+   "diff_m": 0.1206
+  },
+  "rows": [
+   {
+    "inside": [
+     -1735.5,
+     -1062.5
+    ],
+    "in_src": "core",
+    "in_y": 19.620676040649414,
+    "out_src": "record",
+    "out_y": 19.61277198791504,
+    "diff_m": 0.0079
+   },
+   {
+    "inside": [
+     -1715.5,
+     -1025.5
+    ],
+    "in_src": "core",
+    "in_y": 19.743053436279297,
+    "out_src": "record",
+    "out_y": 19.622417449951172,
+    "diff_m": 0.1206
+   }
+  ]
+ },
+ "wood": {
+  "site": "river",
+  "probed": 49,
+  "wet": 33,
+  "drops": [
+   {
+    "p": [
+     -1723.0,
+     19.462772369384766,
+     -1042.0
+    ],
+    "surface_y": 19.863462448120117,
+    "flow": [
+     -0.009868435561656952,
+     0.002697449177503586
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.8634624481201172,
+     "dir": [
+      0.8828311562538147,
+      -0.4696904718875885
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.0,
+     "speed_mps": 0.9674549102783203
+    }
+   },
+   {
+    "p": [
+     -1731.0,
+     19.462772369384766,
+     -1044.0
+    ],
+    "surface_y": 19.846033096313477,
+    "flow": [
+     0.14818574488162994,
+     0.4545309841632843
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.8460330963134766,
+     "dir": [
+      0.5684456825256348,
+      0.8227208256721497
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.0,
+     "speed_mps": 0.9614129662513733
+    }
+   },
+   {
+    "p": [
+     -1733.0,
+     19.462772369384766,
+     -1044.0
+    ],
+    "surface_y": 19.837345123291016,
+    "flow": [
+     0.3411692976951599,
+     0.7510666847229004
+    ],
+    "source": "core",
+    "river": {
+     "depth_m": 1.8373451232910156,
+     "dir": [
+      0.464269757270813,
+      0.8856937885284424
+     ],
+     "on_river": true,
+     "order": 5,
+     "slope": 0.0,
+     "speed_mps": 0.9583939909934998
+    }
+   }
+  ],
+  "debris": [
+   {
+    "slot": 0,
+    "t_in_water_s": 11.52,
+    "drift_m": 0.58,
+    "drift_xz": [
+     -0.49,
+     0.31
+    ],
+    "angle_to_route_deg": 175.7,
+    "angle_to_route_along_path_deg": 172.2,
+    "route_speed_mps": 0.9674549102783203,
+    "speed_x_time_m": 11.14,
+    "mean_speed_mps": 0.05,
+    "stalled_last_3s": true,
+    "y_last": 19.719,
+    "end": [
+     -1723.49,
+     -1041.43
+    ]
+   },
+   {
+    "slot": 1,
+    "t_in_water_s": 11.52,
+    "drift_m": 5.108,
+    "drift_xz": [
+     3.49,
+     3.73
+    ],
+    "angle_to_route_deg": 8.5,
+    "angle_to_route_along_path_deg": 2.4,
+    "route_speed_mps": 0.9614129662513733,
+    "speed_x_time_m": 11.07,
+    "mean_speed_mps": 0.444,
+    "stalled_last_3s": false,
+    "y_last": 19.707,
+    "end": [
+     -1727.51,
+     -1040.27
+    ]
+   },
+   {
+    "slot": 2,
+    "t_in_water_s": 11.52,
+    "drift_m": 8.738,
+    "drift_xz": [
+     4.13,
+     7.7
+    ],
+    "angle_to_route_deg": 0.5,
+    "angle_to_route_along_path_deg": 7.9,
+    "route_speed_mps": 0.9583939909934998,
+    "speed_x_time_m": 11.04,
+    "mean_speed_mps": 0.759,
+    "stalled_last_3s": false,
+    "y_last": 19.729,
+    "end": [
+     -1728.87,
+     -1036.3
+    ]
+   }
+  ]
+ },
+ "books": {
+  "mass_m3": 753.5496567608426,
+  "seeded_m3": 727.2147134478907,
+  "exchange_m3": 26.33492205436361,
+  "residue_m3": 0.0,
+  "books_m3": 2.1258588240868903e-05,
+  "after_s": 53.7,
+  "boundary_columns": 224,
+  "boundary_inflow": 45,
+  "gpu_device_ms": 5.753024,
+  "asleep": false
+ },
+ "release": {
+  "error": "",
+  "exchange_m3": 26.333683673279115,
+  "released": 3,
+  "success": true
+ }
+}

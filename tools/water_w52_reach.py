@@ -152,6 +152,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--half", type=float, default=20.0)
     ap.add_argument("--skip", type=int, default=0)
+    ap.add_argument("--auto-level", action="store_true", help="58.5: the site's level read from the record (water_table_level) - a world whose stage moved (fallingRiverStage)")
     a = ap.parse_args()
     api = Api(a.url); api.wait_status(600)
     try: api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
@@ -159,6 +160,22 @@ def main():
     # the water core steps only with realtime ON - no game session turns it on (only this route; every live water tool since 51 does
     # it, WaterCore 54.2 found it: the first w52 run measured an unstepped reach - its "current" was the seed's)
     print("realtime:", api.debug("water_av_realtime", {"on": True}))
+    if a.auto_level:
+        camera_set(api, SITE["cam"]); time.sleep(12.0)
+        tl = api.debug("water_table_level", {"x": SITE["c"][0], "z": SITE["c"][1]})
+        print("site level from the record:", tl)
+        if not tl.get("wet"):   # water_table_level's wet is the bake's lake table, not a river's spans: the record's columns (water_av_column)
+            pts = [[SITE["c"][0] + dx + 0.5, SITE["c"][1] + dz + 0.5] for dz in range(-12, 13) for dx in range(-12, 13)]
+            best = None
+            for i in range(0, len(pts), 64):
+                for c, p in zip(api.debug("water_av_column", {"points": pts[i:i + 64]}).get("columns", []), pts[i:i + 64]):
+                    if c.get("surface_y") is None: continue
+                    d2 = (p[0] - SITE["c"][0]) ** 2 + (p[1] - SITE["c"][1]) ** 2
+                    if best is None or d2 < best[0]: best = (d2, p, c["surface_y"])
+            if best:
+                SITE["c"] = (best[1][0], best[1][1]); tl = {"wet": True, "level": best[2]}
+                print("the site moved to the nearest wet column:", best[1], "surface", best[2])
+        if tl.get("wet") and tl.get("level") is not None: SITE["level"] = float(tl["level"])
     out = cost(api, a) if a.cost else measure(api, a)
     (EV / f"{a.tag}.json").write_text(json.dumps(out, indent=1))
     print("wrote", EV / f"{a.tag}.json")
