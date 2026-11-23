@@ -15499,7 +15499,36 @@ Read frame by frame (`w5_clip`, `w52_clip`, `w52b_clip`, `w53_clip`; 9-frame she
 3. **Hitches while flying the river:** 2-25 fps, the longest frames 420-520 ms around each reach make (the clips' captions) - item 1's
    territory (a reach make is a wake).
 4. W5.2's dam: a black frame at 22.3 s on the sheet is a transient (the full frame at 22.3 s is clean) - not a defect.
-54.2's falling stored level (the owner: "idk" - the recommendation stands) is item 4's second half, not started.
+54.2's falling stored level (the owner: "idk" - the recommendation stands) is item 4's second half - built since (item 5 in the
+list above, 9b852cfa).
+
+### 58.7 Item 7 (Track B): references gathered, targets proposed (2026-11-23). Status: PROPOSED - the owner adds or replaces
+
+The owner: *"7. i need you to find stuff to reference. if you still need something, i will find something later."* What shipped
+games and the literature do for each part of our water, and the target proposed for each (the moonshot look first, PerformanceTiers):
+
+| part | reference | what it does there | proposed target for us |
+|---|---|---|---|
+| splash on still water | Sea of Thieves (Rare, SIGGRAPH 2018 "The Technical Art of Sea of Thieves") | a GPU shallow-water surface sim (Mei et al. 2007) for local effects - spray, a character's feet foaming a stream | our patch is a full 1/9 m volume (more than SoT's height field): target = a drop visibly crowns and rings at the distance a player stands (the W4 drop must read at 6 m) |
+| splash particles | Müller et al. (Eurographics 2010, height field + spray / foam particles); O'Brien & Hodgins 1995 (splash particles on a grid model) | water leaves the height field as particles where it breaks, returns on landing | our droplets (51.11) are this; target = crown + droplet arc readable at 6-20 m, no fake pattern where seen (45.3 as corrected) |
+| a river that flows | Photon Water System (Lightspeed, GDC Advanced Graphics Summit "Open World..."): height / velocity / foam simulated, an adaptive mesh; flow maps / advected river textures (Brooks, Dalhousie thesis) | a simulated current near, the same current advecting the drawn surface far | the record river drawn with its current (58.5, built) + the reach's own; target = one river with no line where simulated meets recorded, its surface visibly moving downstream at every distance |
+| large-scale water + LOD | Photon Water (GDC); NVIDIA sparse Eulerian (Dunn, GDC 2015 - bricks of active fluid only) | simulate only occupied bricks; a cheaper representation far | our bricks + record are this design; target = the 58 item 1 gate (no frame > 2x median) with a splash in view |
+| far ripples (item 6) | SoT's ocean: FFT swell (Tessendorf 2001) under high-frequency, low-amplitude ripples | a cheap procedural layer where nothing is simulated | a ripple field derived from the simulated one, fading in amplitude with distance (detail, never motion) - the item 6 design step |
+| water over terrain, carved | From Dust (Ubisoft 2011, the reference players remember); Stava et al. 2008 (interactive hydraulic erosion) | flow over a height field shaping and following the terrain | not a target now (erosion); the falling river stage (58.5) is the part we need |
+| voxel-world water | Napier University 2016 (real-time fluid advection in a GPU voxel renderer); Minecraft (the contrast - block water) | fluid on a voxel grid | our 1/9 m cell water is past these; target = never read as blocks at the surface |
+
+**Asked of the owner:** pick or replace the target in each row; add footage you want matched (a clip of a real stone into a pond, a
+river at walking pace) - the clips in item 3 will be cut against whichever you pick.
+Sources: [GDC Vault - Open World water (Photon)](https://gdcvault.com/play/1028829/Advanced-Graphics-Summit-Open-World),
+[80.lv - next-gen water rendering](https://80.lv/articles/developing-a-next-gen-water-rendering-solution-for-games/),
+[NVIDIA GDC15 sparse fluid](https://developer.download.nvidia.com/assets/events/GDC15/Dunn_Alex_SparseFluidSimulation.pdf),
+[SIGGRAPH 2018 - The Technical Art of Sea of Thieves](https://history.siggraph.org/wp-content/uploads/2022/09/2018-Talks-Ang_The-Technical-Art-of-Sea-of-Thieves.pdf),
+[Müller et al. - height field + particles](https://matthias-research.github.io/pages/publications/hfFluid.pdf),
+[O'Brien & Hodgins - splashing fluids](https://ar5iv.labs.arxiv.org/html/2302.06087),
+[Brooks - advected river textures](https://web.cs.dal.ca/~sbrooks/thesis/advected-river-textures.pdf),
+[Stava et al. 2008](https://www.cs.purdue.edu/homes/bbenes/papers/Stava08SCA.pdf),
+[Napier - fluid in a voxel engine](https://www.napier.ac.uk/research-and-innovation/research-search/outputs/integrating-real-time-fluid-simulation-with-a-voxel-engine),
+[Planet Coaster 2 water deep dive](https://gamedeveloper.com/programming/deep-dive-crafting-detailed-and-dynamic-water-in-planet-coaster-2).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 
