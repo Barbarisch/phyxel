@@ -15348,6 +15348,15 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   21 layers made and 20 dropped): pipelines built 2; RED (spare off) 3 more fly-aways built 6; the device-vs-CPU ripple parity tests
   pass. **Live** (`s58_windows_ripplespare.json`): `ripples.g1` 3.1 ms on the session's first patch (no spare yet), **1.6 ms** on the
   second (the buffers left).
+- **A margin tile wake's seed rides the volume's call (built, NOT merged - the live gain unmeasured):** `seedColumns(..., defer)`
+  records the seed's copies into a pending command buffer the step takes over as its own (`submitAndWait` sends a pending buffer
+  first; `flushPending` on destroy / keep / shutdown), instead of one blocking submission per tile (~0.9 ms each). Only the wakes
+  run in `recordTilesStep` right before `stepGpu`'s call defer. TEST ONLY `WaterCoreManager::s_seedDeferOffForTest`, live
+  `water_coupling test_seed_defer_off`. **Test** `ADeferredSeedLeavesTheSameDeviceState` (24 x 24 m pond, all tiles recorded, a push,
+  90 steps): 9 tiles woken either way, 8 seeds deferred / 0, f / fPrev / bricks 0 cells different, mass equal; the whole-map-walk
+  parity test passes. **Live A/B** (`s58_ab_seeddefer_*.json`, 4 alternating sessions x 2 runs): unreadable - the machine was in use
+  (a game on the GPU, 24 % with no engine up): the first-2-s worst frame 46-272 ms on EITHER path, `mgr.4` 31-207 ms. Re-run idle
+  before merging.
 - Seen in the full suite while ANOTHER checkout's integration suite ran on the GPU (63-100 %): `WaterRecordedPondTest.
   ARippleLayerBeyondTheReachHoldsNoDeviceState` failed 1 run in 4 (a dropped ripple layer's device state still held 6 frames after the
   drop - freed through a 3-deep ring once the GPU finishes, late under load); it passed in every earlier run today. Re-run idle: it
@@ -15362,6 +15371,53 @@ holds 8,192 frames and a 30 s life at ~270 fps overflows it (its first run print
   host motion scan (`motion.1`, 3.5-3.9 ms); the tile records (group 3); the live re-measure of the surface rows on an idle GPU; the
   build stuck at e2e's test discovery (`phyxel_e2e_tests` GoogleTestAddTests times out at 5 s - every build today; not
   the water's, logged here only).
+
+### 58.4 Item 2 (no hole): the launch gap re-measured; a splash on GENERATED water wakes a patch (2026-11-22). Status: BUILT, not signed off
+
+**The launch fill gap (52.5) re-measured** (`tools/water_w4_launch_fill.py`, RiverCarve, the clip's pose, a fresh launch;
+`w4_launch_fill.json` + one still per 10 s, rewritten): **all 86 wet record tiles built by 10 s** (52.5: 44 at 10 s, all only at
+40 s), pending 0 from 20 s; the 10 s still draws the lake unbroken to the far shore (no strip of bare bed). At 3 s the terrain itself
+has not streamed (nothing drawn, water or ground). The gap no longer reproduces at this pose - 58.1-58.3's record-tile work took it.
+NOT checked: other poses / a moving camera (the clip's own moves).
+
+**"No splash" (W4): generated water woke nothing.** A patch woke only inside a slept box (51 S2); generated water - the bake's spans
+- has none (54.2 step 0 said so and left it). `/design-check` READY with three invariants (below). **Built:**
+- `generatedBoxFor(c, bottomY, topY)`: a touch whose column holds record water it reaches (its bottom within 1 m of a surface - a
+  slept box's touch rule) and that no slept box, live volume or building patch holds makes a box: the touch's 8 m record tile and
+  `kGeneratedBoxTiles` (4) each side, world-aligned (32 = 4 x 8: a tile never straddles a chunk); y from the lowest bed to the highest
+  surface the record holds in it (`recordLake`'s rule). Invariants: (1) strictly wider than a patch (9 tiles vs the patch's 5), so
+  `patchBoxFor` never wakes it whole; and a generated box only ever wakes patches (`wakeSleptTouching` / `wakeSleptNear` skip the whole
+  wake); (2) clipped off every slept box, live volume and building patch over the same water (amendment B merges patches of ONE parent
+  only - two parents over one water would double it); (3) refused where the record's current is over `kGeneratedMaxCurrent` (0.05 m/s:
+  a river - its reach owns it), counted.
+- The box is pushed as a `SleptVolume` with `generated = true` (1/9 m, partial wake, record tiles, gpu), so the whole patch path runs
+  unchanged (staged job, hand-over, sleep back to the record); it is NEVER saved (`serializeSlept` skips it - the record already holds
+  the water) and is dropped once no patch or patch job of it is left (`dropIdleGeneratedBoxes`, each `update` and wake call).
+- **Found live, fixed:** the debris integrator reports only bodies inside a water box (`setWaterVolumeBoxes`), and generated water has
+  none - the first live run made no box (checks 0). `recordReachBoxesWorld()`: one box over the wet record tiles near the viewer (each
+  tile's water y range cached when it is built), added to the list. Bodies in it over dry ground are read and refused, at most
+  `kGeneratedChecksPerCall` (16) a call (one not read this call is read the next - it is still falling). **Stated outcome bound:**
+  beyond the record tiles' reach (locality's drawM) no body is reported, so a splash there makes no patch - that water is the skin's,
+  unsimulated (§27); a reach, not a tier.
+- API: `water_coupling {generated_wake: bool, generated_wake_reset: bool}`; the slept echo reports `generated_wake` and
+  `generated_boxes {made, refused_current, refused_overlap, dropped, checks, live}`. TEST ONLY `makeGeneratedBoxForTest`.
+- **Tests** (red first): `WaterRecordTilesTest.ASplashOnGeneratedWaterWakesAPatch` - the 200 m lake 2 m deep held ONLY in the record,
+  the splash at its centre: patch x 80..119 z 80..119, peak awake 617 columns, back in the record at 19.1 s, books -0.0000 m^3, slept
+  boxes 0 after - **identical to the CONTROL (the same lake as a recorded lake, its slept box)**; a second splash 60 m off makes its own
+  patch (2 live), no box left; RED (switch off): woke 0, no box. `AGeneratedBoxIsWorldAlignedAndNeverOverlaps` (host + GPU): (a) 28
+  touches either side of chunk borders - the box read whole vs chunk by chunk (32 m reads, concatenated) differ 0, tile-aligned, y =
+  bed..surface; (b) bodies on water / over land / 3 m up: 1 box of 3 checks, 1 patch, the box dropped when it slept; (c) a 0.6 m/s
+  current refused (counted); (d) beside a slept box x 0..39 the box starts at x 40; a touch inside the slept box makes none; (e) held 2,
+  saved 1.
+- **L4 (`w58_gen_splash_{true,false}.mp4`, `tools/water_w4_clip.py` - W4's clip remade, three 1/3 m wood blocks dropped 1.2 m on the
+  RiverCarve generated lake):** ON - 1 box made (1 check), 1 patch started and live, the blocks rest at 89.926 (surface 90.0); OFF -
+  0 boxes, 0 patches, rest 89.923. Looked at (crops at 3.6 / 4.0 / 4.5 s): ON the water round the blocks is disturbed as they go in;
+  whether it reads as a splash is the owner's call. The frame rate in both clips (9-27 fps) is the machine in use (a game on the GPU),
+  not measured as cost.
+- **A margin tile wake's seed rides the volume's call** is in the same commit (above: its parity exact; its live gain unmeasured -
+  the A/B was unreadable under the same load; `water_coupling test_seed_defer_off` re-runs it).
+- Not done: the W4 clip's other half (no hole in motion - the clip's camera moves, frame by frame); the A/B for the deferred seed on an
+  idle GPU; a body over the record past drawM (no patch: stated above).
 
 ## Appendix A. §0a's running log as it stood on 2026-10-19 (moved verbatim from §0a)
 

@@ -3896,6 +3896,7 @@ void Application::update(float deltaTime) {
                     for (const auto& [lo, hi] : waterCore->volumeBoxes()) boxes.push_back({glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f)});
                     // 32: and the boxes of ponds that slept into the record - a body moving through one wakes it (below)
                     for (const auto& b : waterCore->sleptBoxesWorld()) boxes.push_back(b);
+                    for (const auto& b : waterCore->recordReachBoxesWorld()) boxes.push_back(b);   // 58 item 2: generated water near the viewer
                 }
                 debrisRuntime->gpu()->setWaterVolumeBoxes(boxes);
                 std::vector<Core::Water::MovingSolid> solids;
@@ -14874,6 +14875,12 @@ void Application::registerWaterCommands() {
             // the owner has seen it. patch_pace_reset (bool) zeroes its counters
             if (cmd.params.contains("patch_pace") && cmd.params["patch_pace"].is_boolean()) M::s_patchPace = cmd.params["patch_pace"].get<bool>();
             if (cmd.params.value("patch_pace_reset", false) && waterCore) waterCore->resetPatchPaceStats();
+            // 58.3 TEST: a tile wake's seed in its own blocking submission (the A/B reference for the deferred seed); not saved, echoed
+            if (cmd.params.contains("test_seed_defer_off") && cmd.params["test_seed_defer_off"].is_boolean()) M::s_seedDeferOffForTest = cmd.params["test_seed_defer_off"].get<bool>();
+            // 58 item 2: generated_wake (bool) - a touch on generated record water makes a slept box there so a patch wakes (ON by
+            // default; off = no splash on generated water, the old behaviour). generated_wake_reset (bool) zeroes its counters. Not saved
+            if (cmd.params.contains("generated_wake") && cmd.params["generated_wake"].is_boolean()) M::s_generatedWake = cmd.params["generated_wake"].get<bool>();
+            if (cmd.params.value("generated_wake_reset", false) && waterCore) waterCore->resetGeneratedWakeStats();
         }
         if (cmd.params.value("dump_window", false) && debrisRuntime && debrisRuntime->gpu() && !debrisRuntime->gpu()->wetBodies().empty()) {
             // 31 DEBUG: the first wet body's pressure window - its centre column (and one 1 m off it), p per cell bottom-up
@@ -14933,6 +14940,12 @@ void Application::registerWaterCommands() {
                                    {"last_job_ms", ps.lastJobMs}, {"building", ps.building}, {"last_due_s", ps.lastDueS}}; }
                  {   const auto pp = waterCore->patchPaceStats();   // 58.3
                      s["patch_pace"] = Core::Water::WaterCoreManager::s_patchPace;
+                     s["test_seed_defer_off"] = Core::Water::WaterCoreManager::s_seedDeferOffForTest;   // 58.3 TEST
+                     s["generated_wake"] = Core::Water::WaterCoreManager::s_generatedWake;   // 58 item 2
+                     {   const auto& g = waterCore->generatedWakeStats(); long live = 0;
+                         for (const auto& v : waterCore->sleptVolumes()) live += v.generated ? 1 : 0;
+                         s["generated_boxes"] = {{"made", g.made}, {"refused_current", g.refusedCurrent}, {"refused_overlap", g.refusedOverlap},
+                                                 {"dropped", g.dropped}, {"checks", g.checks}, {"live", live}}; }
                      s["patch_paced"] = {{"started", pp.started}, {"live", pp.live}, {"forced", pp.forced}, {"held", pp.held}, {"applied", pp.applied},
                                          {"empty", pp.empty}, {"refused", pp.refused}, {"cancelled", pp.cancelled}, {"stages", pp.stages},
                                          {"max_stage_ms", pp.maxStageMs}, {"max_stage", pp.maxStage}, {"max_frame_ms", pp.maxFrameMs}, {"last_job_ms", pp.lastJobMs},

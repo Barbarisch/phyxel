@@ -691,6 +691,7 @@ public:
                          double retryAfter = 0.0;   ///< 35: not persisted - a wake deferred for non-resident chunks retries after this (steady s)
                          double touchedAt = -1.0;   ///< 39.4 TEST: not persisted - when a body first touched it under s_wakeDelaySForTest (steady s)
                          bool waking = false;       ///< L4 (42): a paced wake is building it - still a slept box (saved, drawn, read) until live
+                         bool generated = false;    ///< 58 item 2: made on demand over GENERATED record water for a touch - never saved, dropped once no patch of it lives
                        };
     const std::vector<SleptVolume>& sleptVolumes() const { return m_slept; }
     /// 35 (A2c): the slept boxes persist with the world (world_meta.water_slept, next to water_bodies) - a pond asleep when saved
@@ -723,6 +724,8 @@ public:
     static constexpr double kSleptRetryS = 1.0;   ///< 35: a wake that found the box's chunks not resident waits this long to retry
     /// the slept boxes as (lo, hi + 1) world corners - handed to the debris solver with the live ones, so a body inside one reports
     std::vector<std::pair<glm::vec3, glm::vec3>> sleptBoxesWorld() const;
+    /// 58 item 2: one box over the wet record tiles near the viewer - the debris integrator reports bodies inside it (generated water)
+    std::vector<std::pair<glm::vec3, glm::vec3>> recordReachBoxesWorld() const;
     /// wake every slept volume a moving body overlaps / a blast reaches; returns the ids made
     /// `bodies`: the moving bodies (they start wakes); `inBoxes`: every body in the water's boxes, moving or not (L4, 42.4 item 5:
     /// a paced wake is due when ANY of them can reach the water). Paced wakes (s_wakePace) are pumped here, under s_wakeBudgetMs.
@@ -802,6 +805,8 @@ public:
     static inline bool s_recordMotionScanForTest = false;
     /// 58.3: TEST ONLY - a ripple layer's mask by the float lookup per lattice cell (the reference for buildRippleMask's integer walk)
     static inline bool s_rippleMaskByFloatForTest = false;
+    /// 58.3: TEST ONLY - a tile wake's seed in its own blocking submission (the reference for the deferred seed)
+    static inline bool s_seedDeferOffForTest = false;
     /// 58.3 TEST: lattice cells where volume id's ripple mask by the integer walk differs from the float lookup (-1 = no layer)
     long rippleMaskDiffersForTest(int id, long* dryCells = nullptr);   ///< dryCells: the reference mask's dry cells (the edges it holds)
     static constexpr float kRecordMotionMoveM = 0.015f;   ///< takeMotion's default threshold (a record tile is not passed one)
@@ -818,6 +823,21 @@ public:
     /// 51 S2 (owner 2026-11-02, water at scale): a slept pond larger than a patch wakes a PATCH round the disturbance, never whole -
     /// the simulated box is the disturbance's, so a lake of any size costs a patch. false = the whole-pond wake (before 51 S2).
     static inline bool s_patchWake = true;
+    /// 58 item 2: a touch (a body, a blast) on GENERATED record water - the bake's spans, no slept box - makes a slept box over the
+    /// record round it (generatedBoxFor) so the patch path runs as over a recorded lake; generated water woke nothing before. ON by
+    /// default; off = the red control. Never a whole-box wake: a generated box only ever wakes patches.
+    static inline bool s_generatedWake = true;
+    static constexpr int kGeneratedBoxTiles = 4;        ///< the box is the touch's 8 m record tile and this many each side (9 x 9 tiles, 72 m): strictly wider than a patch (k = 2)
+    static constexpr float kGeneratedMaxCurrent = 0.05f;   ///< m/s: record water faster than this is a river (a reach owns it) - refused, counted
+    static constexpr int kGeneratedChecksPerCall = 16;  ///< bodies' columns read a call (a body not read this call is read the next: it is still falling)
+    struct GeneratedWakeStats { long made = 0, refusedCurrent = 0, refusedOverlap = 0, dropped = 0, checks = 0; };
+    const GeneratedWakeStats& generatedWakeStats() const { return m_genWake; }
+    void resetGeneratedWakeStats() { m_genWake = {}; }
+    int makeGeneratedBoxForTest(const glm::vec3& c, float bottomY, float topY) { return makeGeneratedBox(c, bottomY, topY); }   ///< TEST ONLY
+    /// the box a touch at `c` (a body spanning [bottomY, topY]) would make over generated record water; false (and why, counted)
+    /// when the column is dry there, a slept box or a live volume already holds it, the water runs (a river) or clipping left no room.
+    /// A pure function of the touch's record tile, the record and the boxes present (world-aligned tiles: no chunk enters it)
+    bool generatedBoxFor(const glm::vec3& c, float bottomY, float topY, glm::ivec3& lo, glm::ivec3& hi, bool count = true);
     static constexpr float kPatchMarginM = 2.0f;   ///< the patch's box reaches this far past the disturbance radius (the band ends inside it)
     static constexpr int kPatchMaxM = 64;          ///< two overlapping patches merge into one no wider than this; past it they are clipped apart
     /// 51.3: recorded tiles a volume wakes in one call (the margin's asks; nearest a live disturbance first, the rest the next call). A
@@ -1345,7 +1365,11 @@ private:
     long m_worldResets = 0;   // A2i (47)
     long m_patchesWoken = 0;  // 51 S2
     long m_sleepsAllRecorded = 0;   // 58.3: sleeps that read no grid (every tile recorded)
+    GeneratedWakeStats m_genWake;       // 58 item 2
+    int makeGeneratedBox(const glm::vec3& c, float bottomY, float topY);   // 58 item 2: the box pushed, its index; -1 none
+    void dropIdleGeneratedBoxes();      // 58 item 2: a generated box with no live patch, no patch job and no retire left is dropped
     uint64_t m_recordOccSeen = ~0ull;   // 58.3: the occupancy revision the record tiles were last checked at
+    bool m_seedDefer = false;           // 58.3: a tile wake right before the volume's call - its seed rides that call
     long m_sleepsByTiles = 0;       // 58.3: sleeps that read only the tiles still in cells
     int m_lastSleepTiles = 0, m_lastSleepLiveTiles = 0;   // 58.3: the last GPU volume's sleep - its tiles, those still in cells
     int m_nextId = 1;
@@ -1359,7 +1383,8 @@ private:
     std::vector<const WaterSurfaceField*> m_fields;   // Phase F, parallel to m_avs (26.30 step 3: each volume's own field); then the record tiles (§27 W1a)
     struct RecordTile { WaterSurfaceField field; uint64_t spanRev = ~0ull, occRev = ~0ull, avRev = ~0ull; bool wet = false;
                         // 58.3: a rebuild's rise against the field before it (takeMotion's rule at build time): pending until takeMotion emits it
-                        bool risePending = false; int riseCols = 0; glm::vec2 riseLo{0.0f}, riseHi{0.0f}; float riseYLo = 0.0f, riseYHi = 0.0f; };
+                        bool risePending = false; int riseCols = 0; glm::vec2 riseLo{0.0f}, riseHi{0.0f}; float riseYLo = 0.0f, riseYHi = 0.0f;
+                        float yLo = 1e30f, yHi = -1e30f; };   // 58 item 2: the water's y range when built
     std::map<std::pair<int, int>, RecordTile> m_recordTiles;   // §27 W1a, by tile (x, z) index
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_recordBoxes;
     uint64_t m_recordRevision = 0, m_recordBuilds = 0;

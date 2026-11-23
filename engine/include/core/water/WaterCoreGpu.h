@@ -605,7 +605,11 @@ public:
     glm::vec4 sentinelMaxAbs(Volume& vol);
     /// §27 W1b: wake recorded columns [bLo, bHi] with the cells in `cells` (spec in world cells, the volume's h): their bricks (and a
     /// ring of halo) are stored and these fills uploaded NOW (one submission), the columns at rest (frozen unless motion reaches them).
-    void seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi);
+    /// defer (58.3): record the seed's copies into the pending command buffer the next submission sends first (a wake right before the
+    /// volume's call) instead of one blocking submission of its own
+    void seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi, bool defer = false);
+    /// 58.3: send a pending (deferred) command buffer now and wait for it - destroy / keep / cleanup, or a caller about to read the device
+    void flushPending();
     /// §27 W1b: the recorded brick columns a wake reached since the last take (index bx + bn.x * bz).
     std::vector<int> takeRecordedWakes(Volume& vol) { std::vector<int> out; out.swap(vol.recordedWakes); return out; }
     /// §27 W1b TEST ONLY: recorded columns NOT walled - the halo stores their bricks as air and they are not frozen, so awake water
@@ -640,7 +644,7 @@ public:
     /// 27.19 measurement (ms, last call): a tile wake's seed upload / a record's cell read, split into the wait for the call in
     /// flight (settle), the host work, and the blocking submission
     struct TileGpuMs { double seedSettle = 0, seedHost = 0, seedSubmit = 0, readSettle = 0, readSubmit = 0, readHost = 0; double seedPart[5]{};
-                       double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; int seedFresh = 0, seedTouched = 0; };   // seedFresh / seedTouched: the last seed's new slots / slots written   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
+                       double seedSettleMax = 0, seedHostMax = 0, seedSubmitMax = 0, seedPartMax[5]{}; long seedGrows = 0, seeds = 0; int seedFresh = 0, seedTouched = 0; long seedsDeferred = 0; };   // seedFresh / seedTouched: the last seed's new slots / slots written   // 51.9b: maxima since a reset + pool grows in a seed   // seedPart: flags+need, residency, fresh uploads, fills, tables
     static inline TileGpuMs s_tileGpuMs;
     /// 28 (the launch count): dispatches / barriers recorded since the last reset (step() resets at its start, reports at its end)
     mutable long m_dispatchCount = 0, m_barrierCount = 0;
@@ -887,6 +891,7 @@ private:
     void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push);
     VkCommandBuffer beginCommands() const;
     void submitAndWait(VkCommandBuffer cmd) const;
+    mutable VkCommandBuffer m_pendingCmd = VK_NULL_HANDLE;   ///< 58.3: deferred seed commands; the next submission sends them first
     void finishCall(Volume& vol);   ///< 26.16: wait on the call in flight and collect it (everything step did after its fence)
     // 26.6 P2a bricks (host side)
     long storageIndex(const Volume& vol, int x, int y, int z) const;   ///< -1 = absent / outside the brick box

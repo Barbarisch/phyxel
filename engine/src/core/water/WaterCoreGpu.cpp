@@ -57,6 +57,7 @@ bool WaterCoreGpu::init(VkDevice device, VkPhysicalDevice physical, VkQueue queu
 
 void WaterCoreGpu::shutdown() {
     if (m_device == VK_NULL_HANDLE) return;
+    flushPending();   // 58.3
     vkDeviceWaitIdle(m_device);
     for (Volume* v : std::vector<Volume*>(m_volumes)) destroyVolume(v);
     for (auto& [h, set] : m_kept) for (Buffer& b : set.bufs) destroyBuffer(b);   // L3 (41)
@@ -468,6 +469,7 @@ WaterCoreGpu::Volume* WaterCoreGpu::createVolume(const GridSpec& spec, std::stri
 
 void WaterCoreGpu::destroyVolume(Volume* vol, bool paced) {
     if (!vol) return;
+    flushPending();   // 58.3
     using DClock = std::chrono::steady_clock;   // 57.8 step 0: the destroy split by part (destroy.* host laps)
     auto dms = [](DClock::time_point a, DClock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     const auto d0 = DClock::now();
@@ -497,6 +499,7 @@ void WaterCoreGpu::destroyVolume(Volume* vol, bool paced) {
 
 int WaterCoreGpu::keepVolume(Volume* vol) {
     if (!vol) return 0;
+    flushPending();   // 58.3
     if (vol->bnd.buf) { settle(*vol); destroyBuffer(vol->bnd); }   // 54.2: a kept volume keeps no boundary list
     vol->boundaryCount = 0; vol->hostBoundaries.clear(); vol->boundaryCells.clear();
     if (vol->particles || !vol->sparse || !vol->growable) { destroyVolume(vol); return 0; }
@@ -682,13 +685,24 @@ VkCommandBuffer WaterCoreGpu::beginCommands() const {
 }
 
 void WaterCoreGpu::submitAndWait(VkCommandBuffer cmd) const {
-    vkEndCommandBuffer(cmd);
-    VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
+    // 58.3: a deferred seed's commands go first, in the same submission (queue order: whatever this reads or writes sees the seed)
+    VkCommandBuffer cmds[2]; uint32_t n = 0;
+    if (m_pendingCmd && m_pendingCmd != cmd) { vkEndCommandBuffer(m_pendingCmd); cmds[n++] = m_pendingCmd; }
+    if (m_pendingCmd == cmd) m_pendingCmd = VK_NULL_HANDLE;
+    vkEndCommandBuffer(cmd); cmds[n++] = cmd;
+    VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = n; si.pCommandBuffers = cmds;
     vkResetFences(m_device, 1, &m_fence);
     const VkResult sub = vkQueueSubmit(m_queue, 1, &si, m_fence);
     const VkResult wait = vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
     if (sub != VK_SUCCESS || wait != VK_SUCCESS) std::fprintf(stderr, "[WaterCoreGpu] submit %d wait %d (VK_ERROR_DEVICE_LOST = -4)\n", static_cast<int>(sub), static_cast<int>(wait));
-    vkFreeCommandBuffers(m_device, m_pool, 1, &cmd);
+    vkFreeCommandBuffers(m_device, m_pool, n, cmds);
+    if (n == 2) m_pendingCmd = VK_NULL_HANDLE;
+}
+
+void WaterCoreGpu::flushPending() {
+    if (!m_pendingCmd) return;
+    VkCommandBuffer cmd = beginCommands();   // empty: submitAndWait sends the pending one first
+    submitAndWait(cmd);
 }
 
 void WaterCoreGpu::copy(VkCommandBuffer cmd, const Buffer& from, const Buffer& to, VkDeviceSize bytes, VkDeviceSize srcOff, VkDeviceSize dstOff) const {
@@ -1241,7 +1255,7 @@ void WaterCoreGpu::setColumnsRecorded(Volume& vol, const std::vector<std::pair<g
 // same breath, so the water is in exactly one place at every moment (deferred, it was in neither for a call - the books missed
 // 192 m^3 for three tiles). The seeded columns are QUIET (still water at rest): they freeze unless the moving water's margin
 // reaches them - a seed counted as motion woke its neighbours, which woke theirs (one push woke all 8 tiles).
-void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi) {
+void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& bLo, const glm::ivec2& bHi, bool defer) {
     const size_t nc = static_cast<size_t>(vol.bn.x) * vol.bn.z;
     if (!vol.bricked || vol.colRecorded.size() != nc) return;
     const auto tq0 = std::chrono::steady_clock::now();
@@ -1346,7 +1360,9 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     const std::vector<int> fresh = applyResidency(vol, need);
     part(1);
     sq = std::chrono::steady_clock::now();   // 58.3 item 1: the fresh part (2.3 ms of a live tile wake), split
-    VkCommandBuffer cmd = beginCommands();
+    // 58.3: deferred (a wake right before this volume's call) - recorded into the pending buffer the next submission sends first
+    VkCommandBuffer cmd = (defer && m_pendingCmd) ? m_pendingCmd : beginCommands();
+    if (defer) m_pendingCmd = cmd;
     sLap("seed.2a begin commands");
     s_tileGpuMs.seedFresh = static_cast<int>(fresh.size());
     if (!fresh.empty()) { scatterSlots(vol, fresh, nullptr); sLap("seed.2b scatter occupancy + bodies"); recordSlotUploads(cmd, vol, fresh, true); sLap("seed.2c slot fills + copies"); }
@@ -1424,7 +1440,8 @@ void WaterCoreGpu::seedColumns(Volume& vol, WaterGrid cells, const glm::ivec2& b
     part(4);
     s_tileGpuMs.seedHost = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq1).count();
     const auto tq2 = std::chrono::steady_clock::now();
-    submitAndWait(cmd);
+    if (defer) { barrier(cmd); ++s_tileGpuMs.seedsDeferred; }   // the step (or any submission) carries it, the copies first
+    else submitAndWait(cmd);
     s_tileGpuMs.seedSubmit = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tq2).count();
     {   auto& T = s_tileGpuMs; ++T.seeds;   // 51.9b measurement: the worst of each part since the last reset
         T.seedSettleMax = std::max(T.seedSettleMax, T.seedSettle); T.seedHostMax = std::max(T.seedHostMax, T.seedHost);
@@ -3255,7 +3272,9 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const float ds = dt / static_cast<float>(n);
     push.dt = ds;
     const auto t0 = std::chrono::steady_clock::now();
-    VkCommandBuffer cmd = beginCommands();
+    // 58.3: a deferred seed's buffer IS this call's (its copies and their barrier first)
+    VkCommandBuffer cmd = m_pendingCmd ? m_pendingCmd : beginCommands();
+    m_pendingCmd = VK_NULL_HANDLE;
     const bool gpuSurf = s_gpuSurface && vol.bricked;   // 29 S1
     if (!gpuSurf) vol.meshValid = false;   // the switch off: turned on again, the field is built whole first
     if (gpuSurf) {   // 29 S1: the frame before may still be drawing the mesh this call rewrites (one queue: an execution dependency)

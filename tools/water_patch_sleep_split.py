@@ -130,6 +130,7 @@ def main():
     ap.add_argument("--trace", action="store_true")
     ap.add_argument("--spare", type=int, default=None, help="58 item 1: water_locality patch_spare (1 on, 0 off; omitted = unchanged)")
     ap.add_argument("--patch-pace", type=int, default=None, help="58.3: water_coupling patch_pace (1 a patch built over frames, 0 at once; omitted = unchanged)")
+    ap.add_argument("--seed-defer-off", type=int, default=None, help="58.3 TEST: water_coupling test_seed_defer_off (1 each tile seed submitted alone, 0 deferred into the call; omitted = unchanged)")
     ap.add_argument("--out", default=str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "evidence" / "water_core_m4" / "s57_patch_sleep_split.json"))
     ap.add_argument("--allow-foreign", action="store_true", help="58.3: run beside another checkout's engine (recorded per run, the numbers marked)")
     a = ap.parse_args()
@@ -139,6 +140,7 @@ def main():
         api.post("/api/entity/spawn", {"type": "animated", "position": {"x": 2.0, "y": P.TOP + 1.2, "z": 0.0}, "id": "player"})
     api.debug("water_av_realtime", {"on": True})
     if a.spare is not None: print("patch_spare", api.debug("water_locality", {"patch_spare": bool(a.spare)}).get("patch_spare"), flush=True)
+    if a.seed_defer_off is not None: print("test_seed_defer_off", api.debug("water_coupling", {"test_seed_defer_off": bool(a.seed_defer_off)}).get("slept", {}).get("test_seed_defer_off"), flush=True)
     if a.patch_pace is not None: print("patch_pace", api.debug("water_coupling", {"patch_pace": bool(a.patch_pace)}).get("slept", {}).get("patch_pace"), flush=True)
     out = []
     try:

@@ -782,6 +782,58 @@ TEST_F(WaterRecordTilesTest, ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk) 
     }
 }
 
+// 58.3 item 1 - a tile wake's seed rides the volume's call (recorded into the call's own command buffer, no blocking submission of
+// its own: ~0.9 ms a tile live). The margin's wakes run in stepGpu right before the call, so a push whose waves spread into recorded
+// tiles exercises them. A 24 x 24 m pond 2 voxels deep, every tile recorded, a push at the centre, 90 steps; the device's f, fPrev
+// and brick map and the mass, deferred against each seed submitted alone (s_seedDeferOffForTest). Prediction: identical. CONTROL: the
+// deferred run deferred seeds (counted within the run), the blocking run none.
+TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    struct State { std::vector<float> f, fPrev; std::vector<int> map; double mass = 0; long woken = 0, deferred = 0; bool ok = false; };
+    auto run = [&](bool blocking) {
+        State s;
+        WaterCoreManager::s_seedDeferOffForTest = blocking;
+        struct Restore { ~Restore() { WaterCoreManager::s_seedDeferOffForTest = false; } } restore;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (!mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) { ADD_FAILURE() << err; return s; }
+        mgr.setDroplets(false);
+        FakeRecord record; record.install(mgr);
+        struct RestoreAfter { float a = WaterCoreManager::s_recordAfterS; ~RestoreAfter() { WaterCoreManager::s_recordAfterS = a; } } restoreAfter;
+        WaterCoreManager::s_recordAfterS = 0.5f;
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(23, 2, 23), 1.0f / 9.0f, "eulerian", &err, "gpu", 0);
+        if (!id) { ADD_FAILURE() << err; return s; }
+        mgr.setAutoSleep(id, false);
+        if (!mgr.setPartialWake(id, true) || !mgr.setRecordTiles(id, true)) { ADD_FAILURE() << "refused"; return s; }
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(23, 1, 23), 1.0f, nullptr);
+        AvRecord rec;
+        for (int k = 0; k < 360; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        const long d0 = WaterCoreGpu::s_tileGpuMs.seedsDeferred;
+        mgr.addImpulse(glm::vec3(12.0f, 1.9f, 12.0f), 1.0f, 2.0f, glm::vec3(0.0f, -1.0f, 0.0f));   // waves into the recorded tiles round it
+        for (int k = 0; k < 90; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        s.deferred = WaterCoreGpu::s_tileGpuMs.seedsDeferred - d0;
+        const AvRecord* r = mgr.find(id);
+        s.woken = r ? r->tilesWoken : -1;
+        s.ok = mgr.deviceStateForTest(id, s.f, s.fPrev, s.map);
+        s.mass = mgr.totalMass();
+        return s;
+    };
+    const State def = run(false), blk = run(true);
+    ASSERT_TRUE(def.ok && blk.ok);
+    long cf = 0, cp = 0, b = 0;
+    ASSERT_EQ(def.f.size(), blk.f.size()); ASSERT_EQ(def.map.size(), blk.map.size());
+    for (size_t i = 0; i < def.f.size(); ++i) { cf += def.f[i] != blk.f[i]; cp += def.fPrev[i] != blk.fPrev[i]; }
+    for (size_t i = 0; i < def.map.size(); ++i) b += (def.map[i] != 0) != (blk.map[i] != 0);
+    std::printf("  tiles woken %ld / %ld, seeds deferred %ld / %ld | deferred vs each submitted alone: f %ld, fPrev %ld cells, bricks %ld; mass %.6f vs %.6f\n",
+                def.woken, blk.woken, def.deferred, blk.deferred, cf, cp, b, def.mass, blk.mass);
+    EXPECT_GT(def.deferred, 0) << "CONTROL: no seed was deferred - the comparison is of one path with itself";
+    EXPECT_EQ(blk.deferred, 0);
+    EXPECT_EQ(def.woken, blk.woken);
+    EXPECT_EQ(cf, 0); EXPECT_EQ(cp, 0); EXPECT_EQ(b, 0);
+    EXPECT_EQ(def.mass, blk.mass);
+}
+
 // RemovingAVolumeNeverLosesWater (27.25, red first): a 32 x 16 m pond with recording - at rest every tile records, a push wakes the
 // tiles round it, and the volume is removed while some tiles are awake and some recorded. keep: the record then holds exactly the
 // water placed (the awake tiles written back, the recorded ones untouched); discard: the box is dry and the reported discard is the
@@ -1199,7 +1251,7 @@ struct LakeSplash { glm::ivec3 lo{0}, hi{0}; int peakAwake = 0, patches = 0, sle
                    long poolGrows = 0; int poolFirst = 0, poolLast = 0, bricksPeak = 0; size_t poolSized = 0;
                    double residue = 0.0, thin = 0.0;
                    WaterCoreManager::DropletStats drops{}; };   // 51.9b: m^3 the residue sweep and the sleep's thin films dropped (counted)   // 51.9b: the first patch's pool
-static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int W, glm::vec2 at, glm::vec2* second = nullptr, bool droplets = false) {
+static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue queue, uint32_t qf, int W, glm::vec2 at, glm::vec2* second = nullptr, bool droplets = false, bool generated = false) {
     LakeSplash o;
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
@@ -1212,7 +1264,7 @@ static LakeSplash runRecordedLake(VkDevice device, VkPhysicalDevice pd, VkQueue 
     const double placed = record.total();
     nlohmann::json box = {{"lo", {0, 0, 0}}, {"hi", {W - 1, 2, W - 1}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
                           {"sweeps", 0}, {"partialWake", true}, {"recordTiles", false}, {"tallBandM", WaterCoreManager::s_tallBandDefault}};
-    EXPECT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+    if (!generated) EXPECT_TRUE(mgr.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));   // 58 item 2: generated = the record only
     auto splash = [&](glm::vec2 c) {   // the second splash takes the staged path as shipped (its push held, applied when live)
         const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(c.x, 1.9f, c.y), 2.0f);
         mgr.addImpulse(glm::vec3(c.x, 1.9f, c.y), 2.0f, 8.0f, glm::vec3(0.0f, -1.0f, 0.0f));
@@ -2275,6 +2327,140 @@ TEST_F(WaterRecordTilesTest, ALakeOfAnySizeIsTheRecordAndASplashWakesAPatch) {
     EXPECT_EQ(c.patches, 2) << "a splash 60 m away did not make its own patch";
     EXPECT_EQ(e.lo.x, 0) << "the shore splash's patch is not clipped to the lake";
     for (const LakeSplash* s : {&a, &b, &c, &e}) EXPECT_LT(std::abs(s->books), 1e-3);
+}
+
+// 58 item 2 (W4: "no splash seen") - a splash on GENERATED record water (the bake's spans: no slept box) wakes a patch. Before, a
+// patch woke only inside a slept box and generated water has none (54.2 step 0): the splash woke nothing. The 200 m lake 2 m deep
+// held ONLY in the record (no box), the same splash at its centre; CONTROL: the same lake as a recorded lake (its slept box). Prediction:
+// the same patch box, water woken (> 200 columns awake), back in the record, the books exact, and NO slept box left (the generated box
+// is dropped with its patch). A second splash 60 m off makes its own patch (its own box, clipped off the first). RED: the switch off -
+// the splash wakes nothing and makes no box.
+TEST_F(WaterRecordTilesTest, ASplashOnGeneratedWaterWakesAPatch) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    WaterCoreManager::s_generatedWake = true;
+    const LakeSplash rec = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f));
+    const LakeSplash gen = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), nullptr, false, true);
+    glm::vec2 far(160.0f, 100.0f);
+    const LakeSplash two = runRecordedLake(device, physicalDevice, queue, queueFamilyIndex, 200, glm::vec2(100.0f, 100.0f), &far, false, true);
+    auto line = [](const char* n, const LakeSplash& s) {
+        std::printf("  %-38s patch x %d..%d z %d..%d | peak awake %d, live volumes %d, back in the record %d (at %.1f s), slept boxes %d, books %+.4f m^3\n",
+                    n, s.lo.x, s.hi.x, s.lo.z, s.hi.z, s.peakAwake, s.patches, int(s.slept), s.sleptAt, s.sleptBoxes, s.books);
+    };
+    line("CONTROL recorded lake (a slept box)", rec); line("generated lake (the record only)", gen); line("generated, a second splash 60 m off", two);
+    EXPECT_GT(rec.peakAwake, 200) << "CONTROL: the splash woke water in the recorded lake";
+    EXPECT_GT(gen.peakAwake, 200) << "the splash on generated water woke nothing";
+    EXPECT_EQ(gen.lo, rec.lo); EXPECT_EQ(gen.hi, rec.hi);
+    EXPECT_TRUE(gen.slept) << "the patch did not go back to the record";
+    EXPECT_EQ(gen.sleptBoxes, 0) << "the generated box outlived its patch";
+    EXPECT_EQ(two.patches, 2) << "a second splash 60 m off did not make its own patch";
+    EXPECT_EQ(two.sleptBoxes, 0);
+    for (const LakeSplash* s : {&gen, &two}) EXPECT_LT(std::abs(s->books), 1e-3);
+    {   // RED: off - nothing wakes, no box
+        WaterCoreManager::s_generatedWake = false;
+        struct Restore { ~Restore() { WaterCoreManager::s_generatedWake = true; } } restore;
+        auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+        WaterCoreManager mgr(state);
+        FakeRecord record; record.install(mgr);
+        for (int z = 0; z < 200; ++z) for (int x = 0; x < 200; ++x) { ColumnRun r; r.bottomY = 0.0f; r.topY = 2.0f; r.mass = 2.0; record.cols[{x, z}].push_back(r); }
+        const std::vector<int> ids = mgr.wakeSleptNear(glm::vec3(100.0f, 1.9f, 100.0f), 2.0f);
+        std::printf("  RED (generated wake off): woke %zu, slept boxes %zu\n", ids.size(), mgr.sleptVolumes().size());
+        EXPECT_TRUE(ids.empty()); EXPECT_TRUE(mgr.sleptVolumes().empty());
+    }
+}
+
+// 58 item 2 - the generated box's rules, on the host (no GPU): (a) chunk independence - the box a touch makes is the same whether the
+// record is read whole or chunk by chunk (32 m pieces, concatenated); (b) a body falling onto the water makes a box, one over land
+// none (the column is dry); (c) water with a current (a river) is refused and counted; (d) a box never overlaps a slept box: a touch
+// beside a recorded lake's box makes a box clipped off it; (e) a generated box is never saved with the world.
+TEST_F(WaterRecordTilesTest, AGeneratedBoxIsWorldAlignedAndNeverOverlaps) {
+    auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
+    FakeRecord record;
+    for (int z = -40; z < 120; ++z) for (int x = -40; x < 120; ++x) {   // a lake 160 m square, bed 0..1 by column (not flat), surface 3
+        ColumnRun r; r.bottomY = static_cast<float>(((x * 7 + z * 3) & 1)); r.topY = 3.0f; r.mass = r.topY - r.bottomY; record.cols[{x, z}].push_back(r); }
+    WaterCoreManager whole(state); record.install(whole);
+    WaterCoreManager chunked(state);
+    const SpanReader full = whole.skinReaderForTest();
+    chunked.setSpanIo(nullptr, [&full](const glm::ivec3& lo, const glm::ivec3& hi, std::vector<ColumnRuns>& out) {
+        out.clear();
+        auto fd = [](int a) { return a >= 0 ? a / 32 : -((-a + 31) / 32); };
+        for (int cz = fd(lo.z); cz <= fd(hi.z); ++cz) for (int cx = fd(lo.x); cx <= fd(hi.x); ++cx) {
+            const glm::ivec3 a(std::max(lo.x, cx * 32), lo.y, std::max(lo.z, cz * 32)), b(std::min(hi.x, cx * 32 + 31), hi.y, std::min(hi.z, cz * 32 + 31));
+            std::vector<ColumnRuns> part; full(a, b, part);
+            out.insert(out.end(), part.begin(), part.end());
+        }
+    });
+    long differ = 0, made = 0;
+    for (float x : {-31.5f, -0.5f, 0.5f, 31.5f, 32.5f, 63.9f, 64.1f}) for (float z : {-0.5f, 0.5f, 31.9f, 32.1f}) {
+        glm::ivec3 l0, h0, l1, h1;
+        const bool a = whole.generatedBoxFor(glm::vec3(x, 3.5f, z), 3.2f, 3.8f, l0, h0, false);
+        const bool b = chunked.generatedBoxFor(glm::vec3(x, 3.5f, z), 3.2f, 3.8f, l1, h1, false);
+        made += a ? 1 : 0;
+        if (a != b || (a && (l0 != l1 || h0 != h1))) ++differ;
+        if (a) { EXPECT_EQ(((l0.x % 8) + 8) % 8, 0); EXPECT_EQ(((h0.x + 1) % 8 + 8) % 8, 0); EXPECT_LE(l0.x, static_cast<int>(std::floor(x))); EXPECT_GE(h0.x, static_cast<int>(std::floor(x))); }
+    }
+    std::printf("  (a) 28 touches on both sides of chunk borders: boxes made %ld, whole vs chunk-by-chunk differ %ld\n", made, differ);
+    EXPECT_EQ(made, 28); EXPECT_EQ(differ, 0);
+    {   glm::ivec3 l, h;
+        whole.generatedBoxFor(glm::vec3(10.5f, 3.5f, 10.5f), 3.2f, 3.8f, l, h, false);
+        std::printf("      the box: x %d..%d y %d..%d z %d..%d\n", l.x, h.x, l.y, h.y, l.z, h.z);
+        EXPECT_EQ(l.y, 0); EXPECT_EQ(h.y, 3) << "y = the lowest bed .. the highest surface"; }
+    {   // (b) bodies: one falling onto the water, one over land (no record), one 3 m over the surface (out of reach). With the GPU the
+        // body's box wakes a patch (the frames after), which goes back to the record and drops the box
+        WaterCoreManager m(state);
+        std::string err;
+        if (isVulkanAvailable() && m.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) {
+            m.setDroplets(false); m.setRealtime(true);
+            static FakeRecord rb; rb = record;   // its own copy: a live patch holds its columns' water out of the record
+            rb.install(m);
+            MovingSolid onWater; onWater.centre = glm::vec3(20.5f, 3.6f, 20.5f); onWater.halfExtents = glm::vec3(0.17f); onWater.velocity = glm::vec3(0, -4, 0); onWater.id = 1;
+            MovingSolid overLand = onWater; overLand.centre = glm::vec3(300.5f, 3.6f, 300.5f); overLand.id = 2;
+            MovingSolid high = onWater; high.centre = glm::vec3(-20.5f, 7.0f, -20.5f); high.id = 3;
+            m.wakeSleptTouching({onWater, overLand, high});
+            int patches = 0, boxesWhileLive = 0;
+            for (int k = 0; k < 60 * 60; ++k) {
+                if (k < 600) m.wakeSleptTouching({});
+                m.update(1.0f / 60.0f);
+                int live = 0; for (const AvRecord& r : m.list()) live += r.isPatch ? 1 : 0;
+                patches = std::max(patches, live);
+                if (live) boxesWhileLive = std::max(boxesWhileLive, static_cast<int>(m.sleptVolumes().size()));
+                if (!live && patches && k > 600) { m.wakeSleptTouching({}); break; }
+            }
+            const auto& g = m.generatedWakeStats();
+            std::printf("  (b) bodies on water / over land / 3 m up: boxes made %ld (checks %ld), patches %d, boxes while it lived %d, dropped %ld, left %zu\n",
+                        g.made, g.checks, patches, boxesWhileLive, g.dropped, m.sleptVolumes().size());
+            for (const auto& v : m.sleptVolumes()) std::printf("      left: x %d..%d y %d..%d z %d..%d generated %d waking %d | live volumes %zu\n", v.lo.x, v.hi.x, v.lo.y, v.hi.y, v.lo.z, v.hi.z, int(v.generated), int(v.waking), m.list().size());
+            EXPECT_EQ(g.made, 1); EXPECT_EQ(g.checks, 3);
+            EXPECT_EQ(patches, 1) << "the body's box woke no patch";
+            EXPECT_EQ(boxesWhileLive, 1);
+            EXPECT_EQ(m.sleptVolumes().size(), 0u) << "the generated box outlived its patch";
+        } else ADD_FAILURE() << "no GPU: " << err;
+    }
+    {   // (c) a river: refused, counted
+        WaterCoreManager m(state); record.install(m);
+        m.setRecordCurrent([](int, int, float, float) { return glm::vec2(0.6f, 0.0f); });
+        glm::ivec3 l, h;
+        const bool ok = m.generatedBoxFor(glm::vec3(20.5f, 3.5f, 20.5f), 3.2f, 3.8f, l, h);
+        std::printf("  (c) a 0.6 m/s current: box %d, refused (current) %ld (checks %ld; the column's runs:", int(ok), m.generatedWakeStats().refusedCurrent, m.generatedWakeStats().checks);
+        for (const auto& r : record.cols[{20, 20}]) std::printf(" %.3f..%.3f", r.bottomY, r.topY);
+        std::printf(")\n");
+        EXPECT_FALSE(ok); EXPECT_EQ(m.generatedWakeStats().refusedCurrent, 1);
+    }
+    {   // (d) a recorded lake's slept box over x 0..39: a touch at x 44 makes a box clipped off it; (e) not saved
+        WaterCoreManager m(state); record.install(m);
+        nlohmann::json box = {{"lo", {0, 0, -40}}, {"hi", {39, 3, 119}}, {"cellSize", 1.0f / 9.0f}, {"transport", "eulerian"}, {"backend", "gpu"},
+                              {"sweeps", 0}, {"partialWake", true}, {"recordTiles", true}, {"tallBandM", 0.5f}};
+        ASSERT_TRUE(m.loadSlept(nlohmann::json{{"v", 1}, {"boxes", nlohmann::json::array({box})}}.dump()));
+        glm::ivec3 l, h;
+        const bool ok = m.generatedBoxFor(glm::vec3(44.5f, 3.5f, 20.5f), 3.2f, 3.8f, l, h);
+        std::printf("  (d) beside a slept box x 0..39: box %d, x %d..%d\n", int(ok), l.x, h.x);
+        EXPECT_TRUE(ok); EXPECT_EQ(l.x, 40) << "the box overlaps the slept box (or was clipped further than needed)";
+        glm::ivec3 l2, h2;
+        EXPECT_FALSE(m.generatedBoxFor(glm::vec3(20.5f, 3.5f, 20.5f), 3.2f, 3.8f, l2, h2)) << "a touch inside a slept box made a generated box";
+        EXPECT_GE(m.makeGeneratedBoxForTest(glm::vec3(44.5f, 3.5f, 20.5f), 3.2f, 3.8f), 0);
+        const std::string saved = m.serializeSlept();
+        std::printf("      (e) boxes held %zu, saved %zu\n", m.sleptVolumes().size(), nlohmann::json::parse(saved)["boxes"].size());
+        EXPECT_EQ(m.sleptVolumes().size(), 2u); EXPECT_EQ(nlohmann::json::parse(saved)["boxes"].size(), 1u) << "a generated box was saved";
+    }
 }
 
 // 51.9b - a splash's patch is sized at its wake for the water it will hold: its brick pool never grows (a grow is 38-64 ms of host

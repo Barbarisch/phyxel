@@ -553,6 +553,7 @@ void WaterCoreManager::update(float dt) {
     { const auto t = UClock::now(); checkRecordResidency(); pre.residency = ums(t); }   // 32.4: before the realtime return - a harness that steps by hand still follows residency
     { const auto t = UClock::now(); updateKeptMemory(); pre.kept = ums(t); }            // L3 (41): kept memory follows the viewer; the given-up part freed a little each frame
     { const auto t = UClock::now(); stepRetiring(); pre.retiring = ums(t); }            // 57.8: a returning patch's tiles, a few a frame (a sleep at this frame's end starts next frame)
+    if (s_generatedWake || !m_slept.empty()) dropIdleGeneratedBoxes();   // 58 item 2: a generated box goes with its last patch (cheap: a box list)
     pumpPatchJobs(0);   // 58.3: patches building over frames, a stage or more a frame under s_wakeBudgetMs
     if (!m_realtime) return;
     m_updateCpu = pre;
@@ -1753,6 +1754,25 @@ WaterCoreManager::PressureWindowStats WaterCoreManager::setPressureWindows(const
     return st;
 }
 
+// 58 item 2: generated record water has no box, so the debris integrator reported no body there (it reports the bodies inside the
+// water boxes) and nothing could make its generated box. One box: the wet record tiles near the viewer (their x/z, the lowest bed to
+// the highest surface + 1 m: a slept box's reach). Bodies inside it over dry ground are read (capped a call) and refused
+// (generatedBoxFor). Beyond the record tiles' reach no body is reported: a splash there makes no patch (the skin draws that water,
+// unsimulated - §27's "simulate where it counts"; the reach is locality's drawM).
+std::vector<std::pair<glm::vec3, glm::vec3>> WaterCoreManager::recordReachBoxesWorld() const {
+    std::vector<std::pair<glm::vec3, glm::vec3>> out;
+    if (!s_generatedWake || !s_patchWake || !s_wakeOnTouch) return out;
+    glm::vec3 lo(1e30f), hi(-1e30f);
+    const float T = static_cast<float>(kRecordTile);
+    for (const auto& [key, t] : m_recordTiles) {
+        if (!t.wet || t.yHi < t.yLo) continue;
+        lo = glm::min(lo, glm::vec3(key.first * T, t.yLo, key.second * T));
+        hi = glm::max(hi, glm::vec3(key.first * T + T, t.yHi + 1.0f, key.second * T + T));
+    }
+    if (hi.x > lo.x) out.push_back({lo, hi});
+    return out;
+}
+
 std::vector<std::pair<glm::vec3, glm::vec3>> WaterCoreManager::sleptBoxesWorld() const {
     std::vector<std::pair<glm::vec3, glm::vec3>> out;
     for (const SleptVolume& s : m_slept) out.push_back({glm::vec3(s.lo), glm::vec3(s.hi) + glm::vec3(1.0f)});
@@ -2356,12 +2376,101 @@ void WaterCoreManager::pumpPatchJobs(int mode) {
     if (ranOne) m_patchPaced.maxFrameMs = std::max(m_patchPaced.maxFrameMs, std::chrono::duration<double, std::milli>(JClock::now() - t0).count());
 }
 
+// 58 item 2 (W4's "no splash"): generated record water (the bake's spans) has no slept box, so a touch woke nothing there (54.2 step
+// 0). The box a touch makes: its 8 m record tile and kGeneratedBoxTiles each side (world-aligned - no chunk enters it), clipped off any
+// slept box or live volume over the same water (two parents' patches must never hold the same water: amendment B merges only one
+// parent's), its y from the lowest bed to the highest surface the record holds in it (recordLake's rule)
+bool WaterCoreManager::generatedBoxFor(const glm::vec3& c, float bottomY, float topY, glm::ivec3& lo, glm::ivec3& hi, bool count) {
+    if (!s_generatedWake || !s_patchWake || !m_spanReader) return false;
+    const int cx = static_cast<int>(std::floor(c.x)), cz = static_cast<int>(std::floor(c.z));
+    auto holds = [&](const glm::ivec3& a0, const glm::ivec3& a1) {   // the touch's column, within the box's y range +1 (a slept box's touch rule)
+        return cx >= a0.x && cx <= a1.x && cz >= a0.z && cz <= a1.z && bottomY <= static_cast<float>(a1.y + 2) && topY >= static_cast<float>(a0.y); };
+    for (const SleptVolume& sv : m_slept) if (holds(sv.lo, sv.hi)) return false;   // a slept box's own path
+    for (const auto& av : m_avs) if (holds(av->minVoxel, av->maxVoxel)) return false;   // live water: the volume takes the touch
+    for (const PatchJob& j : m_patchJobs) if (holds(j.lo, j.hi)) return false;   // a patch building there
+    // the touch's own column: record water the body reaches (its bottom at most 1 m over the surface - a slept box's reach)
+    const int yLo = static_cast<int>(std::floor(bottomY)) - 24, yHi = static_cast<int>(std::ceil(topY)) + 8;
+    if (count) ++m_genWake.checks;
+    std::vector<ColumnRuns> col;
+    m_spanReader(glm::ivec3(cx, yLo, cz), glm::ivec3(cx, yHi, cz), col);
+    float surf = std::numeric_limits<float>::lowest();
+    for (const auto& cr : col) for (const auto& r : cr.runs) if (r.bottomY <= topY && r.topY + 1.0f >= bottomY) surf = std::max(surf, r.topY);
+    if (surf == std::numeric_limits<float>::lowest()) return false;   // dry here (the common case: a body over land)
+    if (m_recordCurrent) {
+        const glm::vec2 u = m_recordCurrent(cx, cz, surf, surf - 1.0f);
+        if (glm::length(u) > kGeneratedMaxCurrent) { if (count) ++m_genWake.refusedCurrent; return false; }   // a river: its reach owns it
+    }
+    const int T = kRecordTile, K = kGeneratedBoxTiles;
+    auto fd = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+    const int tx = fd(cx, T), tz = fd(cz, T);
+    lo = glm::ivec3((tx - K) * T, 0, (tz - K) * T); hi = glm::ivec3((tx + K + 1) * T - 1, 0, (tz + K + 1) * T - 1);
+    std::vector<ColumnRuns> runs;
+    m_spanReader(glm::ivec3(lo.x, yLo, lo.z), glm::ivec3(hi.x, yHi, hi.z), runs);
+    float bed = std::numeric_limits<float>::max(), top = std::numeric_limits<float>::lowest();
+    for (const auto& cr : runs) for (const auto& r : cr.runs) { bed = std::min(bed, r.bottomY); top = std::max(top, r.topY); }
+    if (top <= bed) return false;
+    lo.y = static_cast<int>(std::floor(bed)); hi.y = static_cast<int>(std::ceil(top));
+    // clipped off every box over the same water, on the touch's side, along the axis it overlaps less (amendment B's clip)
+    auto clip = [&](const glm::ivec3& o0, const glm::ivec3& o1) {
+        if (!(o0.x <= hi.x && o1.x >= lo.x && o0.z <= hi.z && o1.z >= lo.z && o0.y <= hi.y && o1.y >= lo.y)) return true;
+        const int ox = std::min(hi.x, o1.x) - std::max(lo.x, o0.x) + 1, oz = std::min(hi.z, o1.z) - std::max(lo.z, o0.z) + 1;
+        if (ox <= oz) { if (cx < o0.x) hi.x = o0.x - 1; else lo.x = o1.x + 1; }
+        else          { if (cz < o0.z) hi.z = o0.z - 1; else lo.z = o1.z + 1; }
+        return hi.x >= lo.x && hi.z >= lo.z;
+    };
+    bool room = true;
+    for (int pass = 0; pass < 4 && room; ++pass) {   // a clip only shrinks the box - a few passes settle it
+        for (const SleptVolume& sv : m_slept) if (room) room = clip(sv.lo, sv.hi);
+        for (const auto& av : m_avs) if (room) room = clip(av->minVoxel, av->maxVoxel);
+        for (const PatchJob& j : m_patchJobs) if (room) room = clip(j.lo, j.hi);
+    }
+    if (!room || cx < lo.x || cx > hi.x || cz < lo.z || cz > hi.z) { if (count) ++m_genWake.refusedOverlap; return false; }
+    return true;
+}
+
+int WaterCoreManager::makeGeneratedBox(const glm::vec3& c, float bottomY, float topY) {
+    glm::ivec3 lo, hi;
+    if (!generatedBoxFor(c, bottomY, topY, lo, hi)) return -1;
+    SleptVolume sv;
+    sv.lo = lo; sv.hi = hi; sv.cellSize = 1.0f / static_cast<float>(kMicroPerVoxel); sv.transport = "eulerian"; sv.backend = "gpu"; sv.sweeps = 0;
+    sv.partialWake = true; sv.recordTiles = true; sv.tallBandM = s_tallBandDefault; sv.generated = true;
+    m_slept.push_back(sv);
+    ++m_genWake.made;
+    return static_cast<int>(m_slept.size()) - 1;
+}
+
+void WaterCoreManager::dropIdleGeneratedBoxes() {
+    for (size_t i = m_slept.size(); i-- > 0;) {
+        const SleptVolume& sv = m_slept[i];
+        if (!sv.generated || sv.waking) continue;
+        bool used = false;
+        for (const auto& av : m_avs) if (av->isPatch && av->patchParentLo == sv.lo && av->patchParentHi == sv.hi) { used = true; break; }
+        for (const PatchJob& j : m_patchJobs) if (!used && j.parentLo == sv.lo && j.parentHi == sv.hi) used = true;
+        if (used) continue;
+        m_slept.erase(m_slept.begin() + static_cast<long>(i));   // its water is the record's (a patch wrote it back): nothing to keep
+        ++m_genWake.dropped;
+    }
+}
+
 std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSolid>& bodies, const std::vector<MovingSolid>* inBoxes) {
     std::vector<int> ids;
     for (WakeJob& j : m_jobs) { dueFromBodies(j, bodies); if (inBoxes) dueFromBodies(j, *inBoxes); }   // 42.3: the deadline only comes forward
+    if (s_generatedWake && s_wakeOnTouch) {   // 58 item 2: a body on generated record water - a box over it, woken below as any slept box
+        int checks = 0;
+        for (const MovingSolid& b : bodies) {
+            if (checks >= kGeneratedChecksPerCall) break;
+            const glm::vec3 c = b.centre;
+            bool covered = false;   // a box (made this call or before) already holds its column: no second read
+            for (const SleptVolume& sv : m_slept)
+                if (c.x >= sv.lo.x && c.x < sv.hi.x + 1 && c.z >= sv.lo.z && c.z < sv.hi.z + 1) { covered = true; break; }
+            if (covered) continue;
+            ++checks;
+            makeGeneratedBox(c, c.y - b.halfExtents.y, c.y + b.halfExtents.y);
+        }
+    }
     // 39.4: with a test delay a touched pond keeps waking after its body has gone (step 2 would finish a wake it started), so an
     // empty body list still runs the loop
-    if (!s_wakeOnTouch || m_slept.empty() || (bodies.empty() && s_wakeDelaySForTest <= 0.0)) { pumpWakeJobs(); return ids; }
+    if (!s_wakeOnTouch || m_slept.empty() || (bodies.empty() && s_wakeDelaySForTest <= 0.0)) { pumpWakeJobs(); dropIdleGeneratedBoxes(); return ids; }
     const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
         if (m_slept[i].waking) continue;   // L4: a paced wake is building it (its deadline was taken above)
@@ -2383,6 +2492,7 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
             }
             if (patched) continue;
         }
+        if (m_slept[i].generated) continue;   // 58 item 2: a generated box only wakes patches (woken whole it would leave a box for good)
         (void)touchAt;
         if (s_wakeDelaySForTest > 0.0) {
             if (touched && m_slept[i].touchedAt < 0.0) m_slept[i].touchedAt = nowS;
@@ -2410,11 +2520,13 @@ std::vector<int> WaterCoreManager::wakeSleptTouching(const std::vector<MovingSol
         pumpPatchJobs(2);
     }
     pumpWakeJobs();   // a job that goes live returns no id here (it is not this frame's touch); water_av_list shows it
+    dropIdleGeneratedBoxes();   // 58 item 2
     return ids;
 }
 
 std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radius) {
     std::vector<int> ids;
+    if (s_generatedWake && s_wakeOnTouch) makeGeneratedBox(c, c.y - radius, c.y + radius);   // 58 item 2: a push on generated record water
     if (!s_wakeOnTouch || m_slept.empty()) return ids;
     const double nowS = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (size_t i = m_slept.size(); i-- > 0;) {
@@ -2428,9 +2540,11 @@ std::vector<int> WaterCoreManager::wakeSleptNear(const glm::vec3& c, float radiu
             continue;
         }
         {   const int pid = wakePatch(i, c); if (pid >= 0) { if (pid) ids.push_back(pid); continue; } }   // 51 S2: a patch round the blast
+        if (m_slept[i].generated) continue;   // 58 item 2: patches only
         const int id = wakeSlept(i); if (id) ids.push_back(id);
     }
     pumpWakeJobs();
+    dropIdleGeneratedBoxes();   // 58 item 2 (a refused or held wake leaves no box)
     return ids;
 }
 
@@ -2458,7 +2572,7 @@ double WaterCoreManager::recordLake(const glm::ivec3& lo, const glm::ivec3& hi, 
 std::string WaterCoreManager::serializeSlept() const {
     nlohmann::json boxes = nlohmann::json::array();
     for (const SleptVolume& s : m_slept)
-        boxes.push_back({{"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"cellSize", s.cellSize}, {"transport", s.transport},
+        if (!s.generated) boxes.push_back({{"lo", {s.lo.x, s.lo.y, s.lo.z}}, {"hi", {s.hi.x, s.hi.y, s.hi.z}}, {"cellSize", s.cellSize}, {"transport", s.transport},
                          {"backend", s.backend}, {"sweeps", s.sweeps}, {"partialWake", s.partialWake}, {"recordTiles", s.recordTiles},
                          {"tallBandM", s.tallBandM}});
     return nlohmann::json{{"v", 1}, {"boxes", boxes}}.dump();
@@ -2652,6 +2766,8 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) 
         av.pendingTileWakes.clear();
         int woke = 0;
         const uint64_t callNow = m_gpu->callsSubmitted(vol);
+        // 58.3: these wakes run right before this volume's call (stepGpu) - their seeds ride it (no blocking submission each)
+        struct DeferScope { bool& f; DeferScope(bool& x, bool on) : f(x) { f = on; } ~DeferScope() { f = false; } } deferScope(m_seedDefer, !s_recordAfterStepForTest);
         for (const auto& [d2, t] : order) {
             av.tileAskedAt.emplace(t, callNow);   // 58.3 measurement: the first ask (kept while it waits)
             const int cap = av.tileWakeCap > 0 ? std::min(av.tileWakeCap, std::max(1, s_tileWakesPerCall)) : std::max(1, s_tileWakesPerCall);
@@ -2938,7 +3054,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
         if (!(s_handoverRevertForTest & 4)) av.seedPatches.push_back(std::move(sp));   // TEST ONLY bit 4: the B red control
     }
     lap(P.wake, P.wakeMax, 2);
-    m_gpu->seedColumns(vol, std::move(g), bLo, bHi);
+    m_gpu->seedColumns(vol, std::move(g), bLo, bHi, m_seedDefer && !s_seedDeferOffForTest);   // 58.3: deferred into the call right after
     lap(P.wake, P.wakeMax, 3);
     if (s_handoverRevertForTest & 2) vol.surfaceFullNext = false;   // TEST ONLY: the A red control
     // the record gives the water back: its columns cleared, the body debited
@@ -3448,6 +3564,7 @@ void WaterCoreManager::buildRecordTile(int tx, int tz, RecordTile& t) {
         kept.push_back(std::move(c));
     }
     t.wet = !kept.empty();
+    t.yLo = yMin; t.yHi = yMax;   // 58 item 2: the tile's water range (the bodies' reach box)
     if (!t.wet) { t.field = WaterSurfaceField{}; return; }
     // 51.4d: only the top of the water is drawn, so only the top is woken - from kRecordTileDepthWindowM under the LOWEST run top in
     // the tile (every run keeps its own surface), the runs' true bottoms restored after the extraction (the shader's depth, a lateral
