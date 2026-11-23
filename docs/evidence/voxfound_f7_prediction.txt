@@ -1465,3 +1465,16 @@ Live, VoxFoundGate8 (the gate from the boot), a tavern 12 x 10 furnish:true:
       furniture's own Metal is subtracted using the pieces' material breakdown is NOT available: S3 = the Metal delta
       >= bracket voxels, stated).
   S4: a hall house (not a business): status "not a business", nothing hung.
+
+F7.21f RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundGate8 (the gate from the boot) on the
+restored boot DB; tools/voxfound_f721f_live.py, raw voxfound_f721f_live.jsonl. Every artifact: StructureForge tavern
+14 x 7 / hall_house (furnish:true, the 1/8 m library) + planSignMount's bracket + the tavern's authored sign item.
+  RUN 1: the driver asked for a 12 x 10 tavern -- refused at program validation (the tavern typology's max width is
+     7 m, the cruck span) -- a driver input error, not the generator; re-run at 14 x 7.
+  CONTROL (F7.21b-e): the reply listed "signage" as skipped -- no sign.
+  S1 PASS: status hung, item prop_sign_prancing_pony (the typology's sign item), projecting form, board bottom 2.444 m
+     above the floor (>= 2.44 m, 8 ft).
+  S2 PASS: the 1/8 m voxel at the board's centre is air.
+  S3 PASS as stated: bracket 19 Metal voxels; the Metal census grew 239 (>= 19; the furniture adds Metal too).
+  S4 PASS: a hall house -- "not a business", nothing hung.
+  The 1/8 m stage now skips only "emit" (today's own stage's emit -- the structure record -- is the registry here).

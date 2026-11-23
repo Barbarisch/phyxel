@@ -253,6 +253,21 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
                         }
                     }
                 }
+                // F7.21f: the planned sign board, at the canvas origin (metres = cells / 8)
+                if (furnished["sign"].value("status", std::string()) == "planned" && ctx.deps.itemProps &&
+                    out.value("success", false) && out.contains("origin")) {
+                    auto& sg = furnished["sign"];
+                    const glm::vec3 o(out["origin"][0].get<float>() / 8.0f, out["origin"][1].get<float>() / 8.0f,
+                                      out["origin"][2].get<float>() / 8.0f);
+                    const glm::vec3 w = o + glm::vec3(sg["local_pos"][0].get<float>(), sg["local_pos"][1].get<float>(),
+                                                      sg["local_pos"][2].get<float>());
+                    const std::string sid = ctx.deps.itemProps->spawnProp(
+                        sg["item"].get<std::string>(), w, float(sg["rotation"].get<int>()), false, "", glm::vec3(0.0f), false);
+                    sg["status"] = sid.empty() ? "spawn failed" : "hung";
+                    sg["id"] = sid;
+                    sg["world_pos"] = {w.x, w.y, w.z};
+                    if (!sid.empty()) props.push_back({{"id", sid}, {"item", sg["item"]}, {"on", "sign bracket"}});
+                }
                 furnished["props"] = props;
                 // F7.21e: every painted piece as a FIXTURE record -- its template's interaction points (seats, beds,
                 // ...) at the piece's 1/8 m anchor; the voxels stay the world's
@@ -290,8 +305,7 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
             gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
                              {"ms", stageClock.lap()}});
             out["gates"] = gates;
-            out["skipped"] = ctx.deps.canvasFurnish ? nlohmann::json{"items", "lights", "signage", "emit"}
-                                                    : nlohmann::json{"furnish", "emit"};
+            out["skipped"] = ctx.deps.canvasFurnish ? nlohmann::json{"emit"} : nlohmann::json{"furnish", "emit"};
             return out;
         }
     }
@@ -417,12 +431,81 @@ nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
                                     {"rotation", pl.rotation}, {"template", pl.type}});
         }
     }
+    // F7.21f: place_signage (#47) on the 1/8 m shell, in the CANVAS frame (footprint at 0, the world placement is the
+    // sink's): planSignMount keeps its 1/9 m units (m9 = cell8 x 9 / 8) and probes the CANVAS (eaves, roofs, jetties);
+    // the bracket's 1/9 m cells become the 1/8 m voxels holding their centres (Metal, empty cells only); the painted
+    // board (a fine-voxel item) is spawned after the sink at the canvas origin. A trade without an authored sign item
+    // gets no board here (today's blank hanging_sign fallback is not ported -- stated in the reply).
+    nlohmann::json sign = nlohmann::json::object();
+    {
+        const BuildingProgram& program = ctx.program;
+        const std::string typN = program.typology, fn = program.function;
+        const bool business = typN == "tavern" || typN == "blacksmith" || typN == "smithy" || typN == "inn" ||
+                              typN == "general_store" || typN == "market" || typN == "apothecary" ||
+                              typN == "butcher" || typN == "bakery" || fn == "shop" || fn == "tavern" || fn == "inn" ||
+                              fn == "market" || fn == "bakery" || fn == "store" || fn == "smithy" ||
+                              fn == "apothecary" || fn == "herbalist" || fn == "butcher";
+        const std::string signItemId = ctx.rp ? ctx.rp->signItem : std::string();
+        const VoxelTemplate* signTmpl = nullptr;
+        if (!signItemId.empty() && ctx.deps.itemProps)
+            if (const auto* def = ItemRegistry::instance().getItem(signItemId))
+                if (def->holdable && !def->templateFile.empty())
+                    signTmpl = ctx.deps.itemProps->resolveItemTemplate(def->templateFile);
+        if (!business || program.stories.empty()) {
+            sign = {{"status", "not a business"}};
+        } else if (!signTmpl) {
+            sign = {{"status", "skipped"}, {"reason", "no authored sign item (the blank-board fallback is not ported)"}};
+        } else {
+            const int Wp = std::max(program.footprintW, 1), Dp = std::max(program.footprintD, 1);
+            auto m9 = [](int cell8) { return int(std::floor((cell8 + 0.5) * 9.0 / 8.0)); };
+            const int floorTop8 = ctx.shell.floorTopByStory.empty() ? ctx.shell.floorTopMicro : ctx.shell.floorTopByStory[0];
+            const int floorMicroY = m9(floorTop8);
+            const ProgPortal* door = nullptr;
+            for (const auto& p : program.stories[0].portals)
+                if (p.kind == "door" && (p.a == "exterior" || p.b == "exterior")) { door = &p; break; }
+            WallSide side = WallSide::MinusZ;
+            int wallOuterMicro = 0, alongCenterMicro = (Wp * 9) / 2;
+            int doorHeadMicroY = floorMicroY + 3 * 9;
+            if (door) {
+                doorHeadMicroY = floorMicroY + std::max(1, door->height) * 9;
+                const int dw = std::max(1, door->width);
+                if (door->px == 0) { side = WallSide::MinusX; wallOuterMicro = 0; alongCenterMicro = door->pz * 9 + dw * 9 / 2; }
+                else if (door->px == Wp) { side = WallSide::PlusX; wallOuterMicro = Wp * 9; alongCenterMicro = door->pz * 9 + dw * 9 / 2; }
+                else if (door->pz == Dp) { side = WallSide::PlusZ; wallOuterMicro = Dp * 9; alongCenterMicro = door->px * 9 + dw * 9 / 2; }
+                else { side = WallSide::MinusZ; wallOuterMicro = 0; alongCenterMicro = door->px * 9 + dw * 9 / 2; }
+            }
+            glm::vec3 dims(7.0f / 9.0f, 7.0f / 9.0f, 2.0f / 9.0f);
+            detail::templateSizeUnits(*signTmpl, dims);
+            auto c8 = [](int micro9) { return int(std::floor((micro9 + 0.5) * 8.0 / 9.0)); };
+            std::function<bool(const glm::ivec3&)> solidAt = [&cv, c8](const glm::ivec3& wm) {
+                return cv.occupiedMicro(c8(wm.x), c8(wm.y), c8(wm.z));
+            };
+            const SignMount mount = planSignMount(side, wallOuterMicro, alongCenterMicro, floorMicroY, doorHeadMicroY,
+                                                  m9(ctx.shell.roofApexMicro), dims.x, dims.y, dims.z, solidAt,
+                                                  door ? std::max(1, door->width) * 9 : 9);
+            if (!mount.ok) {
+                sign = {{"status", "skipped"}, {"reason", mount.skipReason}};
+            } else {
+                size_t bracket = 0;
+                for (const auto& c : mount.bracketCells) {
+                    const glm::ivec3 v(c8(c.x), c8(c.y), c8(c.z));
+                    if (cv.occupiedMicro(v.x, v.y, v.z)) continue;
+                    cv.setMicroCell(v.x, v.y, v.z, "Metal");
+                    ++bracket;
+                }
+                sign = {{"status", "planned"}, {"item", signItemId}, {"form", mount.form},
+                        {"local_pos", {mount.worldPos.x, mount.worldPos.y, mount.worldPos.z}},
+                        {"rotation", mount.rotationDeg}, {"bracket_voxels", bracket},
+                        {"board_bottom_above_floor_m", (mount.boardBottomMicroY - floorMicroY) / 9.0}};
+            }
+        }
+    }
     LOG_INFO_FMT("StructureForge", "F7.21b furnish on 1/8 m: " << pieces.size() << " pieces, " << voxels << " voxels, "
                  << refusedCells << " cells refused (over the shell), " << noTemplate.size() << " without a 1/8 m template");
     return {{"pieces", pieces}, {"count", pieces.size()}, {"voxels", voxels}, {"refused_cells", refusedCells},
             {"no_grid8_template", noTemplate}, {"unplaced", unplacedJ}, {"builtins", builtins}, {"emitters", emitters},
-            {"surfaces", surfaces},
-            {"not_in_this_stage", {"item props", "lights", "signage", "nav"}}};
+            {"surfaces", surfaces}, {"sign", sign},
+            {"not_in_this_stage", {"nav"}}};
 }
 
 // ---------------------------------------------------------------------------
