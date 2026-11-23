@@ -19,3 +19,17 @@ At the end: 20 undos restore the store 20 edits back (hashes); save_world, relau
       LOD marks); the p99 and the max reported.
 RED: none needed for an invariant run -- the checks are the red (a defect makes them non-zero); the run is preceded by
 a deliberately corrupted check (a voxels_changed claim off by one, fed to the checker) to show the checker can fail.
+
+F8.1 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot booted switched (F7.16). Evidence:
+voxfound_f81_live.jsonl, voxfound_f81_state.json; tools/voxfound_f81_live.py. Every artifact: WorldGenerator Perlin s7
++ flora; edits through the preview edit API (the routed brush path), blasts through DamageSystem.
+  Checker red: a voxels_changed claim off by one is flagged (the checker can fail).
+  S1 PASS: 1,000 edits (419 straddling a chunk border, sizes 1/2/4/8, break / place of four materials, 832 recorded
+     for undo), 9 blasts with their pieces baked back: 0 count mismatches (every edit's claimed change = the store
+     read back), 0 of 40 full-rebuild verifies mismatched (faces, sprigs, connectivity), 0 of 5,120 routed reads,
+     0 of 4,000 physics probes, 0 blast-window voxels off the lab grid. NOT recorded by the driver: how many voxels
+     each blast broke (F7.16's probe blast broke 0 on canopy) -- the blast-window check may be weak; stated.
+  S2 PASS: 20 undos -> 32 / 32 chunks = the store before the 20th-last recorded edit; save_world (28 chunks),
+     relaunch, the boot loads it -> 32 / 32 equal.
+  S3 PASS: an edit's rebuild + assemble median 0.119 ms, p99 0.402, max 0.698 (<= 5 predicted); the HTTP round trip
+     median 13.9 ms (the frame the request waits for).
