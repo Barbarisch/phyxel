@@ -1372,3 +1372,17 @@ Perlin s7 + flora + edits made through the voxel API by the driver (hand-placed 
   P4 PASS: move +20 m z: the source box 0 solid, the destination = S (one edit, 1,172 voxels changed).
   P5 PASS: create_snapshot, clear (0 solid), restore -> S exactly.
   Seen, not fixed (stated): the undo reply (F7.6b) also carries an empty "error" key.
+
+F7.25 PREDICTION -- step-7 port: items' units on the switched world (2026-11-22, before any code). Read first: items
+themselves are fine-voxel kinematic objects (their own 1/81 m grids, unaffected); the LOD template chain
+(TemplateLodChain) decimates TODAY's 1/9 m templates for the distant-instanced tree tier, which the switched world does
+not use inside its region (its flora are the 1/8 m library, its LOD the store's levels) -- recorded, not ported here.
+The defect found: ItemPropManager's snap-to-ground scans whole CUBES (hasVoxelAt) and rests an item on top of the first
+cube holding ground -- on the switched world the 1/8 m ground tops out inside that cube, so a snapped item floats up to
+7/8 m above it.
+THE CHANGE: while routed, the snap scans the switched world's 1/8 m voxels in the item's column and rests it on the top
+voxel's face.
+Live, VoxFoundBoot: spawn_item (snap) at 8 open-ground columns in the region.
+  I1: every item's base within 1e-3 m of its column's 1/8 m ground top (the pick read-back). CONTROL / RED (the cube
+      scan): the bases sit at the next whole metre -- up to 7/8 m above the ground.
+  I2: a snapped item on a 1/8 m step (a size-2 brush on the ground) rests on the brush's top, not the cube above.
