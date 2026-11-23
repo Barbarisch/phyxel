@@ -157,3 +157,17 @@ run 3 (probes in rows 1-2 clamped to z 191.75).
      12 / 12 exact, T3 0 / 504 of today's cubes changed; job 15.4 s, worst frame 3.7 s.
   P2 PASS: switch off -> the bounds source "region (world.from/to)" (today's).
 F8.3 is now PASS on T1-T3 (12 houses exact, standable, today's world untouched); T4 measured.
+
+F8.4 PREDICTION -- overlapping structures on the switched world (owed by F8.3; 2026-11-22, before any code).
+CONTROL: on the switched world a structure built over an existing one is not removed (the old pipeline's footprint
+stage removes overlapping PLACED objects -- today's; F7.15 keeps it off the switched world): the two stack / interleave.
+Re-run first: hall house A at (8150, 28, 200), then hall house B at (8154, 28, 203) (overlapping A by ~12 m x 4 m):
+A's roof voxels outside B's box survive (the region's solid runs at a column inside A but outside B show A's roof).
+THE CHANGE: the editor's switched-world structure registry (box + floor + id per voxFoundPlaceCanvas success; saved in
+world_meta "voxfound_structures" by save_world, loaded at switch-on): a new structure first clears every registered
+structure whose footprint overlaps its own (air over that structure's box above its foundation's bottom), then seats.
+  O1: after B, at a column inside A's footprint but outside B's, nothing of A remains above the ground (no solid run
+      above the terrain top + 1 m).
+  O2: the registry holds 1 structure (B); a drop in B rests on B's floor.
+  O3: save_world, relaunch (boot): the registry comes back (1 entry, B's box).
+RED: overlap_stub (the clear skipped) -> the control.
