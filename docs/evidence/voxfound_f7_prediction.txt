@@ -1280,3 +1280,19 @@ StructureForge hall_house + the 1/8 m furniture library + FurniturePlacer::place
   S3 PASS: the overlapping furnished house removed the first's 4 props (with its 4 lights); 4 item props remain (the
      second's).
   S4 PASS: save_world + relaunch: the registry's 4 prop ids all present as placed objects (category item).
+
+F7.22 PREDICTION -- step-7 port: nav agent units (2026-11-22; the change written, NOT yet built or run). NavGraph's micro
+mode hard-coded 9 cells per metre; on the switched world it sampled the 1/8 m store at 1/9 m (occupiedMicro's centre
+sampling), so a door or step that is exact at 1/8 m can be misjudged by up to 1/9 m. The agent: 17 micro tall
+(1.889 m), step-up 4 micro (0.444 m), half width 2 micro.
+THE CHANGE: NavGraph::cellsPerM (9 default; a ChunkManager-backed graph takes 8 while routed to the switched world and
+queries its 1/8 m voxels directly); the agent profile converted per grid at every entry point -- needs round UP
+(height 17 -> 16 cells = 2.0 m, half width 2 -> 2 cells), tolerances round DOWN (step-up 4 -> 3 cells = 0.375 m).
+Stated: at an even grid the column centre is a cell edge -- the 5-point footprint sits 1/16 m off centre.
+Unit test VoxFoundNavGrid8 (a 1/8 m world: a floor, a 1 m wall with a 1 m wide door, or a corridor with a step):
+  N1: door 16 voxels (2.0 m) -> a path at perM 8; RED (the same world sampled at 1/9, today's) -> a path too.
+  N2: door 15 voxels (1.875 m, below the agent's 1.889 m) -> NO path at perM 8; RED: the 1/9 sampler finds one (its 17
+      clear cells read 1.889 m) -- the misjudgement.
+  N3: a 3-voxel step (0.375 m) -> a path at perM 8; a 4-voxel step (0.5 m, above 0.444 m) -> NO path at perM 8; RED: the
+      1/9 sampler reads the 0.5 m step as 4 cells = 0.444 m and passes it.
+  N4 (legacy): NavGraph* / NavGrid* / NPC* / Traversal* tests unchanged.
