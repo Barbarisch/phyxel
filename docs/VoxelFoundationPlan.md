@@ -3204,6 +3204,11 @@ the water's bed, untouched); the 1/8 m terrain reads it. Road top faces follow t
 outside 0.375 m; red 209, worst 0.75 m), off-road areas byte-identical, seam-free. Read, not built: the river carve and
 road material were already reproduced (bedHeight, surfaceMat). Owed: bridge decks / rails / piers on the 1/8 m terrain.
 
+**F7.21a, the furnisher takes the grid (2026-11-22).** FurniturePlacer's cell math (poses, reservation spans, plan wall
+thicknesses, mount heights) takes perM (default 9 = today, byte-identical except the fix below). On a 1/8 m shell with
+the 1/8 m furniture library: 38 pieces, 0 overlapping the shell, every wall-backed piece flush (red, today's units:
+7 overlapping, 15 gaps). Found and fixed on both grids: a chandelier was hung over the stair. Next: F7.21b stamps them.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

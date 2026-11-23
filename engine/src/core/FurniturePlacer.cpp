@@ -250,16 +250,21 @@ std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& p
 
 // ---- Claims Ledger increment 3: plan-derived furnishing --------------------
 
-int FurniturePlacer::planExteriorThicknessMicro(const AssemblyPlan& plan) {
-    for (const auto& w : plan.walls)
-        if (w.type == "exterior") return StructureRealizer::thicknessMicro(w.thickness);
-    return StructureRealizer::thicknessMicro(0.333);
+int FurniturePlacer::thicknessCells(double metres, int perM) {
+    if (perM == 9) return StructureRealizer::thicknessMicro(metres);   // today's rule, unchanged
+    return std::clamp(static_cast<int>(std::lround(metres * perM)), 1, perM);
 }
 
-int FurniturePlacer::planInteriorThicknessMicro(const AssemblyPlan& plan) {
+int FurniturePlacer::planExteriorThicknessMicro(const AssemblyPlan& plan, int perM) {
     for (const auto& w : plan.walls)
-        if (w.type == "interior") return StructureRealizer::thicknessMicro(w.thickness);
-    return StructureRealizer::thicknessMicro(0.222);
+        if (w.type == "exterior") return thicknessCells(w.thickness, perM);
+    return thicknessCells(0.333, perM);
+}
+
+int FurniturePlacer::planInteriorThicknessMicro(const AssemblyPlan& plan, int perM) {
+    for (const auto& w : plan.walls)
+        if (w.type == "interior") return thicknessCells(w.thickness, perM);
+    return thicknessCells(0.222, perM);
 }
 
 std::vector<Rect> FurniturePlacer::planStairRects(const AssemblyPlan& plan, int storyIndex) {
@@ -285,13 +290,14 @@ std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
         const std::map<std::string, Footprint>& footprints,
         std::vector<UnplacedFixture>* unplaced,
         const std::string& wealthTier,
-        const std::vector<Rect>& extraReserved) {
+        const std::vector<Rect>& extraReserved,
+        int perM) {
     std::vector<Rect> reserved = planReservedRects(plan, storyIndex);
     reserved.insert(reserved.end(), extraReserved.begin(), extraReserved.end());
     return furnish(story, origin, floorY, footprints, unplaced,
-                   planExteriorThicknessMicro(plan), wealthTier,
+                   planExteriorThicknessMicro(plan, perM), wealthTier,
                    reserved,
-                   planInteriorThicknessMicro(plan));
+                   planInteriorThicknessMicro(plan, perM), perM);
 }
 
 std::vector<Rect> FurniturePlacer::keepClearRects(const std::vector<KeepClearBox>& boxes,
@@ -449,7 +455,7 @@ int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
 }
 
 glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTMicro,
-                                          int surfaceMicroY) {
+                                          int surfaceMicroY, int perM) {
     // X/Z: the cube origin in MICRO units, inset by the exterior-wall thickness along -backDir (toward
     // the room) so the piece clears the thin wall band occupying the outer extTMicro of the perimeter
     // cube — flush against the wall's interior face, never inside it. (backDir 0 -> no inset.)
@@ -460,24 +466,24 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
     // inset can't be flush to both); -1 falls back to the caller's exterior thickness.
     const int tx = p.insetMicroX >= 0 ? p.insetMicroX : extTMicro;
     const int tz = p.insetMicroZ >= 0 ? p.insetMicroZ : extTMicro;
-    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * tx,
+    return glm::ivec3(p.worldPos.x * perM - p.backDir.x * tx,
                       surfaceMicroY,
-                      p.worldPos.z * 9 - p.backDir.z * tz);
+                      p.worldPos.z * perM - p.backDir.z * tz);
 }
 
 glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTMicro,
-                                          int surfaceMicroY, const Footprint& fp) {
+                                          int surfaceMicroY, const Footprint& fp, int perM) {
     // KI-5i: the template's real (rotated) micro extents put its BACK face on the wall on every side.
     // Unknown extents (microW/microD <= 0) are whole cubes, which reproduces the overload above exactly.
     const int r = ((p.rotation % 360) + 360) % 360;
     const bool turned = (r == 90 || r == 270);
-    const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * 9 - 1;
-    const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * 9 - 1;
+    const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * perM - 1;
+    const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * perM - 1;
     const int tx = p.insetMicroX >= 0 ? p.insetMicroX : extTMicro;
     const int tz = p.insetMicroZ >= 0 ? p.insetMicroZ : extTMicro;
-    return glm::ivec3(flushAnchorMicro(p.worldPos.x, turned ? mD : mW, p.backDir.x, tx),
+    return glm::ivec3(flushAnchorMicro(p.worldPos.x, turned ? mD : mW, p.backDir.x, tx, perM),
                       surfaceMicroY,
-                      flushAnchorMicro(p.worldPos.z, turned ? mW : mD, p.backDir.z, tz));
+                      flushAnchorMicro(p.worldPos.z, turned ? mW : mD, p.backDir.z, tz, perM));
 }
 
 // ---- MOUNTING (quality B): sconces/racks on the wall, the chandelier from the ceiling. ----
@@ -488,16 +494,18 @@ FurniturePlacer::Mount FurniturePlacer::mountFor(const std::string& type) {
 }
 
 int FurniturePlacer::mountedMicroY(const std::string& type, int surfaceMicroY, int ceilingMicroY,
-                                   int templateMicroH) {
+                                   int templateMicroH, int perM) {
+    // F7.21a: heights picked in metres, converted per grid (at 9: 14 / 9 / 18 cells, today's values)
+    auto cells = [perM](double metres) { return static_cast<int>(std::lround(metres * perM)); };
     switch (mountFor(type)) {
         case Mount::Wall:
             // wall_lantern: the 60-72 in sconce mounting convention; 60 in = 1.52 m -> 14 micro
             // (low end — a flame at face height). tool_rack: ~1.0 m working reach (INFERRED).
-            return surfaceMicroY + (type == "tool_rack" ? 9 : 14);
+            return surfaceMicroY + (type == "tool_rack" ? cells(1.0) : cells(14.0 / 9.0));
         case Mount::Ceiling: {
-            // hang 1 micro below the ceiling; NEVER breach walk clearance (agent 16 + margin)
+            // hang 1 cell below the ceiling; NEVER breach walk clearance (agent 16 micro + margin = 2 m)
             const int base = ceilingMicroY - std::max(0, templateMicroH) - 1;
-            return std::max(base, surfaceMicroY + 18);
+            return std::max(base, surfaceMicroY + cells(2.0));
         }
         default:
             return surfaceMicroY;
@@ -774,7 +782,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
     std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier,
-    const std::vector<Rect>& reservedRects, int intTMicro) {
+    const std::vector<Rect>& reservedRects, int intTMicro, int perM) {
     std::vector<FurniturePlacement> out;
     // KI-5b: footprint bounds (union of room rects) distinguish EXTERIOR walls
     // (footprint edge, full extTMicro band inside the edge cube) from INTERIOR
@@ -817,12 +825,14 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         const std::set<std::pair<int, int>>* activeBlocked = &blocked;
         // KI-5d: reserved rects (stair bases + arriving stair wells) + a 1-cell landing
         // margin — furniture used to be placed straight onto stair cells.
+        std::set<std::pair<int, int>> stairCells;   // F7.21a: a hung piece must not hang into a stair either
         for (const auto& rr : reservedRects)
             for (int x = rr.x - 1; x < rr.x + rr.w + 1; ++x)
                 for (int z = rr.z - 1; z < rr.z + rr.d + 1; ++z)
                     if (x >= rx && x < rx + rw && z >= rz && z < rz + rd) {
                         blocked.insert({x, z});
                         blockedDoors.insert({x, z});   // stairs + stacks bind vented pieces too
+                        stairCells.insert({x, z});
                     }
 
         std::set<std::pair<int, int>> occupied;
@@ -898,9 +908,9 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 mxx = std::max(mxx, c.first);  mxz = std::max(mxz, c.second);
             }
             const glm::ivec3 bd = backDirOf(mnx, mnz, mxx, mxz);
-            const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * 9 - 1;
-            const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * 9 - 1;
-            const CubeSpan s = placedCubeSpan(mW, mD, rot, bd, extTMicro, mnx, mnz);
+            const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * perM - 1;
+            const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * perM - 1;
+            const CubeSpan s = placedCubeSpan(mW, mD, rot, bd, extTMicro, mnx, mnz, perM);
             std::vector<std::pair<int, int>> out2;
             for (int x = s.minX; x <= s.maxX; ++x)
                 for (int z = s.minZ; z <= s.maxZ; ++z) out2.push_back({x, z});
@@ -1037,12 +1047,29 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             // cells — a chandelier belongs directly ABOVE the centred table, not in a fight with
             // it for the same cells. Their Y is resolved by the consumer via mountedMicroY.
             if (mountFor(piece.type) == Mount::Ceiling) {
+                // F7.21a: never over a stair (its base, well or landing margin) -- a stair rises into the space
+                // the piece hangs in (found on BOTH grids: the stair house's chandelier hung into its flight). The
+                // centre if clear, else the nearest clear cell (ring by ring, a fixed scan order); none -> unplaced.
+                int cx = rx + rw / 2, cz = rz + rd / 2;
+                bool found = !stairCells.count({cx, cz});
+                for (int ring = 1; !found && ring < std::max(rw, rd); ++ring)
+                    for (int dx = -ring; dx <= ring && !found; ++dx)
+                        for (int dz = -ring; dz <= ring && !found; ++dz) {
+                            if (std::max(std::abs(dx), std::abs(dz)) != ring) continue;
+                            const int x = rx + rw / 2 + dx, z = rz + rd / 2 + dz;
+                            if (x < rx || x >= rx + rw || z < rz || z >= rz + rd || stairCells.count({x, z})) continue;
+                            cx = x; cz = z; found = true;
+                        }
+                if (!found) {
+                    if (unplaced) unplaced->push_back({room.id, piece.type});
+                    break;
+                }
                 FurniturePlacement p;
                 p.type = piece.type;
                 p.room = room.id;
                 p.rotation = 0;
                 p.backDir = glm::ivec3(0);
-                p.worldPos = glm::ivec3(origin.x + rx + rw / 2, floorY, origin.z + rz + rd / 2);
+                p.worldPos = glm::ivec3(origin.x + cx, floorY, origin.z + cz);
                 out.push_back(p);
                 break;   // ceiling pieces don't rep — one over the room centre
             }

@@ -124,7 +124,8 @@ public:
                                                    int extTMicro = 0,
                                                    const std::string& wealthTier = "",
                                                    const std::vector<Rect>& reservedRects = {},
-                                                   int intTMicro = 2);
+                                                   int intTMicro = 2,
+                                                   int perM = 9);   ///< F7.21a: cells per metre (9 today, 8 new)
 
     /// Claims Ledger increment 3: furnish FROM THE PLAN. Derives every geometric
     /// side-channel from the realized AssemblyPlan — exterior/interior wall thickness
@@ -140,7 +141,8 @@ public:
         const std::map<std::string, Footprint>& footprints = {},
         std::vector<UnplacedFixture>* unplaced = nullptr,
         const std::string& wealthTier = "",
-        const std::vector<Rect>& extraReserved = {});
+        const std::vector<Rect>& extraReserved = {},
+        int perM = 9);   ///< F7.21a: the shell's grid (cells per metre)
 
     /// Keep-clear boxes -> footprint-local reserved rects for ONE story: a box whose
     /// cube y-range meets [floorY, floorY + storyHeight) reserves the cells it covers.
@@ -154,8 +156,11 @@ public:
     /// Thickness comes from the FIRST wall segment of the given type — the realizer
     /// paints every segment of a type at one style thickness — through the same
     /// clamped converter the realizer built with (StructureRealizer::thicknessMicro).
-    static int planExteriorThicknessMicro(const AssemblyPlan& plan);
-    static int planInteriorThicknessMicro(const AssemblyPlan& plan);
+    static int planExteriorThicknessMicro(const AssemblyPlan& plan, int perM = 9);
+    static int planInteriorThicknessMicro(const AssemblyPlan& plan, int perM = 9);
+    /// F7.21a: a wall thickness (metres) in cells of the grid -- lround(t * perM) in [1, perM]; at 9 exactly
+    /// StructureRealizer::thicknessMicro, at any grid the realizer's own per-grid rule.
+    static int thicknessCells(double metres, int perM);
     /// Stair well rects touching `storyIndex` (departing base OR arriving well).
     static std::vector<Rect> planStairRects(const AssemblyPlan& plan, int storyIndex);
     /// Everything on `storyIndex` that furniture must keep out of: the stair wells
@@ -202,7 +207,7 @@ public:
     ///              surfaceMicroY + 18 (head clearance: agent 16 micro + margin) — a low room
     ///              lifts the piece flush instead of braining the character.
     static int mountedMicroY(const std::string& type, int surfaceMicroY, int ceilingMicroY,
-                             int templateMicroH);
+                             int templateMicroH, int perM = 9);
 
     // ---- DATA RECIPES (furniture quality B): purpose -> pieces, tier-filtered. ----
     /// Load resources/furnishing_recipes.json (idempotent; safe to call per build). When a
@@ -263,13 +268,13 @@ public:
     /// or floor. X/Z: cube*9 inset by `extTMicro` along -backDir (toward the room). Y: the absolute
     /// walkable-surface micro-Y (`surfaceMicroY`), NOT the truncated cube `worldPos.y`. This is the
     /// fix for furniture clipping thin sub-cube walls / sinking into the mid-cube floor. Testable.
-    static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY);
+    static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY, int perM = 9);
     /// The same, for a piece whose template extents are known (KI-5i): on a MAX-side wall the
     /// anchor puts the piece's BACK face on the wall's inner face, so a piece that is not a whole
     /// number of cubes deep no longer floats off a +x / +z wall. fp.microW/microD <= 0 = whole cubes
     /// (identical to the overload above).
     static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY,
-                                    const Footprint& fp);
+                                    const Footprint& fp, int perM = 9);
 
     /// M4: the furnishing PASS rank of a fixture type — 0 heavy (built-in/vented
     /// fixtures that shape the room), 1 light (movable furniture), 2 lighting,

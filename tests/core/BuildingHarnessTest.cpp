@@ -568,16 +568,20 @@ struct ParityGolden { const char* name; uint64_t canvas; uint64_t plan; };
 // Canvas digests only - furnish plans unchanged.
 // Re-pinned again 2026-09-10: every room recipe now carries a light (G-89: unlit interiors) -
 // furnish-plan digests of the 2-room corpus entries changed, canvases unchanged.
+// Re-pinned 2026-11-22 (docs/VoxelFoundationPlan.md F7.21a, furnish plans only): a ceiling-hung piece is no
+// longer placed over a stair (base / well / landing margin) -- the stair house's chandelier hung into its flight.
+// The fix moves ONLY a ceiling piece whose centre cell is a stair cell (it reserves nothing, so no other piece
+// can move): every row that drifted is a building with a stair, and every CANVAS digest is unchanged.
 const ParityGolden kParityGoldens[] = {
     {"1-story 7x9",                  0x3173e24bfea323c2ull, 0x4dfffd48fc537c8aull},
     {"1-story 5x6 small",            0xa984ffab1847dbf9ull, 0x9e7527836b571790ull},
     {"1-story 12x14 large",          0x4a9ababf2c04d678ull, 0x136f93c6a1f31beaull},
-    {"2-story switchback",           0xbc728554cceb73d5ull, 0x12d2c002bc737e69ull},
-    {"3-story switchback (exemplar)",0x33c85b82e8badc78ull, 0xbfbf2401966de44dull},
-    {"5-story switchback",           0x46008d59cbba5696ull, 0x3ab169a7e6c05549ull},
-    {"10-story switchback",          0xdb5ce2ae64265dcdull, 0x11d05d89206a4208ull},
-    {"3-story switchback slab",      0x640c7510949ede4cull, 0xe77c75950c570cf0ull},
-    {"3-story switchback basement",  0xf04f2fd6874aec30ull, 0x834d54f6a1efaa53ull},
+    {"2-story switchback",           0xbc728554cceb73d5ull, 0x28a5055eded5f849ull},
+    {"3-story switchback (exemplar)",0x33c85b82e8badc78ull, 0xa696eb4bec12918dull},
+    {"5-story switchback",           0x46008d59cbba5696ull, 0x35c220def9fa09e9ull},
+    {"10-story switchback",          0xdb5ce2ae64265dcdull, 0xd4dc0e7bf0cd8e8ull},
+    {"3-story switchback slab",      0x640c7510949ede4cull, 0x680b790418eb0f10ull},
+    {"3-story switchback basement",  0xf04f2fd6874aec30ull, 0x5aabc9f0b9b6a953ull},
     // RE-PINNED 2026-08-08 (furnishing only): communal tables place:"row" — ranked
     // down the room's long axis instead of one centred showpiece — and seating
     // round-robins over EVERY table instead of crowding the first. Every CANVAS
@@ -589,8 +593,8 @@ const ParityGolden kParityGoldens[] = {
     // emerge onto a void gap). Only the two straight-form rows move; every
     // switchback row and every furnish plan is byte-identical, which is the
     // evidence that the change is confined to straight stairs.
-    {"2-story straight",             0x11b5b85c150a3beaull, 0x12d2c002bc737e69ull},
-    {"3-story straight",             0xd7034d8d053d6138ull, 0xbfbf2401966de44dull},
+    {"2-story straight",             0x11b5b85c150a3beaull, 0x28a5055eded5f849ull},
+    {"3-story straight",             0xd7034d8d053d6138ull, 0xa696eb4bec12918dull},
     {"2-room connected",             0x12345b13cda06469ull, 0x4ca8ccadc297d713ull},
     {"gen 7x9 rooms=3 seed1",        0x422e335f9628e09bull, 0xcc4846c86438d39ull},
     {"gen 7x9 rooms=4 seed2",        0x7f0b6a9257314ce9ull, 0xe19f19f2d2cc913ull},

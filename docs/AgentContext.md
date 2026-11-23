@@ -706,7 +706,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       F7.18 / F7.19: water spans ported (the step-7 gate: today_stream_off; ChunkManager span store; region edits run
       the span edit; edited spans saved / loaded).
       NEXT (owed, in order): the
-      step-7 ports ( 1/8 m furnisher (map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
+      step-7 ports ( 1/8 m furnisher (F7.21a done: the placer takes perM; next F7.21b the furnish stage on the sink
+      path + F7.21c item props; map: FurniturePlacer is pure, poses in 1/9 cells; StructureForge::run returns
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate), bridges on the 1/8 m terrain
       (F7.20 did grading; carve + road material were already there), API units, items / LOD
       template units, nav units) -- then the global default and the deletion.

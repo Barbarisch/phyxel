@@ -1168,3 +1168,25 @@ template name):
   A2: on the 1/8 m shell with perM 8, every placed piece's box (its pose + its g8 template's rotated extents) overlaps
       0 shell cells, and every wall-backed piece is flush (the cell layer behind its back face holds shell cells).
   RED: the same shell furnished with perM 9 (today's units on the 1/8 m shell) -> overlaps or gaps > 0.
+
+F7.21a RESULTS (2026-11-22; the prediction above untouched). Unit test VoxFoundFurnish8 (tests/core/
+VoxFoundFurnish8Test.cpp), Release.
+  RUN 1 (alone): green 26 pieces, 0 overlap, 0 gaps; red (perM 9 on the 1/8 m shell) 4 overlapping pieces (387 cells),
+     12 gaps. BUT inside the suite the same test FAILED: earlier tests had loaded resources/furnishing_recipes.json
+     (static registry), so more pieces were placed -- including a chandelier that hung 45 cells into the stair house's
+     flight. Two corrections, neither a loosened guard: (1) the test loads the recipes itself (the build does; the
+     result no longer depends on test order); (2) the hung piece's ceiling = the underside of what is above it (the
+     test emulates the consumer; StructureForge's floorTop + height x 9 is an approximation -- logged for F7.21b).
+  FOUND (pre-existing, both grids): the placer put a ceiling-hung piece at the room centre WITHOUT the stair
+     reservation -- on today's 1/9 m shell the stair house's chandelier sat at cube (3,4), inside the stair rect
+     (x 2-3, z 3-6). Fixed in the placer: the centre if clear of stair cells (base / well / landing margin), else the
+     nearest clear cell (fixed ring order), none -> reported unplaced. Legacy chandelier now at (5,2).
+  A2 PASS (with recipes): house 20 pieces / stair 18 pieces at perM 8: 0 overlapping pieces, 0 gaps (31 backed);
+     red perM 9: 3 + 4 overlapping pieces (171 + 696 cells), 9 + 6 gaps. (1 stair-house type has no g8 template --
+     counted, not placed in the score.)
+  A1: BuildingHarness.ForgeParityDigests drifted on exactly the 8 stair buildings' FURNISH-PLAN digests (canvas digests
+     unchanged) -- the chandelier fix (it moves only a ceiling piece whose centre is a stair cell; such a piece reserves
+     nothing): re-pinned with that note. Then *Furnish* / *Furniture* / *Structure* / *Hearth* / *Settlement* / *Fixture* /
+     *Building* / *Traversal* / *Stair*: 380 pass, 4 skipped. The editor builds.
+  Next (F7.21b): the furnish stage on the 1/8 m sink path -- stamping the g8 templates at these poses, ceilings from
+     the shell.
