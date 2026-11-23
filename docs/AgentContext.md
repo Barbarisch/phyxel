@@ -697,7 +697,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       gate hooked; the footprint stage leaves today's placed objects alone); 20/20 plan, today untouched.
       F7.16 done: game.json world.voxfound boots straight into the switched world (4.7 s); save/relaunch exact.
       F7.17 done: the CA water sim's solids follow the switched world (switch + every region edit resync).
-      NEXT: the remaining walkers (water span storage, outliner, residency hash), F7.7 (delete), F7's exit, F8.
+      F7 exit: suites recorded (no regression from F7); step 7 BLOCKED (ports listed in the plan's F7 status).
+      F8 done (voxfound_f8_prediction.txt): 1,000 edits exact; 100 rapid breaks conserve exactly (two fixes);
+      a 12-house town exact, standability 6/12 (overlap with earlier buildings -- owed).
+      NEXT (owed, in order): switched-world overlap handling for structures; the rubble/crumb fix's unit test; the
+      step-7 ports (water spans, 1/8 m furnisher, 1/8 m hydrology carving / road grading, API units, items / LOD
+      template units, nav units) -- then the global default and the deletion.
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);

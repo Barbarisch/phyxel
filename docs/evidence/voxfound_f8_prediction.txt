@@ -98,3 +98,22 @@ several straddling chunk borders), async.
   T2: a character dropped in each house rests on its floor (within 1/8 m of a region surface).
   T3: today's world untouched (sampled cubes over the town, switch off, before / after equal).
   T4: the job's time and its worst frame (the STUTTER lines) reported (no prediction: first measurement at this size).
+
+F8.3 RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot booted switched (its world.db carries
+the earlier tests' saved edits: F7.16's hall house, F8.1's 1,000 edits, F8.2's blasts). Evidence: voxfound_f83_live.jsonl,
+voxfound_f83_town_top.png (from 130 m, straight down); tools/voxfound_f83_live.py. Every artifact: the ENGINE's
+SettlementBuildService (4 x 3 plots, 104 x 84 m) + StructureForge's 1/8 m shells; WorldGenerator Perlin s7 + flora.
+  T1 PASS: the plan's 12 houses all placed on the new store (12 placements, all success, 0 read-back mismatches, 0
+     clipped; no lot failures logged); several straddle chunk borders (the region is 4 x 4 chunks).
+  T3 PASS: today's world untouched (0 of 504 sampled cubes).
+  T4 (measured): the job 12.7 s; the worst frame 3.5 s (16 stutter frames: each house's paint is one frame).
+  T2 MISSED, 6 / 12: 6 drops rest exactly on a region surface (their floors); 3 rest 0.4-0.9 m off the floor on a region
+     surface 0.1-0.9 m away (interior partitions / hearths of the shell, by the numbers -- not checked visually); 3
+     (houses 4, 5, 11) rest 6-9 m BELOW their recorded floors (33.9 / 34.8 / 32.0 m) with no region solid within 3 m
+     under the character. Likely cause, NOT verified: those lots overlap the project's earlier saved buildings -- on the
+     switched world the footprint stage no longer removes overlapping structures (the F7.15 guard keeps today's placed
+     objects), so a new house seats on the highest non-vegetation voxel, an older roof. Owed: overlap handling for
+     the switched world (remove / refuse a lot over existing region structures) and a T2 re-run on a clean world.
+CONCLUSION F8: 1,000 edits / breaks across chunk borders exact at every check (F8.1); 100 rapid breaks conserve every
+material exactly after two defects were fixed (F8.2); a 12-house town lands exact and leaves today's world untouched,
+with standability failing where lots overlap earlier buildings (F8.3, owed).

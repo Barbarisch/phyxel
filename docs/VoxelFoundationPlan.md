@@ -3199,6 +3199,14 @@ the hydrology carving and road grading the 1/8 m terrain generator does not repr
 cube / subcube semantics outside the switched routes; items' and the LOD template chain's 1/9 units; nav agent units.
 Each is a port of its own; F8 does not depend on them and goes next.
 
+**F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks
+(419 on chunk borders) + 9 blasts: 0 mismatches in counts, full-rebuild verifies, routed reads, physics probes; undo
+and save / reload exact; 0.12 ms per edit. F8.2: 100 rapid breaks lost 98 % of the broken matter (each new rig dropped
+the last one's bodies) -- fixed: a new rig bakes the previous one's bodies (awake ones included) and settles its rubble
+into whole voxels; now exact per material (4.4 M voxels broken, 0 lost), <= 0.45 s per break. F8.3: a 12-house town by
+the settlement generator, every house exact, today's world untouched; standability 6/12 -- lots over earlier saved
+buildings stack on their roofs (overlap handling on the switched world owed).
+
 ## 10. Performance tiers
 
 The knobs that scale cost:
