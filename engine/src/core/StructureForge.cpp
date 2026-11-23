@@ -1,3 +1,5 @@
+#include "core/voxfound/StorageLab.h"
+#include <mutex>
 #include "core/StructureGrid.h"
 #include "core/StructureForge.h"
 
@@ -197,16 +199,132 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
             return refusal;
         }
         if (ctx.deps.canvasSink && std::string(name) == "validate_realized") {   // F7.11: the new store places it
+            nlohmann::json furnished;
+            if (ctx.deps.canvasFurnish) furnished = furnishCanvasGrid8(ctx);   // F7.21b: before the hand-over
             nlohmann::json out = ctx.deps.canvasSink(ctx.shell.canvas, ctx.shell.floorTopMicro, ctx.ox, ctx.oz);
+            if (!furnished.is_null()) out["furnish_grid8"] = furnished;
             gates.push_back({{"stage", "place"}, {"outcome", out.value("success", false) ? "new_store" : "refused"},
                              {"ms", stageClock.lap()}});
             out["gates"] = gates;
-            out["skipped"] = {"furnish", "emit"};
+            out["skipped"] = ctx.deps.canvasFurnish ? nlohmann::json{"items", "lights", "signage", "emit"}
+                                                    : nlohmann::json{"furnish", "emit"};
             return out;
         }
     }
     ctx.response["gates"] = gates;
     return ctx.response;
+}
+
+// ---------------------------------------------------------------------------
+// F7.21b (docs/VoxelFoundationPlan.md, step-7 port: the furnisher on 1/8 m) -- the 1/8 m shell furnished before the
+// sink places it: FurniturePlacer at perM 8 (F7.21a), footprints and voxels from the 1/8 m furniture library
+// (resources/templates_g8/furniture, FurnitureCatalog's template name), the pose by microWorldPos / mountedMicroY at 8
+// (a hung piece's ceiling = the underside of the shell above its centre column, not floor + height), rotation by the
+// same quarter-turn rule as spawnTemplateMicro, painted only into EMPTY canvas cells (a shell cell is never
+// overwritten; such cells are counted).
+// ---------------------------------------------------------------------------
+nlohmann::json StructureForge::furnishCanvasGrid8(Context& ctx) {
+    static std::mutex s_mx;
+    static std::map<std::string, VoxFound::GridTemplate> s_cache;
+    auto tmplOf = [&](const std::string& type) -> const VoxFound::GridTemplate* {
+        std::string name = FurnitureCatalog::templateFor(type);
+        if (name.empty()) return nullptr;
+        const auto slash = name.find_last_of('/');
+        if (slash != std::string::npos) name = name.substr(slash + 1);
+        std::lock_guard<std::mutex> lk(s_mx);
+        auto it = s_cache.find(name);
+        if (it == s_cache.end())
+            it = s_cache.emplace(name, VoxFound::loadGridTemplate("resources/templates_g8/furniture/" + name + ".voxel")).first;
+        return (it->second.error.empty() && it->second.cellsPerM == 8) ? &it->second : nullptr;
+    };
+    MicroCanvas& cv = ctx.shell.canvas;
+    const auto& plan = ctx.shell.plan;
+    const std::string wealthTier = ctx.rp ? ctx.rp->wealthTier : "";
+    const int extT = FurniturePlacer::planExteriorThicknessMicro(plan, 8);
+    nlohmann::json pieces = nlohmann::json::array(), noTemplate = nlohmann::json::array(),
+                   unplacedJ = nlohmann::json::array(), builtins = nlohmann::json::array();
+    size_t voxels = 0, refusedCells = 0;
+    for (size_t si = 0; si < ctx.program.stories.size(); ++si) {
+        const int floorTop = si < ctx.shell.floorTopByStory.size() ? ctx.shell.floorTopByStory[si] : ctx.shell.floorTopMicro;
+        const int floorY = floorTop / 8;
+        // footprints for every type the placer asks for (a first pass learns the types)
+        std::map<std::string, Footprint> fps;
+        for (const auto& pl : FurniturePlacer::furnishFromPlan(ctx.program.stories[si], int(si), {0, 0, 0}, floorY, plan,
+                                                               {}, nullptr, wealthTier, {}, 8))
+            if (HearthForge::isVented(pl.type)) {
+                fps[pl.type] = HearthForge::footprintOf(pl.type, StructureGrid::foundation());   // the forge owns it
+            } else if (const auto* t = tmplOf(pl.type)) {
+                Footprint fp;
+                fp.microW = t->bounds.x - 1;
+                fp.microD = t->bounds.z - 1;
+                fp.microH = t->bounds.y;
+                fp.width = (t->bounds.x + 7) / 8;
+                fp.depth = (t->bounds.z + 7) / 8;
+                fps[pl.type] = fp;
+            }
+        std::vector<UnplacedFixture> unplaced;
+        const auto placed = FurniturePlacer::furnishFromPlan(ctx.program.stories[si], int(si), {0, 0, 0}, floorY, plan,
+                                                             fps, &unplaced, wealthTier, {}, 8);
+        for (const auto& u : unplaced) unplacedJ.push_back({{"story", si}, {"room", u.room}, {"type", u.type}});
+        for (const auto& pl : placed) {
+            // VENTED BUILT-INS are already in the shell (HearthForge painted the body + flue at realize): the placer
+            // runs them so the room is furnished AROUND the hearth; no second copy is painted (as stageFurnish today).
+            // Reported with whether the placer sited it where the shell built it (the same footprints rule).
+            if (HearthForge::isVented(pl.type)) {
+                bool match = false;
+                for (const auto& h : plan.hearths)
+                    if (h.story == int(si) && h.type == pl.type && h.x == pl.worldPos.x && h.z == pl.worldPos.z) match = true;
+                builtins.push_back({{"type", pl.type}, {"room", pl.room}, {"story", si},
+                                    {"cube", {pl.worldPos.x, pl.worldPos.z}}, {"matches_shell_hearth", match}});
+                continue;
+            }
+            const VoxFound::GridTemplate* t = tmplOf(pl.type);
+            auto fit = fps.find(pl.type);
+            if (!t || fit == fps.end()) {
+                noTemplate.push_back(pl.type);
+                continue;
+            }
+            const Footprint& fp = fit->second;
+            const int r = ((pl.rotation % 360) + 360) % 360 / 90;
+            const bool turned = r == 1 || r == 3;
+            glm::ivec3 a = FurniturePlacer::microWorldPos(pl, extT, floorTop, fp, 8);
+            int ceil = floorTop + ctx.program.stories[si].height * 8;
+            {
+                const int cx = a.x + (turned ? fp.microD : fp.microW) / 2, cz = a.z + (turned ? fp.microW : fp.microD) / 2;
+                for (int y = floorTop + 1; y < floorTop + ctx.program.stories[si].height * 8 + 16; ++y)
+                    if (cv.occupiedMicro(cx, y, cz)) { ceil = y; break; }
+            }
+            a.y = FurniturePlacer::mountedMicroY(pl.type, floorTop, ceil, fp.microH, 8);
+            const glm::ivec3 mx = t->bounds - glm::ivec3(1);
+            auto rot = [&](glm::ivec3 p) -> glm::ivec3 {
+                switch (r) {
+                    case 1: return {mx.z - p.z, p.y, p.x};
+                    case 2: return {mx.x - p.x, p.y, mx.z - p.z};
+                    case 3: return {p.z, p.y, mx.x - p.x};
+                    default: return p;
+                }
+            };
+            size_t put = 0, refused = 0;
+            for (const auto& b : t->boxes)
+                for (int x = 0; x < b.size.x; ++x)
+                    for (int y = 0; y < b.size.y; ++y)
+                        for (int z = 0; z < b.size.z; ++z) {
+                            const glm::ivec3 c = a + rot(b.pos + glm::ivec3(x, y, z));
+                            if (cv.occupiedMicro(c.x, c.y, c.z)) { ++refused; continue; }
+                            cv.setMicroCell(c.x, c.y, c.z, b.material);
+                            ++put;
+                        }
+            voxels += put;
+            refusedCells += refused;
+            pieces.push_back({{"type", pl.type}, {"room", pl.room}, {"story", si}, {"cell", {a.x, a.y, a.z}},
+                              {"rotation", pl.rotation}, {"voxels", put}, {"refused_cells", refused}});
+        }
+    }
+    LOG_INFO_FMT("StructureForge", "F7.21b furnish on 1/8 m: " << pieces.size() << " pieces, " << voxels << " voxels, "
+                 << refusedCells << " cells refused (over the shell), " << noTemplate.size() << " without a 1/8 m template");
+    return {{"pieces", pieces}, {"count", pieces.size()}, {"voxels", voxels}, {"refused_cells", refusedCells},
+            {"no_grid8_template", noTemplate}, {"unplaced", unplacedJ}, {"builtins", builtins},
+            {"not_in_this_stage", {"item props", "lights", "signage", "nav"}}};
 }
 
 // ---------------------------------------------------------------------------

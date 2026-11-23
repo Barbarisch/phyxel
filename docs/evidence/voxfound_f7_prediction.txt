@@ -1205,3 +1205,22 @@ Live, VoxFoundBoot (switched, streaming off), POST /api/structure/build hall_hou
   B4 (visual, for the owner): an interior screenshot at eye height shows the pieces standing on the floor, backs to the
       walls, the bed's head / the fireplace's mouth facing into the room. Not a pass / fail gate by itself.
 Not in this stage (stated): item props, lights, signage, nav registration, PlacedObject metadata (sit / interact).
+
+F7.21b RESULTS (2026-11-22; the prediction above untouched). Release; VoxFoundBoot; tools/voxfound_f721b_live.py; raw
+voxfound_f721b_live.jsonl. Every artifact: StructureForge's hall_house (1/8 m shell) + FurniturePlacer at perM 8 + the
+1/8 m furniture library, on WorldGenerator Perlin s7 + flora.
+  CONTROL / RED (no "furnish"): the bare shell; skipped [furnish, emit]; no furniture voxels.
+  RUN 1 -- B1 MISSED: 21 pieces, every template found, but 333 cells refused -- ALL from the fireplace: the shell
+     already holds the hearth (HearthForge paints body + flue at realize), and the stage painted a second copy over it.
+     Today's stageFurnish skips VENTED built-ins for exactly that reason; the 1/8 m stage now does too (they still run
+     through the placer so the room is furnished around them; their footprint is HearthForge::footprintOf on the 1/8 m
+     grid) and reports each with whether the placer sited it where the shell built it.
+  RUN 2 (the record): B1 PASS 20 pieces (barrels, kegs, chests, tables, benches, chairs, bed, wardrobe, stool, rug,
+     3 wall lanterns), 0 refused cells, 0 without a 1/8 m template, 0 unplaced; the fireplace a built-in, matching the
+     shell's hearth. B2 PASS verify_bad 0. B3 PASS census +2,178 voxels = the report's 2,178 (the bare build: +0).
+  B4 (for the owner): f721b_interior_east.png / f721b_interior_west.png -- the hall's tables and chairs on the floor,
+     chairs facing the table, seen through the partition doorways. PHOTOGRAPHY AID, stated: 3 point lights hand-added
+     over the house for the pictures (the stage places no lights yet); they are not generator output.
+  NOT in this stage (stated in every reply, "not_in_this_stage"): item props, lights, signage, nav, PlacedObject
+     metadata (sit / interact). Routing: {"furnish":true} on the switched world = this stage; F7.15's whole-pipeline
+     path = {"furnish_legacy":true}.

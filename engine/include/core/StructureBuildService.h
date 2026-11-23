@@ -69,6 +69,10 @@ public:
         /// on the old grid -- place / furnish / emit do not run. Args: the canvas, story 0's walkable
         /// floor (canvas cells), the footprint origin cube x / z. Returns the build's response.
         std::function<nlohmann::json(const MicroCanvas& canvas, int floorTopCell, int originX, int originZ)> canvasSink;
+        /// F7.21b: with canvasSink, furnish the 1/8 m shell before it is handed over -- FurniturePlacer at perM 8
+        /// (F7.21a) with the 1/8 m furniture library (resources/templates_g8/furniture) painted into the canvas
+        /// (never over a shell cell). Items, lights, signage and nav are not in this stage yet (stated in the reply).
+        bool canvasFurnish = false;
     };
 
     /// Full v2 build from build_structure params (expects footprint/stories/...;

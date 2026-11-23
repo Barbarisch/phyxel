@@ -22493,12 +22493,16 @@ void Application::processAPICommands() {
                                        .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
                         };
 
-                    // F7.15: {"furnish":true} runs the whole pipeline (furniture, items, lights, nav) with every voxel
-                    // write through the F7.13 hook (the 1/9 m shell centre-sampled); default: the exact 1/8 m shell
-                    if (voxFoundWorldReads && !voxFoundStructStub && !cmd.params.value("furnish", false))   // F7.11
+                    // F7.21b: {"furnish":true} furnishes the exact 1/8 m shell with the 1/8 m furniture library (no
+                    // items / lights / signage yet). F7.15's {"furnish_legacy":true} runs today's whole pipeline with
+                    // every voxel write through the F7.13 hook (the 1/9 m result centre-sampled). Default: the bare
+                    // exact 1/8 m shell.
+                    if (voxFoundWorldReads && !voxFoundStructStub && !cmd.params.value("furnish_legacy", false)) {   // F7.11
                         deps.canvasSink = [this](const Core::MicroCanvas& c, int floorTop, int ox, int oz) {
                             return voxFoundPlaceCanvas(c, floorTop, ox, oz);
                         };
+                        deps.canvasFurnish = cmd.params.value("furnish", false);
+                    }
                     const std::string stype = cmd.params.value("type", std::string());
                     if (cmd.params.value("schema", std::string()) == "v2") {
                         response = Core::StructureBuildService::buildV2(cmd.params, deps);

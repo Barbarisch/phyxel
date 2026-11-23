@@ -3207,7 +3207,10 @@ road material were already reproduced (bedHeight, surfaceMat). Owed: bridge deck
 **F7.21a, the furnisher takes the grid (2026-11-22).** FurniturePlacer's cell math (poses, reservation spans, plan wall
 thicknesses, mount heights) takes perM (default 9 = today, byte-identical except the fix below). On a 1/8 m shell with
 the 1/8 m furniture library: 38 pieces, 0 overlapping the shell, every wall-backed piece flush (red, today's units:
-7 overlapping, 15 gaps). Found and fixed on both grids: a chandelier was hung over the stair. Next: F7.21b stamps them.
+7 overlapping, 15 gaps). Found and fixed on both grids: a chandelier was hung over the stair. **F7.21b:** `{"furnish":true}`
+on the switched world furnishes the exact 1/8 m shell from the 1/8 m library (20 pieces in a hall house, 0 cells over
+the shell, read-back exact, the hearth left to the shell as today). Owed: item props, lights, signage, nav, sit /
+interact metadata (F7.21c onward).
 
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces

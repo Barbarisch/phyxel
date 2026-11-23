@@ -140,6 +140,8 @@ private:
     static StageReport stagePlace(Context& ctx);
     static StageReport stageFurnish(Context& ctx);
     static StageReport stageEmit(Context& ctx);
+    /// F7.21b: the 1/8 m furnish on the sink path (see Deps::canvasFurnish); returns its report.
+    static nlohmann::json furnishCanvasGrid8(Context& ctx);
 };
 
 } // namespace Core
