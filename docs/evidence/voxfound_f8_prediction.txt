@@ -87,3 +87,14 @@ run 7 floods through solids too, filling only open cells.
      and settles its rubble into whole voxels (voxFoundSettleRubble: the fluid's exact ledger, fullest cells first,
      then the nearest open cells).
   R3 PASS: apply_damage median 0.35 s, max 0.45 s, 0 over 0.5 s.
+
+F8.3 PREDICTION -- a whole town on the switched world (2026-11-22, before the run; no code: a driver).
+CONTROL: F7.12 built a 2 x 2 village (4 houses) on the switched world; its control is F7.12's (today's chunks).
+THE RUN: VoxFoundBoot booted switched; POST /api/settlement/build {"position":(8136, 28, 172), "width":104,
+"depth":84, "cols":4, "rows":3} -- the engine's SettlementBuildService (up to 12 houses over the 4 x 4-chunk region,
+several straddling chunk borders), async.
+  T1: every house the plan queues lands on the new store: placements = the plan's buildings minus its honest lot
+      failures (reported), each with 0 read-back mismatches and 0 clipped.
+  T2: a character dropped in each house rests on its floor (within 1/8 m of a region surface).
+  T3: today's world untouched (sampled cubes over the town, switch off, before / after equal).
+  T4: the job's time and its worst frame (the STUTTER lines) reported (no prediction: first measurement at this size).
