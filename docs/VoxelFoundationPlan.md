@@ -3237,6 +3237,13 @@ is not used inside the switched region -- recorded for the switch's render tier,
 boot. Re-run unchanged under it: F8.2's 100 breaks (exact per material), F8.3's town (12/12 exact and standable, today
 untouched), F7.22's nav, F7.21b's furnish -- all hold.
 
+**F7.27, the switched world as the default (2026-11-23).** A project with no world.voxfound now boots switched: a
+streaming world around the camera (generator), a fixed world from TODAY's resident chunks through the converter
+("voxfound": {"enabled": false} opts out). On real projects: 4 / 6 boot switched; fixed worlds over 256 chunks
+(VillageChat, Emberwake) are refused and keep today's world; the converter inflates thin sub-cube building parts up to
+12.5 % per material (totals within 0.02 %). Owed before the deletion: a streaming "today" source for big fixed worlds
+and the converter's thin-part fidelity.
+
 **F7 status (2026-11-22).** Section 7 steps 1-6 are on the switched world, with the owed items (physics, placers,
 writers, tree reads, water solids, streaming, the boot mode). The suites (voxfound_f7_exit_suites.txt): no failure traces
 to F7; the standing / pre-existing ones are listed. **Step 7 (delete) is BLOCKED, not done** -- today's store still

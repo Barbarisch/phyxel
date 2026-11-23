@@ -1497,3 +1497,29 @@ L4 on real projects (unmodified game.json), Release:
   D3: a fixed world's camera view renders the converted world: a screenshot at the project's own camera pose shows the
       same scene as the opt-out run (for the owner; not a numeric gate).
   OPT-OUT: the same project with "voxfound": {"enabled": false} boots today's world (boot report: not configured).
+
+F7.27 RESULTS (2026-11-23; the prediction above untouched). Release; COPIES of the real projects (scratchpad
+f727_projects; the projects themselves untouched); tools/voxfound_f727_live.py, raw voxfound_f727_live.jsonl, pictures
+f727_<project>_<mode>.png. Every artifact: each project's own world (today's resident chunks through
+VoxFound::convertPxb2 for fixed worlds; the engine generator for streaming worlds).
+  FOUND AND FIXED on the way (each recorded live):
+    - CharacterTestbed has NO world object (its world lives in the DB): the default did not apply -> a game.json
+      without a world is a fixed world (source today); the opt-out for such a project is a top-level
+      "voxfound": {"enabled": false} (a world object holding only voxfound could change today's loading).
+    - a null field / a null boot reply (stream off) threw json type_error 306 and KILLED THE APPLICATION (TavernTest) ->
+      a boot that fails is reported, never fatal; null fields dropped; the replies are objects.
+    - the generator-type check refused converted sources (TavernTest's type "flat") -> only the generator source checks.
+    - the boot fired while today's world was still loading (VillageChat switched on 27 of its 1,200 chunks, hiding the
+      rest) -> it waits for no deferred loads, no generation pending and an unchanged resident set.
+    - the region census copied every chunk dense (a 252-chunk census ran > 30 min) -> counted by block.
+    - a run's results were polluted by an engine left from a killed run (a locked DB) -- re-run clean.
+  D1 PARTIAL (4 / 6): CharacterTestbed (today, 7 x 3 x 12 chunks, 22.8 s), TavernTest (today, 0.9 s), WorldForgeTest
+     and WaterBench_Coast (generator + streaming, 7.2 / 8.4 s) boot switched. VillageChat (1,200 chunks) and Emberwake
+     (315) are REFUSED ("region over 256 chunks") and keep today's world (the refusal is graceful). Owed: a streaming
+     "today" source for fixed worlds over the cap.
+  D2 MISSED: CharacterTestbed -- cube materials exact (Dirt / Grass / Stone / Ice), totals equal to 0.002 %, but
+     LogBirch 1.32 % (> 1 %); TavernTest -- totals 0.02 %, but the thin building parts inflate: Wood +12.5 %,
+     WoodPlanks +11.3 %, Bricks +9.9 % (the converter's "no material dropped from a cell" rule promotes thin subcube /
+     microcube parts -- the F3.4 owed "thin-part occupancy rule"). Owed: the converter's thin-part fidelity.
+  D3: pictures exist for every run; WorldForgeTest's own camera pose is inside rock in BOTH runs (uninformative).
+  OPT-OUT PASS: all five projects re-run opted out boot today's world (not configured, not switched).

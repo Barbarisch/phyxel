@@ -23,7 +23,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <cmath>
 #include <cstdlib>
 #include "graphics/FarTerrainManager.h"
-#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
+#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md Â§7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/WaterSurfaceRenderPipeline.h"   // 27.27 arena_no_grow red control
 #include "graphics/WaterRenderPipeline.h"   // water_render_grid probe (renderWaterAt)
@@ -113,6 +113,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include "core/StructureBuildService.h"
 #include "core/SettlementBuildService.h"
 #include "core/WaterSpansForChunk.h"   // F7.18
+#include "core/ChunkBlobCodec.h"   // F7.27
 #include "core/SpawnGate.h"                 // player spawn gate: never create a character inside geometry  // build_settlement: the settlement pipeline (engine-side)
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
@@ -392,7 +393,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     renderCoordinator->setEntities(&entities);
     if (Core::PerfCapture* pc = runtime->getPerfCapture()) pc->setRenderCoordinator(renderCoordinator.get());
     // WRv2 M2: give the instanced far-tree mesh tier its template source (templates loaded
-    // in STEP 4.5 above). Captured raw pointer outlives the render coordinator — both are
+    // in STEP 4.5 above). Captured raw pointer outlives the render coordinator â€” both are
     // application-lifetime.
     renderCoordinator->setTreeTemplateProvider(
         [tm = objectTemplateManager.get()](const std::string& name) {
@@ -404,7 +405,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS — all debris lives here. Without it breaks,
+    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS â€” all debris lives here. Without it breaks,
     // blasts and derez make NO debris, so a missing solver must be LOUD: one ERROR, a reason
     // echoed by /api/debug/gpu_physics, and every refused piece counted
     // (DamageSystem::refusedDebrisTotal). PHYXEL_DISABLE_GPU_DEBRIS=1 / --disable-gpu-debris
@@ -424,7 +425,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
     // WATER SIM REGION SIZE. Water is only DRAWN where the sim has cells, so this box is also the
-    // water's render extent — which is why any body larger than it reads as a flat slab with hard
+    // water's render extent â€” which is why any body larger than it reads as a flat slab with hard
     // straight edges that ignores the terrain and travels with the viewer. At 64x64 the edge sat
     // ~32 units from the camera, i.e. permanently in view.
     //
@@ -433,9 +434,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // by the terrain re-read on recentre, NOT by stepping: the benchmark measures a settled step at
     // 0.002 us against 242 us active (~150,000x cheaper) and a partially-active step sweeping only
     // 77 of 4096 columns, so a large mostly-still region is nearly free to step.
-    // ⚑Verify frame time AND the recentre hitch after changing this — recentre re-reads solidity for
+    // âš‘Verify frame time AND the recentre hitch after changing this â€” recentre re-reads solidity for
     // every cell, so that cost scales 1:1 with the cell count.
-    // ⚑DO NOT GROW THIS TO COVER THE VISIBLE WORLD. That was tried (256x32x256, 2.1M cells) and it
+    // âš‘DO NOT GROW THIS TO COVER THE VISIBLE WORLD. That was tried (256x32x256, 2.1M cells) and it
     // is the wrong axis entirely: growing it means SIMULATING an ocean. Frame rate fell to 19 FPS and
     // total mass oscillated (531k -> 889k -> 571k) instead of settling, because a cellular automaton
     // was being asked to solve hundreds of thousands of cells of water that are simply at rest.
@@ -480,7 +481,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // the chunk column, merges the volume's runs in world space, clips back, marks dirty, bumps the
     // span revision. Columns whose vertical chunks are not all resident are refused whole (counted),
     // never half-written.
-    // §27 W1a: the record's revision - a record tile drawn near the camera is rebuilt when the stored water changes
+    // Â§27 W1a: the record's revision - a record tile drawn near the camera is rebuilt when the stored water changes
     waterCore->setSpanRevisionQuery([this]() -> uint64_t { return chunkManager ? chunkManager->waterSpanRevision() : 0; });
     // 32.4 (A2b): the record cache follows residency - the whole set's hash every frame (cheap), one chunk column's on a change
     // (chunk y -4..31 = the record read's world y -128..1023; each chunk's coordinate AND object, a reload into a new object counts)
@@ -615,7 +616,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         else
             LOG_WARN("WaterCore", "GPU backend unavailable: {} (volumes with backend:\"gpu\" will be refused)", gerr);
     }
-    // MatSim lab (docs/MaterialSimPlan.md §6a, P1b): solids from the same three-state micro occupancy
+    // MatSim lab (docs/MaterialSimPlan.md Â§6a, P1b): solids from the same three-state micro occupancy
     // query as the water core (Unknown = solid, counted; create refuses an unknown box). Inert until
     // /api/matsim/create; never writes WaterCore state.
     matSimLab = std::make_unique<Core::MatSim::MatSimLab>([this](int mx, int my, int mz) -> Core::MatSim::Occ {
@@ -657,7 +658,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     inputController->initializeBindings();
 
     // STEP 8: INITIALIZE SCRIPTING SYSTEM
-    // Skip in specialized editor modes — Python startup scripts are game-specific and
+    // Skip in specialized editor modes â€” Python startup scripts are game-specific and
     // would hang or error when no game world is loaded (asset/anim/interaction editors).
     if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
         LOG_INFO("Application", "Initializing scripting system...");
@@ -668,7 +669,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     }
 
     // STEP 9: INITIALIZE AI SYSTEM
-    // Skip in specialized editor modes — Goose server not needed.
+    // Skip in specialized editor modes â€” Goose server not needed.
     if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
         aiSystem = std::make_unique<AI::AISystem>();
         {
@@ -717,7 +718,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     // Register CommandRegistry-based API handlers (incrementally replacing the processAPICommands
-    // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
+    // if-chain). Handlers read subsystems (waterManager, â€¦) lazily at dispatch, so order is free.
     registerWaterCommands();
     registerMatSimCommands();
     registerSettlementCommands();
@@ -782,7 +783,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (triggerSystem) triggerSystem->onEvent("objective_complete", {{"id", id}});
     };
 
-    // Wire D&D combat AI (pointers are stable — members outlive all systems).
+    // Wire D&D combat AI (pointers are stable â€” members outlive all systems).
     // The CombatDirector owns the InitiativeTracker; the AI + HUD read it through
     // the director so there is one source of truth for combat state. The AI runs
     // enemy turns through TurnActor, driving each enemy's live character via a
@@ -803,7 +804,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     };
     m_combatAI.setBodyProvider(bodyProvider);
 
-    // Player turn controller (S5) — drives the player's turn through the same
+    // Player turn controller (S5) â€” drives the player's turn through the same
     // TurnActor + body adapter as the enemy AI, but from player intents.
     m_playerTurn.setCombatDirector(&m_combatDirector);
     m_playerTurn.setEntityRegistry(entityRegistry.get());
@@ -832,7 +833,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_apiServerStartTime = std::chrono::steady_clock::now();
 
     // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
-    // Engine status — used by external lifecycle controllers (interaction_pipeline).
+    // Engine status â€” used by external lifecycle controllers (interaction_pipeline).
     apiServer->setEngineStatusHandler([this]() -> nlohmann::json {
         nlohmann::json s;
         s["running"] = true;
@@ -936,7 +937,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Per-voxel damage, as numbers. Same argument as the baked-light query below: until now
     // `apply_damage` returned counts of EVENTS (broken/grazed) and never the resulting STATE,
     // so "is this voxel damaged, and how close to breaking?" could only be answered by
-    // photographing a surface and guessing (docs/VoxelDamageVisualization.md §6).
+    // photographing a surface and guessing (docs/VoxelDamageVisualization.md Â§6).
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         if (voxFoundWorldReads && !voxFoundApiStub && !voxFoundEdit.empty()) return voxFoundQuery(x, y, z);   // F7.6c
         nlohmann::json result;
@@ -1011,7 +1012,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
 
     // Baked per-cell light, as numbers. The stored light field is the engine's largest
-    // unobservable: it decides whether a room is dark, gates the sun, and is cube-resolution —
+    // unobservable: it decides whether a room is dark, gates the sun, and is cube-resolution â€”
     // and until now the only way to look at it was to photograph a surface and guess.
     apiServer->setBakedLightQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         nlohmann::json r;
@@ -1834,7 +1835,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         nlohmann::json result;
         nlohmann::json sounds = nlohmann::json::array();
         // List available sound files from the configured sounds dir (project-
-        // overridable via EngineConfig.soundsSubdir — not a hardcoded path).
+        // overridable via EngineConfig.soundsSubdir â€” not a hardcoded path).
         // Recursive: the library organizes into subfolders (ambience/, sfx/...),
         // and names are reported relative so they round-trip into play_sound.
         std::string soundDir = Core::AssetManager::instance().soundsDir();
@@ -1956,9 +1957,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (raycastVisualizer) {
         npcManager->setRaycastVisualizer(raycastVisualizer.get());
     }
-    // NPC water hooks (tangible-water Phase E — closes the "wading was player-only" gap):
+    // NPC water hooks (tangible-water Phase E â€” closes the "wading was player-only" gap):
     // copied onto every spawned NPC's character. The lambdas null-check waterManager at CALL
-    // time, so wiring them here — before any world/water exists — is safe and covers every
+    // time, so wiring them here â€” before any world/water exists â€” is safe and covers every
     // later spawn path (game.json NPCs, fauna, MCP spawns).
     {
         Scene::AnimatedVoxelCharacter::WaterHooks npcHooks;
@@ -2048,7 +2049,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         itemPropManager->setDynamicsWorld(physicsWorld->getVoxelWorld());
 
     // Item effects: declarative particles/lights on items (torch flame,
-    // conditional enchant auras) — drive both world props and the held item.
+    // conditional enchant auras) â€” drive both world props and the held item.
     itemEffectSystem = std::make_unique<Core::ItemEffectSystem>();
     if (renderCoordinator) {
         itemEffectSystem->setVfxSystem(renderCoordinator->getVfxSystem());
@@ -2206,7 +2207,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return false;
     });
     // Combat audio (impacts/grunts/screams from applyDamage; swings/cries in
-    // CombatBehavior via getSoundRegistry) — engine-level, so it works
+    // CombatBehavior via getSoundRegistry) â€” engine-level, so it works
     // identically here and in standalone games.
     combatSystem->setSoundRegistry(runtime ? runtime->getSoundRegistry() : nullptr);
     // Real-time combat NPCs (CombatBehavior) deal damage through this system.
@@ -2219,7 +2220,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // now SHARES Application::playerHealth (see createAnimatedCharacter), so
     // damage to the player already flows into the HUD/respawn store and fires
     // its death->respawn callback. No separate decrement here (that was the old
-    // dual-store bug — see docs/TurnBasedCombat.md S2).
+    // dual-store bug â€” see docs/TurnBasedCombat.md S2).
     combatSystem->setOnDamage([this](const Core::DamageEvent& ev) {
         if (!entityRegistry) return;
         Scene::Entity* tgt = entityRegistry->getEntity(ev.targetId);
@@ -2373,7 +2374,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
             // Respawn runtime-spawned entities (Phase 2b) with their persisted uuids, via the
             // same factory spawn_entity uses. createAnimatedCharacter rebinds `animatedCharacter`
-            // (it's the player factory), so save/restore it — the authored player is set up
+            // (it's the player factory), so save/restore it â€” the authored player is set up
             // separately from game.json and must not be hijacked by a restored ad-hoc entity.
             if (entityRegistry) {
                 // createAnimatedCharacter is the player factory: it rebinds animatedCharacter and
@@ -2444,7 +2445,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         dialogueSystem->startConversation(npc, tree);
     });
 
-    // Wire seat callback: player presses E near a seat â†’ animated character sits
+    // Wire seat callback: player presses E near a seat Ã¢â€ â€™ animated character sits
     interactionManager->setSeatCallback([this](const std::string& objectId,
                                                const std::string& pointId,
                                                const glm::vec3& seatAnchorPos,
@@ -2460,7 +2461,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                                  sitBlendDuration, seatHeightOffset);
     });
 
-    // Wire door callback: player presses E near a door handle â†’ toggle door
+    // Wire door callback: player presses E near a door handle Ã¢â€ â€™ toggle door
     interactionManager->setDoorCallback([this](const std::string& objectId,
                                                const std::string& /*pointId*/) {
         if (doorManager) doorManager->toggle(objectId);
@@ -2540,7 +2541,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_textureEditor = std::make_unique<Editor::TextureEditorPanel>();
     m_textureEditor->setVulkanDevice(vulkanDevice);
 
-    // Bestiary Hall — the roster load is allowed to fail quietly here (the
+    // Bestiary Hall â€” the roster load is allowed to fail quietly here (the
     // panel surfaces the reason on open); a missing roster must never stop the
     // editor from starting.
     m_bestiaryHall.loadRoster("resources/monsters/visuals/bestiary_hall.json");
@@ -2666,7 +2667,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             };
 
             cb.onSceneReady = [this](const std::string& /*sceneId*/) {
-                // onSceneReady fires for EVERY scene type — including menu scenes,
+                // onSceneReady fires for EVERY scene type â€” including menu scenes,
                 // immediately after onMenuSceneLoaded showed the preview. Only hide
                 // the menu when a WORLD scene becomes ready, or menus flash for a
                 // single frame and vanish.
@@ -2687,9 +2688,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             cb.beforeWorldSave = [this]() { waterWorldLeaving(); };
             cb.onWorldStorageChanged = [this]() { waterWorldChanged("scene", true); };
 
-            // Unload cleanup. The SceneManager only INVOKES these callbacks — if the
+            // Unload cleanup. The SceneManager only INVOKES these callbacks â€” if the
             // host doesn't provide them, nothing clears on transition and player
-            // characters/NPCs accumulate across scenes (observed 2→6→7 animated
+            // characters/NPCs accumulate across scenes (observed 2â†’6â†’7 animated
             // entities in the World Outliner).
             cb.clearEntities = [this]() {
                 if (entityRegistry) entityRegistry->clear();
@@ -2759,7 +2760,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
                                                int rotation) -> std::string {
         if (!placedObjectManager) return "";
-        // Records persist WITH the chunks on save_world — never eagerly (ghost-record rule).
+        // Records persist WITH the chunks on save_world â€” never eagerly (ghost-record rule).
         return placedObjectManager->placeTemplate(name, pos, rotation, "");
     };
 
@@ -2914,8 +2915,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     }
 #endif
 
-    // Water renders from what the chunks HOLD (docs/Water.md §6 step 2). The --project boot loads
-    // chunks in core WorldInitializer, which cannot reach the render coordinator — so the bind
+    // Water renders from what the chunks HOLD (docs/Water.md Â§6 step 2). The --project boot loads
+    // chunks in core WorldInitializer, which cannot reach the render coordinator â€” so the bind
     // happens here, once everything exists. (applyProjectSelection covers the in-session
     // project-open path with its own call.) A saved basin shows its water at boot, no command.
     rebuildGroundedWaterFromSpans();
@@ -3050,7 +3051,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
     if (chunkManager && vulkanDevice) {
         // Wait for any in-flight GPU work to finish before destroying chunk buffers
         vkDeviceWaitIdle(vulkanDevice->getDevice());
-        // B1: GPU is idle → free any deferred (already-replaced) chunk buffers now.
+        // B1: GPU is idle â†’ free any deferred (already-replaced) chunk buffers now.
         Graphics::flushDeferredBufferReclaim();
 
         // Drop all currently loaded chunks (clears the chunks + chunkMap vectors)
@@ -3077,7 +3078,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // so characters fall through the world. (Runtime/WorldInitializer path
             // already does this; the editor project-open path previously skipped it.)
             chunkManager->buildAllChunkPhysics();
-            // Water renders from what the chunks HOLD (docs/Water.md §6 step 2): a saved basin
+            // Water renders from what the chunks HOLD (docs/Water.md Â§6 step 2): a saved basin
             // shows its water at boot with no command, or shows none if none was ever stored.
             rebuildGroundedWaterFromSpans();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
@@ -3375,7 +3376,7 @@ void Application::run() {
         }
 
         // [no-frozen-engine] ACTIVE JOBS overlay: whenever sliced main-thread work (settlement/
-        // structure builds) or background jobs are running, show a progress bar — the user must
+        // structure builds) or background jobs are running, show a progress bar â€” the user must
         // never wonder whether the engine is frozen or working. Always on while jobs are active
         // (not gated behind F1).
         if ((mainThreadJobs && mainThreadJobs->anyActive()) ||
@@ -3449,12 +3450,12 @@ void Application::run() {
         }
 
         // Menu scenes now render via the UISystem ("menu:*" screens loaded by
-        // UI::loadMenuInto on onMenuSceneLoaded) — drawn in the scene pass, no ImGui.
+        // UI::loadMenuInto on onMenuSceneLoaded) â€” drawn in the scene pass, no ImGui.
 
         // Dialogue is now fully data-driven on the UISystem (no ImGui): standard
         // trees use the hud_dialogue panel; AI conversations use the hud_ai_dialogue
         // panel (history + UITextInput, wired by UI::setupAIDialogue). Input is driven
-        // by getUISystem()->handleInput above. (docs/HudSystem.md §11a.)
+        // by getUISystem()->handleInput above. (docs/HudSystem.md Â§11a.)
 
         // Render Speech Bubbles & Interaction Prompt
         if (speechBubbleManager || interactionManager) {
@@ -3502,7 +3503,7 @@ void Application::run() {
         }
 
         // Combat HUD is now data-driven on the UISystem (round banner, turn label,
-        // action bar, hit-chance, initiative list, End Turn) — see docs/HudSystem.md §10.
+        // action bar, hit-chance, initiative list, End Turn) â€” see docs/HudSystem.md Â§10.
         // The old ImGui renderCombatHUD stopgap has been removed.
 
         // Render Death overlay
@@ -3515,7 +3516,7 @@ void Application::run() {
         // Render Objective HUD (top-right corner)
         UI::renderObjectiveHUD(&objectiveTracker);
 
-        // Render timer-trigger countdowns (top-center) — triggers authored with
+        // Render timer-trigger countdowns (top-center) â€” triggers authored with
         // "hud": true (e.g. "escape in 60s") show their remaining time.
         if (triggerSystem) {
             UI::renderCountdownHud(triggerSystem->getActiveCountdowns());
@@ -3823,7 +3824,7 @@ void Application::setTitle(const std::string& title) {
 }
 
 void Application::refreshSceneSubsystems() {
-    // Raw subsystem pointers can change across project loads — refresh every frame
+    // Raw subsystem pointers can change across project loads â€” refresh every frame
     // before the SceneManager pump so scene transitions always see live systems.
     m_sceneSubsystems.chunkManager        = chunkManager;
     m_sceneSubsystems.npcManager          = npcManager.get();
@@ -3838,7 +3839,7 @@ void Application::refreshSceneSubsystems() {
     m_sceneSubsystems.storyEngine         = storyEngine.get();
     m_sceneSubsystems.characterAgent      = m_characterAgent.get();
 
-    // The [this]-capturing callbacks are stable — set them once.
+    // The [this]-capturing callbacks are stable â€” set them once.
     if (!m_sceneSubsystems.entitySpawner) {
         m_sceneSubsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                  const std::string& animFile) -> Scene::Entity* {
@@ -3876,9 +3877,25 @@ void Application::update(float deltaTime) {
     stepVoxFoundBodies(deltaTime);   // F5.3 bodies lab (its own run switch; inert without a rig)
     if (!voxFoundLodDirty.empty()) voxFoundLodRefresh(1);   // F7.6d: one dirty chunk's coarse levels per frame
     voxFoundStreamTick();                                   // F7.9b: the switched world follows the camera
+    if (voxFoundBootPending && voxFoundBootConfig.contains("voxfound") &&
+        voxFoundBootConfig["voxfound"].value("source", std::string()) == "today" && chunkManager) {
+        // F7.27: today's world must have LANDED before it is converted -- no deferred DB loads, no generation pending,
+        // and the resident set unchanged since the last frame (VillageChat booted on 27 of its chunks while loading)
+        static size_t s_lastResident = 0;
+        const size_t resident = chunkManager->chunkMap.size();
+        if (chunkManager->hasDeferredDbLoads() || chunkManager->streamingManagerRO().pendingGenerationCount() > 0 ||
+            resident != s_lastResident)
+            voxFoundBootFrames = 0;
+        s_lastResident = resident;
+    }
     if (voxFoundBootPending && ++voxFoundBootFrames > 30) {  // F7.16: the boot mode, once the first frames ran
         voxFoundBootPending = false;
-        voxFoundBoot();
+        try {   // F7.27: a boot that fails is REPORTED, never fatal (TavernTest: a null world field killed the app)
+            voxFoundBoot();
+        } catch (const std::exception& e) {
+            voxFoundBootReport = {{"booted", false}, {"build_error", std::string("boot threw: ") + e.what()}};
+            LOG_ERROR("VoxFound", std::string("boot mode failed: ") + e.what());
+        }
     }
 
     // Skip simulation when paused (API commands and jobs still process)
@@ -3902,7 +3919,7 @@ void Application::update(float deltaTime) {
         if (waterManager && camera &&
             waterManager->followTo(camera->getPosition(), waterManager->dims().x / 4)) {
             const glm::ivec3 o = waterManager->origin();
-            LOG_INFO_FMT("Water", "[WATER] region followed viewer → origin (" << o.x << "," << o.y << "," << o.z << ")");
+            LOG_INFO_FMT("Water", "[WATER] region followed viewer â†’ origin (" << o.x << "," << o.y << "," << o.z << ")");
         }
 
         // Tick the CPU water cellular automaton (fixed-rate internally).
@@ -4092,7 +4109,7 @@ void Application::update(float deltaTime) {
                 const bool cellsMode = renderCoordinator->waterCoreRenderMode() == Core::Water::WaterCoreRenderMode::Cells;
                 renderCoordinator->setWaterCoreSurfaceCells((cellsMode && waterCore->totalCells()) ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
-                {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (§27 W1a), so asked
+                {   // Phase F: the surface mesh feed - the volumes' fields, then the recorded water near the camera (Â§27 W1a), so asked
                     // for even with no volume live
                     const auto& sf = waterCore->surfaceFields();
                     renderCoordinator->setWaterCoreSurfaceFields(sf.empty() ? nullptr : &sf);
@@ -4162,7 +4179,7 @@ void Application::update(float deltaTime) {
             if (renderCoordinator) {
                 m_waterMaskBoxes = waterCore->volumeBoxes();
                 uint64_t maskRev = waterCore->avRevision() * 1000003ull;
-                // §27 W1a: the record tiles near the camera are drawn by the pond surface - the span sheet leaves them too
+                // Â§27 W1a: the record tiles near the camera are drawn by the pond surface - the span sheet leaves them too
                 for (const auto& b : waterCore->recordTileBoxes()) m_waterMaskBoxes.push_back(b);
                 maskRev ^= waterCore->recordRevision() * 0x9E3779B97F4A7C15ull;
                 if (m_shoreOn && shoreBand && shoreBand->active()) { m_waterMaskBoxes.push_back(shoreBand->maskBox()); maskRev ^= shoreBand->record().revision; }
@@ -4269,7 +4286,7 @@ void Application::update(float deltaTime) {
 
     // Far-tree exclusion zones: placed-structure footprints where the deterministic flora
     // plan must not grow far trees (the near chunks were EDITED by the structure build, so
-    // the plan's trees exist only in the plan — rendered as-is they poke through buildings
+    // the plan's trees exist only in the plan â€” rendered as-is they poke through buildings
     // at LOD range; user-reported over the PG village). Polled on a 1s cadence; the far
     // manager no-ops when the rect set is unchanged, so steady state costs one comparison.
     m_farTreeExclusionPoll += deltaTime;
@@ -4277,10 +4294,10 @@ void Application::update(float deltaTime) {
         m_farTreeExclusionPoll = 0.0f;
         if (auto* ft = renderCoordinator->getFarTerrainManager()) {
             // One padded rect per structure CLUSTER, not per structure: a settlement edits
-            // far more ground than its buildings' AABBs — yards, fences, streets, the
-            // plaza — and the pristine flora plan claims trees on all of it (user repro:
-            // a LOD tree fading in over a house's backyard, gone once the real — edited,
-            // treeless — chunks stream in). Structures whose padded rects touch merge
+            // far more ground than its buildings' AABBs â€” yards, fences, streets, the
+            // plaza â€” and the pristine flora plan claims trees on all of it (user repro:
+            // a LOD tree fading in over a house's backyard, gone once the real â€” edited,
+            // treeless â€” chunks stream in). Structures whose padded rects touch merge
             // until stable, so a village becomes one exclusion blob covering the gaps
             // between houses, while an isolated shed only claims its own small margin.
             constexpr float kPad = 20.0f;   // yard/street reach beyond a structure's AABB
@@ -4313,7 +4330,7 @@ void Application::update(float deltaTime) {
             });
             ft->setTreeExclusions(std::move(rects));
 
-            // Structure LOD targets (WRv2 §8): same poll feeds the per-structure mesh tier
+            // Structure LOD targets (WRv2 Â§8): same poll feeds the per-structure mesh tier
             // so distant settlements degrade like trees instead of vanishing.
             std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>> targets;
             for (const auto& [id, obj] : placedObjectManager->getAllObjects()) {
@@ -4340,7 +4357,7 @@ void Application::update(float deltaTime) {
     }
 
     // Settlement residents as a streaming population (ResidentSpawner): spawn where a
-    // location's ground is resident, despawn on evict, respawn identically on return —
+    // location's ground is resident, despawn on evict, respawn identically on return â€”
     // driven by the PERSISTED LocationRegistry, so reloaded worlds keep their townsfolk.
     // Works in any world with locations (streaming or fixed).
     if (npcManager && chunkManager && locationRegistry) {
@@ -4411,7 +4428,7 @@ void Application::update(float deltaTime) {
     updateNpcHeldItems();   // and the combat NPCs' held weapons
 
     // Axe-chop CONTACT detection: while a swing plays, test the blade's actual
-    // position against the world EVERY frame — the bite happens the moment the
+    // position against the world EVERY frame â€” the bite happens the moment the
     // blade truly enters wood, not at a tuned clip fraction (the mocap swing's
     // hit frame has the blade beside the character, ~1 m short of the arc's
     // deepest point). One bite per swing.
@@ -4423,7 +4440,7 @@ void Application::update(float deltaTime) {
         } else if (!m_swingBiteDone &&
                    animatedCharacter->getAnimationProgress() > 0.28f) {
             // Strike phase only: during the windup the blade is raised (and when
-            // standing flush it can overlap wood at rest) — contact only counts
+            // standing flush it can overlap wood at rest) â€” contact only counts
             // once the swing is actually travelling.
             if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {
                 if (def->toolType == Core::ToolType::Axe &&
@@ -4497,7 +4514,7 @@ void Application::update(float deltaTime) {
         }
     }
 
-    // Unpaused gameplay clock — backs {{playtime}} in menu-scene labels
+    // Unpaused gameplay clock â€” backs {{playtime}} in menu-scene labels
     // (speedrun time on a credits screen, etc.).
     if (!gamePaused) m_playtimeSeconds += deltaTime;
 
@@ -4586,7 +4603,7 @@ void Application::update(float deltaTime) {
     }
 
     // Per-frame jitter trace (diagnostic, cheap): ring buffer of the character + camera
-    // positions at FRAME rate — API polling is ~10 Hz and rounds, which hid a per-frame
+    // positions at FRAME rate â€” API polling is ~10 Hz and rounds, which hid a per-frame
     // oscillation during the third-person jitter hunt. Dumped by the "frame_trace"
     // command; whichever series oscillates per frame names the culprit.
     {
@@ -4654,7 +4671,7 @@ void Application::update(float deltaTime) {
                     // frame; the inputs set here apply on next frame's entity
                     // update. The rig follows the camera mode (V toggle) unless
                     // gameplayRigOverride_ names one (Camera panel / set_camera
-                    // MCP — e.g. overhead/isometric). Same path the standalones use.
+                    // MCP â€” e.g. overhead/isometric). Same path the standalones use.
                     const std::string wantRig = !gameplayRigOverride_.empty()
                         ? gameplayRigOverride_
                         : (camera->getMode() == Graphics::CameraMode::FirstPerson
@@ -4838,7 +4855,7 @@ void Application::update(float deltaTime) {
         auto tChunk1 = std::chrono::steady_clock::now();
         // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
-        // Phase 1b — stream chunks in/out around the player when streaming terrain is
+        // Phase 1b â€” stream chunks in/out around the player when streaming terrain is
         // enabled (opt-in via the game.json world "streaming" flag). Throttled because
         // generation + face finalize is heavy; the per-update cap bounds it further.
         if (chunkManager->isStreamingGenerationEnabled() && !(voxFoundTodayStreamOff && voxFoundWorldReads)) {
@@ -4854,7 +4871,7 @@ void Application::update(float deltaTime) {
             // cap (large-world throughput pass), the pump interval was the remaining inflow
             // bottleneck. Still >= frames-in-flight, preserving the frame-deferred-deletion
             // safety contract in unloadDistantChunks.
-            // Off frames drain LANDINGS only (no unload — its frame-deferred-deletion
+            // Off frames drain LANDINGS only (no unload â€” its frame-deferred-deletion
             // cadence contract is untouched): doubles finished-chunk inflow on refills.
             if (++s_streamTick >= 2) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
             else chunkManager->pumpChunkLanding();
@@ -4898,9 +4915,9 @@ void Application::update(float deltaTime) {
         debrisRuntime->feedKinematicObjects(kinematicVoxelManager.get(), deltaTime,
                                             camera ? camera->getPosition() : glm::vec3(0.0f));
 
-    // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
-    // frame demanded proportionally more physics next frame (60fps→1 step,
-    // 15fps→4, 4fps→15 — the FPS→substeps spiral). Beyond the cap the debt is
+    // Run physics in fixed timesteps â€” CAPPED per frame. Uncapped, a slow
+    // frame demanded proportionally more physics next frame (60fpsâ†’1 step,
+    // 15fpsâ†’4, 4fpsâ†’15 â€” the FPSâ†’substeps spiral). Beyond the cap the debt is
     // DROPPED: simulation time dilates briefly instead of the frame collapsing.
     static const int MAX_PHYSICS_STEPS_PER_FRAME = 3;
     int physicsSteps = 0;
@@ -4938,11 +4955,11 @@ void Application::update(float deltaTime) {
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
     // Sync the camera POSITION to InputManager for other systems (audio listener, scripts).
-    // ⚠️ Never write yaw/pitch back here: the input yaw is the MOUSE-LOOK ACCUMULATOR, and
-    // this block runs late in the frame — any mouse deltas that arrived after the camera
+    // âš ï¸ Never write yaw/pitch back here: the input yaw is the MOUSE-LOOK ACCUMULATOR, and
+    // this block runs late in the frame â€” any mouse deltas that arrived after the camera
     // took its yaw were ERASED by the write-back, reverting the view by exactly those
     // counts. Measured live (frame trace, third-person orbit): backward yaw kicks of
-    // 1-4 degrees — all multiples of the 0.3° mouse quantum — punctuating a steady drag,
+    // 1-4 degrees â€” all multiples of the 0.3Â° mouse quantum â€” punctuating a steady drag,
     // i.e. the long-standing "character jitters in third person, never in Free cam" (Free
     // skipped this block, which is why it was immune). Yaw/pitch sync on MODE SWITCHES
     // (toggleCameraMode) is the correct, race-free place and already exists.
@@ -4960,20 +4977,20 @@ void Application::update(float deltaTime) {
         glm::vec3 velocity = (deltaTime > 0.0f) ? (cameraPos - lastCameraPos) / deltaTime : glm::vec3(0.0f);
         audioSystem->update(cameraPos, cameraFront, cameraUp, velocity);
         // Biome soundscape (the editor runs its own loop, not
-        // EngineRuntime::endFrame — standalone games get this there).
+        // EngineRuntime::endFrame â€” standalone games get this there).
         if (auto* amb = runtime ? runtime->getAmbienceDirector() : nullptr)
             amb->update(deltaTime, cameraPos);
     }
     lastCameraPos = cameraPos;
 
     glm::mat4 view = camera->getViewMatrix();
-    // MUST go through Camera::getProjectionMatrix — it owns the REVERSE-Z convention
+    // MUST go through Camera::getProjectionMatrix â€” it owns the REVERSE-Z convention
     // (graphics/DepthConvention.h). This used to hand-roll `glm::perspective` + a Y-flip, which is
     // a SECOND definition of the projection: it silently stayed forward-Z while every scene
     // pipeline moved to a GREATER depth test, and it also re-hardcoded the 45-degree FOV that
     // Camera::kFovYDegrees exists to be the single source of for the LOD metric. The matrix feeds
     // updateCameraFrustum(), so a stale convention here mis-assigns the near/far frustum planes.
-    // Same class of duplication as the four render-distance settings — do not reintroduce it.
+    // Same class of duplication as the four render-distance settings â€” do not reintroduce it.
     glm::mat4 proj = camera->getProjectionMatrix(
         static_cast<float>(windowManager->getWidth()) / static_cast<float>(windowManager->getHeight()),
         0.1f,
@@ -5051,7 +5068,7 @@ void Application::update(float deltaTime) {
         if (m_ieChar && m_iePreviewState != InteractionPreviewState::None) {
             switch (m_iePreviewState) {
                 case InteractionPreviewState::SittingDown:
-                    // Wait for sit-down to finish â†’ auto-transitions to SittingIdle
+                    // Wait for sit-down to finish Ã¢â€ â€™ auto-transitions to SittingIdle
                     if (m_ieChar->isSitting() &&
                         m_ieChar->getAnimationState() == Scene::AnimatedCharacterState::SittingIdle) {
                         m_iePreviewState = m_ieAutoPreview
@@ -5086,7 +5103,7 @@ void Application::update(float deltaTime) {
 
 void Application::render() {
     // HUD data bindings are applied inside RenderCoordinator::render() (engine-side,
-    // shared by the editor and standalone) — see RenderCoordinator + docs/HudSystem.md.
+    // shared by the editor and standalone) â€” see RenderCoordinator + docs/HudSystem.md.
     renderCoordinator->render();
 }
 
@@ -5105,7 +5122,7 @@ void Application::handleInput() {
     }
 
     // Animated-character movement, turn, jump, attack, crouch, and camera framing
-    // are handled by cameraCtl_ (TankScheme) in the update loop's Camera Sync —
+    // are handled by cameraCtl_ (TankScheme) in the update loop's Camera Sync â€”
     // the same shared path the standalone games use. Here we keep only the
     // editor-only animation preview cycling (N/B), and only outside Free camera /
     // anim-editor mode.
@@ -5378,7 +5395,7 @@ void Application::renderTemplateSpawner() {
             std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
                          << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
-            // Record persists WITH the chunks on save_world — never eagerly (ghost-record rule).
+            // Record persists WITH the chunks on save_world â€” never eagerly (ghost-record rule).
         } else {
             objectTemplateManager->spawnTemplate(name, glm::vec3(pos), true, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
@@ -5505,15 +5522,15 @@ void Application::renderSpellCaster() {
     }
 
     ImGui::SliderFloat("Power", &m_spellPower, 50.0f, 2000.0f, "%.0f");
-    ImGui::SetItemTooltip("Blast energy at impact — higher destroys more voxels.");
+    ImGui::SetItemTooltip("Blast energy at impact â€” higher destroys more voxels.");
     ImGui::SliderFloat("Radius", &m_spellRadius, 1.0f, 10.0f, "%.1f");
     ImGui::SetItemTooltip("Blast radius in voxels.");
 
     ImGui::Separator();
     if (m_spellModeEnabled)
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Spell mode ON — left-click to cast.");
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Spell mode ON â€” left-click to cast.");
     else
-        ImGui::TextDisabled("Spell mode OFF — left-click attacks. Enable to cast at the cursor.");
+        ImGui::TextDisabled("Spell mode OFF â€” left-click attacks. Enable to cast at the cursor.");
 
     ImGui::End();
 }
@@ -5584,7 +5601,7 @@ void Application::renderItemEquipper() {
 
             ImGui::TableNextColumn();
             ImGui::PushID(id.c_str());
-            // Equip: put the item in the SELECTED hotbar slot — updateHeldItem
+            // Equip: put the item in the SELECTED hotbar slot â€” updateHeldItem
             // then shows it in the character's hand next frame.
             if (ImGui::SmallButton("Equip") && inventory) {
                 Core::ItemStack stack;
@@ -6100,7 +6117,7 @@ void Application::renderBestiaryNameplates() {
     const std::string& sel = m_bestiaryHall.selected();
 
     // FOREGROUND, not background: the background list draws BEHIND ImGui
-    // windows, and the viewport is one — plates rendered there are invisible.
+    // windows, and the viewport is one â€” plates rendered there are invisible.
     // Clipped to the viewport so labels never spill over the docked panels.
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     dl->PushClipRect(ImVec2(vx, vy), ImVec2(vx + sw, vy + sh), true);
@@ -6136,7 +6153,7 @@ void Application::renderBestiaryNameplates() {
 
     // Nearest first, so when plates collide the creature in front keeps its
     // name. A hall this dense otherwise turns into a wall of overlapping text
-    // that labels nothing — an unreadable label is worse than none, because it
+    // that labels nothing â€” an unreadable label is worse than none, because it
     // also hides the creature behind it.
     std::sort(plates.begin(), plates.end(),
               [](const Plate& a, const Plate& b) { return a.dist < b.dist; });
@@ -6151,7 +6168,7 @@ void Application::renderBestiaryNameplates() {
 
     for (const auto& p : plates) {
         const bool isSel = (p.e->id == sel);
-        // The selection always gets its name, even in a crowd — that is the
+        // The selection always gets its name, even in a crowd â€” that is the
         // whole point of selecting it.
         if (!isSel && overlaps(p.tl, p.br)) {
             // Leave a tick so a suppressed creature still reads as "labelled,
@@ -6195,7 +6212,7 @@ void Application::focusCameraOn(const glm::vec3& pos, const glm::vec3& target) {
     camera->setPosition(pos);
     camera->setYaw(yaw);
     camera->setPitch(pitch);
-    // In Free mode the INPUT MANAGER owns the camera pose — the sync block
+    // In Free mode the INPUT MANAGER owns the camera pose â€” the sync block
     // copies position AND yaw/pitch from it every frame. Writing only to the
     // Camera looks like it worked for one frame and is then silently reverted,
     // so the authoritative source has to be set too.
@@ -6226,7 +6243,7 @@ bool Application::stageBestiaryHall(const glm::vec3& origin, float groundY,
         const float atOrigin = surfaceAt(origin.x, origin.z);
         if (!std::isnan(atOrigin)) floorY = atOrigin;
         else LOG_WARN("Application",
-                      "bestiary hall: no ground under the origin — using y={}", floorY);
+                      "bestiary hall: no ground under the origin â€” using y={}", floorY);
         // Fall back to the hall floor wherever a column has no ground at all,
         // so a creature over a hole stands at hall level instead of vanishing
         // to NaN and taking its nameplate with it.
@@ -6249,7 +6266,7 @@ bool Application::stageBestiaryHall(const glm::vec3& origin, float groundY,
 
 void Application::toggleCameraMode() {
     if (camera) {
-        // V returns to the mode-derived rigs — drop any panel/MCP rig override
+        // V returns to the mode-derived rigs â€” drop any panel/MCP rig override
         // (overhead/isometric) so the toggle behaves predictably.
         gameplayRigOverride_.clear();
         Graphics::CameraMode currentMode = camera->getMode();
@@ -6381,7 +6398,7 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     }
     // Wading feel (small-scale water plan Phase 4.3): depth-scaled slowdown, footstep rings on
     // the ripple field, and an entry splash copying the waterfall-mist burst pattern (splash-
-    // tuned: faster, heavier, shorter — a crown, not fog). All null-safe against a dry world.
+    // tuned: faster, heavier, shorter â€” a crown, not fog). All null-safe against a dry world.
     {
         Scene::AnimatedVoxelCharacter::WaterHooks hooks;
         hooks.depthAt = [this](const glm::vec3& p) -> float { return wadeDepthAt(p); };   // 48: the core first
@@ -6444,7 +6461,7 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         p.attackerForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));
         p.damage = damage;
         p.reach = m_heldItemId.empty() ? 1.0f : std::max(1.0f, reach * 0.6f);
-        p.coneAngleDeg = 150.0f;  // origin is already at the hand — be lenient on angle
+        p.coneAngleDeg = 150.0f;  // origin is already at the hand â€” be lenient on angle
 
         auto events = combatSystem->performAttack(p, *entityRegistry);
         for (const auto& ev : events) {
@@ -6455,13 +6472,13 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     });
 
     // Axe felling is GEOMETRIC now: each swing carves a visible kerf and the tree
-    // releases when the cut severs the trunk (tryAxeChopOnHitFrame → carveChopKerf).
-    // ChopManager's energy-meter path is bypassed — no handler registered.
+    // releases when the cut severs the trunk (tryAxeChopOnHitFrame â†’ carveChopKerf).
+    // ChopManager's energy-meter path is bypassed â€” no handler registered.
 
     // A freshly-spawned character should be immediately controllable. The
     // gameplay control scheme (movement + LMB melee attack) is only sampled
     // when the camera is NOT in Free mode (see the update loop's Camera Sync),
-    // so drop out of Free into ThirdPerson — otherwise clicking does nothing.
+    // so drop out of Free into ThirdPerson â€” otherwise clicking does nothing.
     currentControlTarget = ControlTarget::AnimatedCharacter;
     if (camera && camera->getMode() == Graphics::CameraMode::Free) {
         camera->setMode(Graphics::CameraMode::ThirdPerson);
@@ -6484,7 +6501,7 @@ void Application::updateCombatCamera(float dt) {
     if (!camera || !inputManager) return;
 
     // Frame the active combatant (player on their turn, the acting enemy on
-    // theirs) so the camera auto-pans on turn change — the BG3 feel.
+    // theirs) so the camera auto-pans on turn change â€” the BG3 feel.
     const std::string activeId = m_combatDirector.currentEntityId();
     Scene::Entity* e = entityRegistry ? entityRegistry->getEntity(activeId) : nullptr;
     Scene::AnimatedVoxelCharacter* ch = nullptr;
@@ -6782,7 +6799,7 @@ void Application::interactWithNPC() {
 // ============================================================================
 
 // world.renderDistance (camera far plane / chunk cull distance) and
-// world.farTerrain {enabled, maxDistance} from game.json — so a world boots
+// world.farTerrain {enabled, maxDistance} from game.json â€” so a world boots
 // with its vistas on instead of needing /api/debug re-enables every launch.
 // Shared by the project-open and MCP load_game_definition paths.
 void Application::applyFarTerrainConfig(const nlohmann::json& gameDef) {
@@ -6814,7 +6831,7 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     auto* uiSystem = renderCoordinator->getUISystem();
     if (!uiSystem) return;
 
-    // Data providers — single source of truth is the live playerHealth. Cheap; safe to
+    // Data providers â€” single source of truth is the live playerHealth. Cheap; safe to
     // re-register on each load. Widgets reference these via their "bind" key. The shared
     // context lives on the RenderCoordinator; the render loop applies it each frame.
     auto& hud = renderCoordinator->hudData();
@@ -6829,7 +6846,7 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     });
 
     // Combat providers (turn-based; the data behind the combat HUD modules being
-    // re-homed off the editor ImGui renderCombatHUD — see docs/HudSystem.md §10).
+    // re-homed off the editor ImGui renderCombatHUD â€” see docs/HudSystem.md Â§10).
     // `combat.inCombat` / `combat.playerTurnActive` gate visibility via visibleWhen.
     hud.setFloat("combat.inCombat",         [this]{ return m_combatDirector.inCombat() ? 1.0f : 0.0f; });
     hud.setFloat("combat.playerTurnActive", [this]{ return m_playerTurn.isPlayerTurnActive() ? 1.0f : 0.0f; });
@@ -6863,7 +6880,7 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     });
     // Turn-order list (Repeater module). One record per combatant: a formatted
     // "label" (active marker + name + initiative + HP) plus raw fields for richer
-    // item templates later (hpFrac, active, …).
+    // item templates later (hpFrac, active, â€¦).
     hud.setList("combat.turn_order", [this]() {
         std::vector<UI::HudRecord> rows;
         const auto& tracker = m_combatDirector.initiative();
@@ -6893,7 +6910,7 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return rows;
     });
 
-    // Objectives module (second Repeater customer — proves the list binding
+    // Objectives module (second Repeater customer â€” proves the list binding
     // generalizes beyond combat). One record per visible, non-failed objective;
     // completed ones get a [x] marker. `objectives.any` gates the panel's visibility.
     hud.setFloat("objectives.any", [this] {
@@ -6941,7 +6958,7 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return rows;
     });
 
-    // Dialogue box (standard dialogue trees). AI conversations stay on ImGui — they
+    // Dialogue box (standard dialogue trees). AI conversations stay on ImGui â€” they
     // need scrollable history + a text-input widget the UISystem doesn't have yet.
     hud.setFloat("dialogue.active", [this] {
         return (dialogueSystem && dialogueSystem->isActive() && !dialogueSystem->isAIConversation()) ? 1.0f : 0.0f;
@@ -7011,7 +7028,7 @@ void Application::autoLoadGameDefinition() {
         nlohmann::json gameDef = nlohmann::json::parse(f);
 
         // Multi-scene games (a "scenes" array) must route through SceneManager so
-        // the manifest registers and the start scene loads — otherwise the
+        // the manifest registers and the start scene loads â€” otherwise the
         // single-scene GameDefinitionLoader runs, list_scenes stays empty, and
         // menu scenes never appear. Mirrors the MCP load_game_definition path.
         if (Core::GameDefinitionLoader::isMultiScene(gameDef)) {
@@ -7031,7 +7048,7 @@ void Application::autoLoadGameDefinition() {
             std::string startId = manifest.startScene;
             if (startId.empty()) startId = manifest.scenes.front().id;
             // Multi-scene games still need the combat ruleset + game HUD that the
-            // single-scene path below sets up — this branch used to return early
+            // single-scene path below sets up â€” this branch used to return early
             // without them, so multi-scene projects showed no HUD/objectives/combat
             // in the editor (feedback 2026-06-18). Do it BEFORE transitioning so the
             // HUD screens already exist when a menu start-scene's loadMenuInto hides them.
@@ -7057,7 +7074,7 @@ void Application::autoLoadGameDefinition() {
         // turns water back off. Top-level so the "world" erase below doesn't drop it.
         // Sea level is ALWAYS set (not only when the key exists) so a world switch can't
         // leak the previous world's level, and the render plane + water sim are fed the
-        // SAME value with the SAME default (kSeaLevelY) — they used to default apart
+        // SAME value with the SAME default (kSeaLevelY) â€” they used to default apart
         // (render 16, sim 0), so the plane drew where the sim had no sea.
         {
             nlohmann::json water = gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
@@ -7073,7 +7090,7 @@ void Application::autoLoadGameDefinition() {
                 waterManager->setImplicitSea(water.value("enabled", false));
             }
             // Buoyancy + water drag for dynamic bodies (small-scale Phase 4.2): the CPU
-            // rigid-body world reads submersion through this injected query — physics never
+            // rigid-body world reads submersion through this injected query â€” physics never
             // links WaterManager. Null-safe: a missing manager reads as dry.
             if (chunkManager && chunkManager->physicsWorld && chunkManager->physicsWorld->getVoxelWorld()) {
                 chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(
@@ -7081,7 +7098,7 @@ void Application::autoLoadGameDefinition() {
                         return waterManager ? waterManager->submergedFraction(mn, mx) : 0.0f;
                     });
                 // Current forces (tangible-water Phase E): moving water carries floating
-                // bodies — same dependency-inversion, same thread-safety contract.
+                // bodies â€” same dependency-inversion, same thread-safety contract.
                 chunkManager->physicsWorld->getVoxelWorld()->setWaterFlowQuery(
                     [this](const glm::vec3& p) -> glm::vec3 {
                         return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
@@ -7102,12 +7119,12 @@ void Application::autoLoadGameDefinition() {
                      Core::combatModeToString(m_combatDirector.mode()));
         }
 
-        // Game HUD (data-driven, non-ImGui — see docs/HudSystem.md). Top-level so the
+        // Game HUD (data-driven, non-ImGui â€” see docs/HudSystem.md). Top-level so the
         // "world" erase below doesn't drop it.
         setupGameHud(gameDef);
 
         // If chunks were already loaded from the database (pre-baked world), skip world
-        // GENERATION from the definition — it would overwrite the pre-existing terrain and
+        // GENERATION from the definition â€” it would overwrite the pre-existing terrain and
         // is very slow. World CONFIG (recipe, streaming generation, radii) must still be
         // applied, so pass the skip flag through instead of erasing the world block
         // (erasing it silently disabled streaming generation on every project relaunch).
@@ -7203,7 +7220,7 @@ void Application::autoLoadGameDefinition() {
                         if (c.is_array() && c.size() == 3)
                             waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
                 // Phase C (generation feeds water): bind the baked hydrology water table when this
-                // world's streaming generator baked one (height-based non-Flat types) — the sim then
+                // world's streaming generator baked one (height-based non-Flat types) â€” the sim then
                 // fills the baked ocean AND lakes at their own levels wherever the region travels,
                 // with no authored seeds. Opt out per-world with water.bakedTable=false. Applied /
                 // cleared unconditionally so a world switch resets the binding.
@@ -7219,13 +7236,13 @@ void Application::autoLoadGameDefinition() {
                         });
                         LOG_INFO("Application", "[WATER] baked hydrology water table bound (Phase C)");
                         // Water BODY identity (tangible-water Phase C). BAKE bodies are ALL
-                        // infinite for now — including bake-cell "ponds": a 128-u cell's flood
+                        // infinite for now â€” including bake-cell "ponds": a 128-u cell's flood
                         // level does not bind to fine terrain, so hydrating one as finite water
                         // FRAGMENTS into sub-basins at different levels, the flat-body invariant
                         // breaks, and the min-level capture reads near-total drain (measured
                         // live: a 6.5k-mass pond returned as 17.8). FINITE bodies arrive with
                         // the fine-scale pond pass (Phase B): true sub-cell ponds, contained by
-                        // construction, genuinely flat — the machinery below this binding is
+                        // construction, genuinely flat â€” the machinery below this binding is
                         // already tested against exactly those.
                         waterManager->setBodyQuery(
                             [this](float wx, float wz) -> Core::WaterManager::BodyInfo {
@@ -7240,7 +7257,7 @@ void Application::autoLoadGameDefinition() {
                                     out.baselineLevel = b->level;
                                     return out;
                                 }
-                                // Fine-scale ponds (Phase B): THE finite bodies — sub-cell,
+                                // Fine-scale ponds (Phase B): THE finite bodies â€” sub-cell,
                                 // contained by construction, genuinely flat.
                                 const auto fp = g->finePondAt(static_cast<int>(std::floor(wx)),
                                                               static_cast<int>(std::floor(wz)));
@@ -7257,12 +7274,12 @@ void Application::autoLoadGameDefinition() {
                         waterManager->setWaterTable(nullptr);
                         waterManager->setBodyQuery(nullptr);
                     }
-                    // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
+                    // Rivers (Phase C2): orderâ‰¥3 carved channels get water â€” channel-tagged beds +
                     // upstream inflow at the region frontier, flowing downhill through the valley.
                     if (w.value("bakedTable", true) && gen && gen->riverNetwork()) {
                         // channelHitAt, NOT riverNetwork()->channelAt: the generator carves the
                         // channel along a MEANDER-WARPED line (displacement up to ~55 u). Raw
-                        // coordinates put the ribbon beside its carved bed — measured live as
+                        // coordinates put the ribbon beside its carved bed â€” measured live as
                         // creek pins with no shelf under them (water-as-terrain-stage P2).
                         waterManager->setRiverQuery([this](float wx, float wz) -> float {
                             const WorldGenerator* g =
@@ -7273,15 +7290,15 @@ void Application::autoLoadGameDefinition() {
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
                         // Strahler order (small-scale Phase 2a): lets the pin mapping distinguish
-                        // creeks (orders 1-2 → fractional MIN_HOLD-clamped ribbon) from rivers
-                        // (order ≥ 3 → full pins in the recessed carve).
+                        // creeks (orders 1-2 â†’ fractional MIN_HOLD-clamped ribbon) from rivers
+                        // (order â‰¥ 3 â†’ full pins in the recessed carve).
                         //
-                        // MUST be channelAt().order — the order OF THE HIT SEGMENT the depth came
-                        // from — NEVER orderAt (the column's coarse CELL order). They disagree
+                        // MUST be channelAt().order â€” the order OF THE HIT SEGMENT the depth came
+                        // from â€” NEVER orderAt (the column's coarse CELL order). They disagree
                         // wherever a creek segment crosses a higher-order cell (every junction
                         // cell: its 128-unit cell claims order 3 while the order-2 segment runs
                         // through it). Cell-order + segment-depth pinned FULL voxels onto uncarved
-                        // creek ground there — a ~900-mass sheet flood, measured live in CreekLab
+                        // creek ground there â€” a ~900-mass sheet flood, measured live in CreekLab
                         // 2026-07-30 before this binding was corrected.
                         waterManager->setRiverOrderQuery([this](float wx, float wz) -> int {
                             const WorldGenerator* g =
@@ -7292,7 +7309,7 @@ void Application::autoLoadGameDefinition() {
                         });
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
                         // flow for them. Feed the shader the bake's downhill direction so a river
-                        // reads as MOVING. Visual only — the field stays hydrostatic.
+                        // reads as MOVING. Visual only â€” the field stays hydrostatic.
                         waterManager->setRiverFlowQuery([this](float wx, float wz) -> glm::vec2 {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -7308,7 +7325,7 @@ void Application::autoLoadGameDefinition() {
                         waterManager->setRiverFlowQuery(nullptr);
                     }
                     // Evaporation default (river flow tuning): generation-fed worlds want bounded
-                    // spill — river inflow otherwise pools and RISES forever (observed live at the
+                    // spill â€” river inflow otherwise pools and RISES forever (observed live at the
                     // order-3 river, 2026-07-11). Evaporation dries only THIN unpinned water; the
                     // channel-tagged riverbed, full sea/lake pins, and deep pools are untouched.
                     // Authored worlds (no baked table) keep the v1 default (off, mass-conserving).
@@ -7321,14 +7338,14 @@ void Application::autoLoadGameDefinition() {
                     waterManager->setEdgeOutflow(
                         w.value("edgeOutflow", waterManager->hasWaterTable()));
                     // Poured-water persistence (water-as-terrain-stage P3): restore captured
-                    // pours from world_meta — they reseed as unpinned mass when the sim window
+                    // pours from world_meta â€” they reseed as unpinned mass when the sim window
                     // reaches their columns.
                     if (chunkManager) {
                         if (auto* ws = chunkManager->m_streamingManager.getWorldStorage();
                             ws && ws->getDb()) {
                             const std::string ov = ws->getMeta("water_overrides");
                             if (!ov.empty() && !waterManager->loadOverrides(ov))
-                                LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
+                                LOG_WARN("Application", "world_meta water_overrides failed to parse â€” pours not restored");
                         }
                     }
                     // Phase D / 35 (A2c) / A2i (47): the water core's records - the last world's volumes, boxes and rows dropped, this
@@ -7354,7 +7371,7 @@ void Application::autoLoadGameDefinition() {
                 if (animatedCharacter) {
                     currentControlTarget = ControlTarget::AnimatedCharacter;
                     camera->setDistanceFromTarget(4.0f);
-                    LOG_INFO("Application", "Player spawned (AnimatedCharacter) — camera stays Free, press V to follow");
+                    LOG_INFO("Application", "Player spawned (AnimatedCharacter) â€” camera stays Free, press V to follow");
                 }
             }
         } else {
@@ -8291,7 +8308,7 @@ static bool handleNavGridQueryCommand(
         return true;
 
     } else if (cmd.action == "navgraph_path") {
-        // The 3D NavGraph query — what ScheduledBehavior/StoryDrivenBehavior NPCs
+        // The 3D NavGraph query â€” what ScheduledBehavior/StoryDrivenBehavior NPCs
         // ACTUALLY route with (the 2.5D navgrid_path above is a different, more
         // conservative structure). Same agent profile + smoothing as the movers.
         if (!npcManager || !npcManager->getNavGraph()) {
@@ -8631,7 +8648,7 @@ static bool handlePlacedObjectCommand(
             };
             std::vector<Core::FencePost> fencePosts;
             const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
-            // A fence NEVER runs inside a building — it rings the yard on the plot edge. So Log micros
+            // A fence NEVER runs inside a building â€” it rings the yard on the plot edge. So Log micros
             // found INSIDE a structure footprint are furniture (e.g. a fireplace's Log fire-bed), not a
             // fence post; counting them mis-identifies a fence post and then false-flags fence_along_cliff
             // against the building's OWN wall (the real (7,-2) case: fireplace_1's 11 Log micros inside
@@ -8661,7 +8678,7 @@ static bool handlePlacedObjectCommand(
 
             // Chest facing: a chest should back onto its nearest wall. Ask the building's
             // ANATOMY first: v2 structures persist their AssemblyPlan (metadata.assembly_plan)
-            // and featureAt classifies the cell structurally — no material sniffing, so it
+            // and featureAt classifies the cell structurally â€” no material sniffing, so it
             // keeps working whatever the style palette names. Structures without a plan
             // (v1 composites, hand-built) fall back to the material heuristic.
             std::vector<std::pair<glm::ivec3, Core::AssemblyPlan>> planStructs;  // origin -> plan
@@ -8755,7 +8772,7 @@ static bool handlePlacedObjectCommand(
 
     } else if (cmd.action == "scan_region_micro") {
         // Micro-resolution scan: unlike scan_region (full cubes only), this reports the distinct
-        // materials present at cube/subcube/microcube level per world cube — so structure walls,
+        // materials present at cube/subcube/microcube level per world cube â€” so structure walls,
         // roofs, chimneys, and paths (all sub/microcubes) are visible. Region is in CUBE coords.
         if (!chunkManager) {
             response = {{"error", "ChunkManager not available"}};
@@ -8839,7 +8856,7 @@ static bool handlePlacedObjectCommand(
     } else if (cmd.action == "validate_placed_objects") {
         // GHOST detection: a structure record whose bounding box holds ZERO voxels is a
         // leftover from the old eager-record-save bug (record persisted, voxels never
-        // saved). Only STRUCTURE records are validated — kinematic objects (item props,
+        // saved). Only STRUCTURE records are validated â€” kinematic objects (item props,
         // doors) legitimately own their geometry outside the chunks. Records whose
         // chunks aren't resident are reported "unverifiable", never treated as ghosts
         // (streaming worlds load chunks lazily). {"repair": true} removes the ghosts.
@@ -8866,7 +8883,7 @@ static bool handlePlacedObjectCommand(
                 if (o.metadata.contains("assembly_plan") &&
                     o.metadata["assembly_plan"].contains("origin") &&
                     o.metadata["assembly_plan"].contains("plan")) {
-                    // v2 structure: probe where the ANATOMY says walls must be — precise,
+                    // v2 structure: probe where the ANATOMY says walls must be â€” precise,
                     // immune to unrelated content (trees/terrain) inside the bbox.
                     const auto& m = o.metadata["assembly_plan"];
                     const glm::ivec3 org(m["origin"][0].get<int>(), m["origin"][1].get<int>(),
@@ -9074,10 +9091,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 
     if (action == "light_occupancy") {
         // M1b gate instrument. Two things, both as numbers:
-        //   1. pool health — resident chunks, mixed cells, words used, chunks DROPPED for space.
+        //   1. pool health â€” resident chunks, mixed cells, words used, chunks DROPPED for space.
         //      An empty pool means the physics grids were never built, which would otherwise show
         //      up only as "lighting sees no walls" and be blamed on the tracer.
-        //   2. agreement — for a given cell, what the GPU pool says at each of the 729 micro
+        //   2. agreement â€” for a given cell, what the GPU pool says at each of the 729 micro
         //      positions vs what Chunk::getOccupancyGrid() says. Disagreement anywhere is the
         //      M1 gate failing, and partially-filled cells are the case that matters.
         if (!renderCoordinator) { response = {{"error", "no render coordinator"}}; return true; }
@@ -9282,7 +9299,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 
     if (action == "occupancy_cell") {
         // P1 audit instrument (SubcubeCollisionPlan): one cell's occupancy-grid
-        // masks side by side with the chunk's actual content — a mask-vs-content
+        // masks side by side with the chunk's actual content â€” a mask-vs-content
         // diff instead of a theory about what the character collides with.
         const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
                             cmd.params.value("z", 0));
@@ -9374,7 +9391,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
     } else if (action == "debug_body_boxes") {
         // Dump every rigid body's collision boxes in WORLD space (the same
         // conservative per-box AABB the character queries use) plus each
-        // kinematic render object's transform — the instrument for diagnosing
+        // kinematic render object's transform â€” the instrument for diagnosing
         // physics-vs-render divergence on fallen trees (invisible platforms).
         json bodies = json::array();
         if (physicsWorld && physicsWorld->getVoxelWorld()) {
@@ -9409,9 +9426,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         return true;
 
     } else if (action == "physics_broadphase_stats") {
-        // §15.5: last-substep terrain-broadphase cost — the instrument for confirming that a
+        // Â§15.5: last-substep terrain-broadphase cost â€” the instrument for confirming that a
         // falling coherent fragment's CPU cost scales with WORLD SIZE (gridCount), not the object.
-        // queryAABBCalls = Σ awakeBoxes × gridCount. Poll while a tree is falling.
+        // queryAABBCalls = Î£ awakeBoxes Ã— gridCount. Poll while a tree is falling.
         if (physicsWorld && physicsWorld->getVoxelWorld()) {
             auto* vw = physicsWorld->getVoxelWorld();
             const auto& s = vw->lastBroadphaseStats();
@@ -9493,7 +9510,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
         } else {
-            // Only change state when "enabled" is present — an empty body is a
+            // Only change state when "enabled" is present â€” an empty body is a
             // state QUERY, not "turn it off" (occlusion defaults ON, Phase 3).
             if (cmd.params.contains("enabled"))
                 renderCoordinator->setOcclusionCullingEnabled(cmd.params.value("enabled", true));
@@ -9507,7 +9524,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 
     } else if (action == "set_character_budget") {
         // Runtime character render budget (docs/CharacterPipelineScaling.md). capacity is a
-        // SOFT cap in parts, clamped to the physical buffer — lowering it reproduces the
+        // SOFT cap in parts, clamped to the physical buffer â€” lowering it reproduces the
         // pre-fix silent-drop behaviour without a rebuild.
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
@@ -9564,12 +9581,12 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("pushStrength",    -1.0f),    // character-interaction bend (0 = off)
                 cmd.params.value("bladeWidth",      -1.0f));   // width multiplier (1.0 = authored)
 
-            // ── MEADOW HEIGHT FIELD + EDGE TAPER ──────────────────────────────────────────
+            // â”€â”€ MEADOW HEIGHT FIELD + EDGE TAPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // The plain-scale look knobs. Sentinel is -1 = leave unchanged, matching the block
             // above; these are all legitimately positive, so a negative can never be a real value.
             // meadowScale is the one that decides how large a "plain" reads as (world units).
             // edgeTaperFloor is allowed to be 0 (a bald edge), so it is gated on presence, not
-            // on sign — a 0 passed through a `>= 0` test would be indistinguishable from "unset"
+            // on sign â€” a 0 passed through a `>= 0` test would be indistinguishable from "unset"
             // under the -1 convention only if the convention were `> 0`. Keep them explicit.
             renderCoordinator->setGrassMeadowParams(
                 cmd.params.value("meadowScale",        -1.0f),
@@ -9581,7 +9598,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.contains("edgeTaperFloor")
                     ? cmd.params["edgeTaperFloor"].get<float>() : -1.0f,
                 cmd.params.value("edgeTaperCurve",     -1.0f));
-            // Shadow CASTING toggle — the A/B control for "do blades actually cast?".
+            // Shadow CASTING toggle â€” the A/B control for "do blades actually cast?".
             if (cmd.params.contains("castShadows"))
                 Graphics::GrassRenderPipeline::s_castShadows =
                     cmd.params["castShadows"].get<bool>();
@@ -9666,22 +9683,22 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             if (cmd.params.contains("dirDegrees")) ws.dirDegrees = cmd.params.value("dirDegrees", ws.dirDegrees);
             if (cmd.params.contains("speed"))      ws.speed      = std::max(0.0f, cmd.params.value("speed", ws.speed));
             if (cmd.params.contains("gustiness"))  ws.gustiness  = std::clamp(cmd.params.value("gustiness", ws.gustiness), 0.0f, 1.0f);
-            // ── GUST-FRONT SHAPE ──────────────────────────────────────────────────────────
+            // â”€â”€ GUST-FRONT SHAPE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // aniso is how many times longer a front is CROSSWIND than along-wind. 1 = the old
             // isotropic field (scrolled blobs, which never read as wind crossing a field).
             // gustScale/gustSpeed are normally DERIVED from speed+gustiness every update, so an
-            // override here is sticky only until the next derivation — it is a probe knob for
+            // override here is sticky only until the next derivation â€” it is a probe knob for
             // tuning against tools/wind_field_probe.py, not a setting.
             if (cmd.params.contains("aniso"))
                 renderCoordinator->windState().aniso =
                     std::max(1.0f, cmd.params.value("aniso", 5.0f));
-            // Local blade quiver in Hz — distinct from gustSpeed (front travel). Persists: it is
+            // Local blade quiver in Hz â€” distinct from gustSpeed (front travel). Persists: it is
             // not re-derived from speed/gustiness.
             if (cmd.params.contains("flutterFreq"))
                 renderCoordinator->windState().flutterFreq =
                     std::max(0.0f, cmd.params.value("flutterFreq", 0.6f));
             // These go into SETTINGS, not State: State is re-derived from speed+gustiness every
-            // update(), so a value written there survives exactly one frame — long enough to look
+            // update(), so a value written there survives exactly one frame â€” long enough to look
             // like it worked. Negative clears the override and returns to the derived value.
             if (cmd.params.contains("gustScale"))
                 ws.gustScaleOverride = cmd.params.value("gustScale", -1.0f);
@@ -9696,7 +9713,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                                    {"flutterFreq", st.flutterFreq},
                                    // scroll is the field's POSITION. Report it so "is the wind
                                    // actually moving?" is answerable from the API instead of by
-                                   // watching pixels — asking that question without this field
+                                   // watching pixels â€” asking that question without this field
                                    // produced a confident wrong answer on 2026-08-05.
                                    {"scrollX", st.scroll.x}, {"scrollZ", st.scroll.y}}}};
         }
@@ -9704,7 +9721,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 
     } else if (action == "set_render_distance") {
         // Set the camera far plane / chunk render distance. NOTE: the runtime default is
-        // small (~96) — far chunks are frustum-culled until this is raised.
+        // small (~96) â€” far chunks are frustum-culled until this is raised.
         float d = cmd.params.value("distance", 1000.0f);
         maxChunkRenderDistance = d;
         chunkInclusionDistance = d * 1.5f;
@@ -9821,7 +9838,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             response = {{"error", "RenderCoordinator not available"}};
         } else {
             const auto& s = renderCoordinator->getLastFrameStats();
-            // T0: per-chunk mesh (rebuildAllFaces) cost — the op we're moving off-thread.
+            // T0: per-chunk mesh (rebuildAllFaces) cost â€” the op we're moving off-thread.
             const auto mt = Graphics::ChunkRenderManager::getMeshTimingStats();
             // WRv2 M2 deadzone metric: tree instances per 50u annulus, per tier.
             nlohmann::json meshAnnuli = nlohmann::json::array();
@@ -9981,14 +9998,14 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 // Interaction compatibility helpers (Phase 2.3 gate).
 //
 // These helpers let `sit_character` (and the read-only `can_interact` query)
-// refuse a (character, asset) pairing when geometry says it won't work — e.g.,
+// refuse a (character, asset) pairing when geometry says it won't work â€” e.g.,
 // a giant whose hips don't fit on a child's chair. They mirror the rules in
 // `tools/interaction_pipeline/interaction_kinds/sit.py` so offline analysis
 // and the runtime gate agree.
 //
 // We deliberately keep the C++ side dependency-light: the pipeline owns
 // generating sidecar `<template>.metrics.json` files; the engine just reads
-// them. If a sidecar is missing the gate degrades to "no checks possible" —
+// them. If a sidecar is missing the gate degrades to "no checks possible" â€”
 // it does not block interaction.
 // ============================================================================
 namespace {
@@ -10033,7 +10050,7 @@ static nlohmann::json loadAssetMetricsSidecar(const std::string& templateName) {
             std::ifstream in(p);
             return nlohmann::json::parse(in);
         } catch (...) {
-            // Treat parse failures as "no sidecar" — better to allow than to wrongly block.
+            // Treat parse failures as "no sidecar" â€” better to allow than to wrongly block.
             return nullptr;
         }
     }
@@ -10069,7 +10086,7 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
     return Phyxel::Scene::SeatFit::refused(found);
 }
 
-/// Enumerate free, FITTING seats for a character near `origin` — the same
+/// Enumerate free, FITTING seats for a character near `origin` â€” the same
 /// runSitCompatChecks gate is run per candidate, so a seat in this list is
 /// one the character is guaranteed to be allowed to sit on. Seats without
 /// metrics features are excluded (deny-on-missing: an uncharacterized seat
@@ -10110,7 +10127,7 @@ static nlohmann::json collectFittingSeats(Core::PlacedObjectManager& pom,
 
 } // anonymous namespace
 
-// Held item — keeps the player's hand in sync with the selected hotbar slot.
+// Held item â€” keeps the player's hand in sync with the selected hotbar slot.
 // The held visual is a kinematic voxel group (same rendering as world item
 // props) whose transform follows an invisible grip-bone attachment each frame.
 // ============================================================================
@@ -10202,7 +10219,7 @@ void Application::updateHeldItem() {
         cms.blockHoldFrac   = ms.blockHoldFrac;
         animatedCharacter->setMoveset(std::move(cms));
         // A3: the held item also sets the composition factors (grip class + load band), DERIVED
-        // from the D&D weapon data — the carry layers and lean/cadence modifiers key on them.
+        // from the D&D weapon data â€” the carry layers and lean/cadence modifiers key on them.
         // The player has no off-hand slot yet, so 1h_shield is NPC-only for now.
         const auto gf = melee.resolveGripFactors(heldDef, nullptr);
         auto factors = animatedCharacter->compositionFactors();
@@ -10225,7 +10242,7 @@ void Application::updateHeldItem() {
             t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
             t = glm::scale(t, glm::vec3(h.scale));
             kinematicVoxelManager->setTransform(m_heldKinId, t);
-            // A3: two-handed carry — pin the off-hand to the item's second grip (template frame
+            // A3: two-handed carry â€” pin the off-hand to the item's second grip (template frame
             // point through the same transform the voxels use). One frame behind the main hand.
             const std::string& grip = animatedCharacter->compositionFactors().grip;
             if (h.hasSecondGrip && (grip == "2h_heavy" || grip == "2h_light" || grip == "staff"))
@@ -10233,7 +10250,7 @@ void Application::updateHeldItem() {
             else
                 animatedCharacter->clearOffHandTarget();
         } else {
-            // Anchor vanished (character rebuilt/derezzed) — drop the visual;
+            // Anchor vanished (character rebuilt/derezzed) â€” drop the visual;
             // it re-creates next frame on the live character.
             teardown();
         }
@@ -10241,7 +10258,7 @@ void Application::updateHeldItem() {
 }
 
 // ============================================================================
-// Axe tree-chopping — fired from the player's melee hit frame when an axe is
+// Axe tree-chopping â€” fired from the player's melee hit frame when an axe is
 // equipped. Finds the tree voxel the swing lands on, accumulates chop progress
 // (ChopManager, keyed by trunk base), and gives wood-chip + sound feedback.
 // Changes NO voxels: the destruction session owns topple/fall + log drops and
@@ -10255,11 +10272,11 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
         return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
     };
 
-    // The bite point is the AXE HEAD's actual world position at the hit frame —
+    // The bite point is the AXE HEAD's actual world position at the hit frame â€”
     // the held axe is a live kinematic object riding the hand bone, so the blade
     // position is exact. No probe ray, no reach constant, no row fallbacks: if
     // the blade is in wood, bite THERE; if it isn't, the swing whiffs. (The old
-    // hand-forward ray registered bites the blade never visually touched — rows
+    // hand-forward ray registered bites the blade never visually touched â€” rows
     // above/below the arc, and wood beyond the rendered axe.)
     const glm::vec3 fwd(std::sin(yaw), 0.0f, std::cos(yaw));
     if (m_heldKinId.empty() || !kinematicVoxelManager) return false;
@@ -10281,11 +10298,11 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     }
 
     // Probe the cell under the blade plus its immediate neighborhood (the head
-    // is ~a third of a cell wide), nearest first. Blade contact radius 0.3 m —
+    // is ~a third of a cell wide), nearest first. Blade contact radius 0.3 m â€”
     // TIGHT on purpose: the blade must actually reach the wood. (At 0.6 the
     // windup arc registered "contact" half a meter short of the trunk at ankle
     // height, and the kerf's blade-hugging bite window then sat entirely in
-    // air — the live micros-carved=0 whiff pattern. Detection runs every strike
+    // air â€” the live micros-carved=0 whiff pattern. Detection runs every strike
     // frame, so a near-miss frame just retries as the blade sweeps in.)
     bool hit = false;
     std::string hitMat;
@@ -10302,7 +10319,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
         for (int dz = -1; dz <= 1; ++dz) {
             const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
             // Clamp the blade point to the cell's WOOD content (a flare/notch
-            // cell's wood can start well inside the cell — a cell-box clamp
+            // cell's wood can start well inside the cell â€” a cell-box clamp
             // left the bite window mostly in air). Leaf cubes keep the cell box
             // (leaf contact is feedback-only).
             glm::vec3 cl(0.0f);
@@ -10328,12 +10345,12 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
             hitContact = cands.front().cl;   // blade's nearest point ON the wood
         }
     }
-    if (!hit) return false;   // no contact this frame — the swing continues
+    if (!hit) return false;   // no contact this frame â€” the swing continues
 
     const glm::vec3 hitCenter = glm::vec3(hitPos) + glm::vec3(0.5f);
 
     // Wood-chip burst + chop sound at the bite point (both optional/guarded).
-    // Played ONLY when the contact actually does something — a puff+thunk on a
+    // Played ONLY when the contact actually does something â€” a puff+thunk on a
     // swing that removed nothing reads as a broken bite (live user report).
     auto playImpactFx = [&](bool trunk) {
         if (renderCoordinator) {
@@ -10356,7 +10373,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
             }
         }
         // Impact audio at the contact point: a solid wood THUNK for trunk
-        // bites, the soft whoosh for leaf swipes — catalog events (with
+        // bites, the soft whoosh for leaf swipes â€” catalog events (with
         // per-play pitch/volume jitter so repeated chops don't machine-gun),
         // direct-file fallback if the registry isn't up.
         if (auto* sndReg = runtime ? runtime->getSoundRegistry() : nullptr)
@@ -10371,13 +10388,13 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     // consume the swing's contact so the blade doesn't re-trigger every frame).
     if (!isTrunk(hitMat)) { playImpactFx(false); return true; }
 
-    // FRACTURE, not blast (§5.E): each swing bites a microcube-resolution kerf
-    // one notch deeper at the hit height (carveChopKerf is stateless — it carves
+    // FRACTURE, not blast (Â§5.E): each swing bites a microcube-resolution kerf
+    // one notch deeper at the hit height (carveChopKerf is stateless â€” it carves
     // from the current notch frontier). The visible notch IS the progress bar;
     // the support pass inside the carve releases the tree as ONE coherent hinged
     // body on the swing that cuts through.
     const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
-    const float kDepthPerChopPoint = 0.06f;   // axe damage 6 → ~0.36 m bite per swing
+    const float kDepthPerChopPoint = 0.06f;   // axe damage 6 â†’ ~0.36 m bite per swing
 
     Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
     if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
@@ -10398,7 +10415,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     // latching the whole swing).
     if (!kerf.carved && !kerf.severed) return false;
     playImpactFx(true);
-    // The bite landed: cut the swing's follow-through — the blade stopped in the
+    // The bite landed: cut the swing's follow-through â€” the blade stopped in the
     // wood (per design feedback: contact may stop the animation, the registered
     // hit is what matters). Also makes repeated chopping snappier.
     LOG_INFO("Chop", "bite registered at contact ({},{},{}) -> stopping swing",
@@ -10483,19 +10500,19 @@ void Application::dropHeldItem() {
     const auto* def = Core::ItemRegistry::instance().getItem(itemId);
     if (!def || !def->holdable || def->templateFile.empty()) return;
 
-    // Visual front is +Z at yaw 0 (see anim conventions) — drop ahead of the body.
+    // Visual front is +Z at yaw 0 (see anim conventions) â€” drop ahead of the body.
     float yaw = animatedCharacter->getYaw();
     glm::vec3 front(std::sin(yaw), 0.0f, std::cos(yaw));
     glm::vec3 dropPos = animatedCharacter->getPosition() + front * 1.2f + glm::vec3(0, 0.5f, 0);
 
     // Carry the instance identity out with the item. BUT in creative mode the drop does NOT consume
-    // the source stack (consumeSelected no-ops) — so it's a COPY, and reusing the same uuid would put
+    // the source stack (consumeSelected no-ops) â€” so it's a COPY, and reusing the same uuid would put
     // two items with one identity in the world. Give a creative copy its own fresh uuid; a real
     // (consuming) drop moves the same uuid.
     std::string dropUuid = stack->instanceUuid;
     if (inventory->isCreativeMode() && !dropUuid.empty()) dropUuid = Core::Uuid::generate();
 
-    // Toss the item forward — it's a rigid body now, so give it an arc and let
+    // Toss the item forward â€” it's a rigid body now, so give it an arc and let
     // physics find the resting spot (snapToGround off: gravity does that).
     const glm::vec3 tossVel = front * 2.5f + glm::vec3(0.0f, 1.8f, 0.0f);
     std::string propId = itemPropManager->spawnProp(itemId, dropPos,
@@ -10558,7 +10575,7 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
     }
 
     // UI/menu test hooks: load/unload a GameMenuRenderer-schema menu layout directly
-    // into the UISystem (bypasses scene transitions — for verifying menu rendering).
+    // into the UISystem (bypasses scene transitions â€” for verifying menu rendering).
     if (cmd.action == "ui_load_menu") {
         auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
         if (!ui) { response = {{"error", "UISystem not available"}}; return true; }
@@ -10615,7 +10632,7 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
                 + glm::vec3(std::sin(yaw) * 1.5f, 0.5f, std::cos(yaw) * 1.5f);
         }
         float yawDeg = cmd.params.value("yaw", 0.0f);
-        // A non-stackable spawned item is a distinct instance — mint a uuid (or honor a supplied one)
+        // A non-stackable spawned item is a distinct instance â€” mint a uuid (or honor a supplied one)
         // so it carries stable identity into pickup.
         std::string instanceUuid = cmd.params.value("instance_uuid", "");
         if (instanceUuid.empty()) {
@@ -10729,7 +10746,7 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         else if (dir == "back")    d = -front;
         else if (dir == "right")   d =  right;
         else if (dir == "left")    d = -right;
-        animatedCharacter->dodge(d);  // zero (unknown dir) → backstep
+        animatedCharacter->dodge(d);  // zero (unknown dir) â†’ backstep
         response = {{"success", true}, {"direction", dir},
                     {"state", animatedCharacter->stateToString(
                                   animatedCharacter->getAnimationState())}};
@@ -10807,7 +10824,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
-    // ---- A1 live MotionOracle (docs/AnimationSystemV3Plan.md §4 A1) ----
+    // ---- A1 live MotionOracle (docs/AnimationSystemV3Plan.md Â§4 A1) ----
     if (action == "animation_record") {
         std::string id = cmd.params.value("id", "");
         int frames = cmd.params.value("frames", 120);
@@ -10842,7 +10859,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         if (frames.size() < 3) {
             response = {{"success", true}, {"id", id}, {"valid", false},
                         {"frames_sampled", static_cast<int>(frames.size())},
-                        {"reason", stillRecording ? "still recording — call again later" : "nothing recorded; call animation_record first"}};
+                        {"reason", stillRecording ? "still recording â€” call again later" : "nothing recorded; call animation_record first"}};
             return true;
         }
         // Options: feet + legs by name (same rule as anim_lint), ground from the character's own
@@ -10872,7 +10889,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         const float skateRatio = m.stanceBodySpeed / std::max(meanCapsuleSpeed, 0.1f);
         // Window length in frame time. The stance band assumes the window spans whole stride
         // cycles; under ~1.5 s it reads touch-down/lift-off as stance and the skate figure is
-        // meaningless (measured 2026-09-29: 0.33 s → 80 %, 3.2 s → 4.6 % on the same patrol).
+        // meaningless (measured 2026-09-29: 0.33 s â†’ 80 %, 3.2 s â†’ 4.6 % on the same patrol).
         float windowSeconds = 0.0f;
         for (const auto& f : frames) windowSeconds += (f.dt > 0.0f && std::isfinite(f.dt)) ? f.dt : dt;
         const float kMinWindowSeconds = 1.5f;
@@ -11028,7 +11045,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
     }
 
     if (action == "get_animation_grounding" || action == "set_foot_ik") {
-        // A5. set_foot_ik: {id, enabled?, max_corr_u?, probe_half_width_u?, body_range_u?} — omitted
+        // A5. set_foot_ik: {id, enabled?, max_corr_u?, probe_half_width_u?, body_range_u?} â€” omitted
         // (or negative) = unchanged; clamps live in AnimatedVoxelCharacter::setGroundingKnobs with
         // the prevented failure written there. Both return the same grounding block.
         std::string id = cmd.params.value("id", "");
@@ -11229,7 +11246,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         // ---- Compatibility gate (seat-fit policy: accuracy over coverage) ---
-        // Fit failures are HARD refusals — a character never sits where it
+        // Fit failures are HARD refusals â€” a character never sits where it
         // doesn't fit. A seat with no metrics sidecar cannot PROVE fit, so it
         // is refused too (deny-on-missing; characterize the template with
         // tools/characterize_asset.py). The only bypasses are `force=true`
@@ -11264,7 +11281,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 
             if (missingMetrics) {
                 if (blocking) {
-                    refuse("Seat has no metrics sidecar — cannot verify fit; run "
+                    refuse("Seat has no metrics sidecar â€” cannot verify fit; run "
                            "tools/characterize_asset.py " + obj->templateName);
                     return true;
                 }
@@ -11278,7 +11295,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                 if (hasError && !blocking) compatOverridden = true;
 
                 // Tall-seat mount (EXPERIMENTAL, default OFF): swapping
-                // stand_to_sit for hop_onto_seat is QUARANTINED — the sitAt
+                // stand_to_sit for hop_onto_seat is QUARANTINED â€” the sitAt
                 // anchor math samples its Hips reference from "stand_to_sit"
                 // by name, so a mapped hop clip renders the body inside the
                 // seat (observed live 2026-07-22), and Box Jump ends in a
@@ -11335,13 +11352,13 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 
         character->sitAt(pt->worldPos, pt->facingYaw, sitDown, sitIdle, sitStandUp, blendDur, heightOff);
         json seatAffordancesEcho = json::object();
-        // A4: the seat's affordances (v2 sidecar) in WORLD space — backrest lean and armrest
+        // A4: the seat's affordances (v2 sidecar) in WORLD space â€” backrest lean and armrest
         // hand-rest points (inner edge, top, mid-depth) through the object's placement.
         {
             const nlohmann::json seatJson = findSeatFeaturesInSidecar(loadAssetMetricsSidecar(obj->templateName), pointId);
             const auto seat = Phyxel::Scene::SeatFit::SeatFeatures::fromJson(seatJson.is_object() ? seatJson : nlohmann::json::object());
             // The same origin + Y-rotation the interaction points use (PlacedObjectManager
-            // rotateLocalOffset: 90° maps (x, z) → (z, -x)).
+            // rotateLocalOffset: 90Â° maps (x, z) â†’ (z, -x)).
             const glm::vec3 objOrigin = obj->placedAtMicro ? glm::vec3(obj->microAnchor) / 9.0f : glm::vec3(obj->position);
             auto rotOff = [](const glm::vec3& v, int deg) -> glm::vec3 {
                 switch (((deg % 360) + 360) % 360) {
@@ -11414,7 +11431,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         nlohmann::json sidecar = loadAssetMetricsSidecar(obj->templateName);
         if (!sidecar.is_object() && kind == "sit") {
             // Deny-on-missing for seats (seat-fit policy: accuracy over
-            // coverage) — an uncharacterized seat cannot prove fit. Matches
+            // coverage) â€” an uncharacterized seat cannot prove fit. Matches
             // the sit_character gate. Non-seat kinds keep allow-on-missing.
             response = {
                 {"success", true}, {"can_interact", !requireCompatibility},
@@ -11429,7 +11446,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         if (kind == "sit") {
             nlohmann::json seatFeatures = findSeatFeaturesInSidecar(sidecar, pointId);
             if (!seatFeatures.is_object() || seatFeatures.empty()) {
-                // Point isn't a seat, or a seat with no measured features —
+                // Point isn't a seat, or a seat with no measured features â€”
                 // either way fit cannot be verified (deny-on-missing).
                 response = {
                     {"success", false}, {"can_interact", false},
@@ -11441,7 +11458,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             hasError = runSitCompatChecks(m, seatFeatures, compatIssues);
         } else {
             // Other kinds (door_open, pickup, container_open) have no runtime
-            // rules yet — allow with an empty issue list.
+            // rules yet â€” allow with an empty issue list.
         }
         response = {
             {"success", true},
@@ -11489,7 +11506,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
     }
 
     if (action == "find_fitting_seat") {
-        // "Find me a seat that fits" — enumerate free seat points near the
+        // "Find me a seat that fits" â€” enumerate free seat points near the
         // character (or an explicit position), run the same fit gate per
         // candidate, return nearest-first. A seat in this list is one
         // sit_character is guaranteed to allow. Building block for NPC seat
@@ -11525,11 +11542,11 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
-    // Phase D — pivot-hinge kind (doors / gates / trapdoors / chest lids).
+    // Phase D â€” pivot-hinge kind (doors / gates / trapdoors / chest lids).
     // Engine-side skeleton: drives the KinematicAnimator for the part the
     // PlacedObject owns. The character clip is intentionally absent until
     // the Mixamo reach asset lands; the object opens while the character
-    // stands still, which is enough to validate the C0b → C pipeline.
+    // stands still, which is enough to validate the C0b â†’ C pipeline.
     //
     // Body: {
     //   "object_id":  "<placed_id>",
@@ -11589,7 +11606,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         kinematicAnimator->setTargetAngle(partId, angleRad, speedRad);
 
         // Optional: play a character reach clip in parallel. We don't sync to
-        // a specific frame yet — Phase D ships with parallel playback; sync
+        // a specific frame yet â€” Phase D ships with parallel playback; sync
         // points land with later iteration.
         bool clipPlayed = false;
         std::string clipError;
@@ -11621,7 +11638,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
-    // Phase H — drawer / sliding-door translation. Mirrors try_pivot but
+    // Phase H â€” drawer / sliding-door translation. Mirrors try_pivot but
     // calls KinematicAnimator::setTargetOffset.
     //   "object_id":   "drawer_test_1",
     //   "part_index":  0,
@@ -11717,7 +11734,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         // Phase M4: pull a kinematic part toward the character by total_offset_m
         // (along the part's slideDirLocal axis), playing the pull clip on the
         // character. Coupled animation: the same time parameter drives both
-        // the part offset and the clip — we simply set the target offset and
+        // the part offset and the clip â€” we simply set the target offset and
         // start the clip; the animator's lerp matches the clip duration if
         // speed_mps is set to total_offset_m / clip_duration_s.
         // Body: { "object_id", "part_index"?, "total_offset_m", "speed_mps"?,
@@ -11788,7 +11805,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 
     if (action == "try_climb_up") {
         // Phase M5: begin a ledge mantle. Uses the character's last contact
-        // probe — requires contact.climb.kind == "ledge_up". The mantle is a
+        // probe â€” requires contact.climb.kind == "ledge_up". The mantle is a
         // timeline-driven Y/XZ override (no physics).
         // Body: { "character_id"?, "duration"?: float, "clip"?: "climb_ladder_start",
         //         "start"?: [x,y,z], "end"?: [x,y,z]   // override: bypass contact check }
@@ -12167,7 +12184,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         if (characterId.empty()) {
             interactionProfileManager->setProfile(archetype, tmplName, pointId, profile);
         } else {
-            // Override path — the base profile must already exist so resolveProfile
+            // Override path â€” the base profile must already exist so resolveProfile
             // has something to fall back to for un-tuned characters.
             if (!interactionProfileManager->getProfile(archetype, tmplName, pointId)) {
                 response = {{"error", "Cannot write per-character override: base profile does not exist for "
@@ -12253,7 +12270,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
-    // engine_shutdown — orderly exit requested by external lifecycle controllers
+    // engine_shutdown â€” orderly exit requested by external lifecycle controllers
     // (interaction_pipeline). Signals the main loop to break; the OS process
     // exits cleanly via the normal shutdown path. The caller is expected to
     // verify by polling process death.
@@ -12262,16 +12279,16 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             glfwSetWindowShouldClose(windowManager->getHandle(), GLFW_TRUE);
             response = {{"success", true}, {"shutting_down", true}};
         } else {
-            response = {{"error", "No window manager — cannot signal shutdown"}};
+            response = {{"error", "No window manager â€” cannot signal shutdown"}};
         }
         return true;
     }
 
-    // ie_telemetry — rich per-frame state used by the interaction pipeline to
+    // ie_telemetry â€” rich per-frame state used by the interaction pipeline to
     // detect engine bugs (snap/slide between clips, feet desync, initial
     // teleport) AND to score profile offsets. Params:
-    //   clip            (optional) — sample bones at this clip
-    //   t               (optional, default 0.5) — normalized time [0,1]
+    //   clip            (optional) â€” sample bones at this clip
+    //   t               (optional, default 0.5) â€” normalized time [0,1]
     //   include_bones   (optional, default true)
     if (action == "ie_telemetry") {
         if (!m_interactionEditorMode || !m_ieChar) {
@@ -12493,7 +12510,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             response = {{"error", "Template not loaded: " + stemName}}; return true;
         }
 
-        // Severity by bone name — trunk bones are errors; extremities are warnings
+        // Severity by bone name â€” trunk bones are errors; extremities are warnings
         auto boneSeverity = [](const std::string& name) -> const char* {
             static const char* critKw[] = {"Hips","Spine","Neck","Head","UpLeg","Leg"};
             for (const auto* kw : critKw)
@@ -12501,7 +12518,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             return "warning";
         };
 
-        // Get seat anchor world Y for this interaction point — voxels whose top face
+        // Get seat anchor world Y for this interaction point â€” voxels whose top face
         // sits at this height are the seating surface; bone contact there is expected.
         float seatTopWorldY = -1.0e6f;
         if (placedObjectManager) {
@@ -12563,7 +12580,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                 float px = std::min(bMx.x, vox.mx.x) - std::max(bMn.x, vox.mn.x);
                 float py = std::min(bMx.y, vox.mx.y) - std::max(bMn.y, vox.mn.y);
                 float pz = std::min(bMx.z, vox.mx.z) - std::max(bMn.z, vox.mn.z);
-                // Seat-surface contact is expected — downgrade to "contact"
+                // Seat-surface contact is expected â€” downgrade to "contact"
                 const char* sev = vox.isSeat ? "contact" : boneSeverity(bone.boneName);
                 if (strcmp(sev, "error") == 0) hasError = true;
                 violations.push_back({
@@ -12686,7 +12703,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             for (int i = 0; i <= numSamples; ++i) {
                 float t = (float)i / numSamples;
                 auto bones = m_ieChar->sampleBoneAABBsAtTime(cs.name, t, cs.footPos);
-                if (bones.empty()) break;  // clip not found — skip remaining
+                if (bones.empty()) break;  // clip not found â€” skip remaining
                 ++totalSamples;
 
                 for (const auto& bone : bones) {
@@ -12859,7 +12876,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 
         // Pause and seek to the correct clip at the requested time.
         // seekToClip sets currentClipIndex AND force-evaluates bones immediately,
-        // so the very next render shows the correct pose — not just the Idle clip.
+        // so the very next render shows the correct pose â€” not just the Idle clip.
         m_ieChar->setAnimationPaused(true);
         m_ieChar->seekToClip(clipIdx, normalizedTime);
 
@@ -13193,16 +13210,16 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
-    // Fire a trigger on demand — lets an agent test win/lose wiring WITHOUT
+    // Fire a trigger on demand â€” lets an agent test win/lose wiring WITHOUT
     // playing to the condition (game-production win_condition/lose_condition L3).
     //   { "id": "win" }                          -> run THAT trigger's `then`
     //       actions immediately through the host executor (synchronous, so the
-    //       effects — scene transition / objective complete / story var — are
+    //       effects â€” scene transition / objective complete / story var â€” are
     //       observable in the very next state query).
     //   { "event": "player_jumped", "data": {} } -> replay the real when->then
     //       path: feed the event; matching triggers fire, actions drain next frame.
     // NOTE: show_victory/show_credits are standalone-shell-only; in the editor
-    // host they no-op (see the ActionExecutor) — use transition_scene to a menu
+    // host they no-op (see the ActionExecutor) â€” use transition_scene to a menu
     // scene for an editor-observable terminal, or inspect `executed` below.
     if (action == "fire_trigger") {
         if (!triggerSystem) { response = {{"error", "TriggerSystem not available"}}; return true; }
@@ -13262,7 +13279,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             }
         }
         // Visible NON-HUD screens = real menus (pause/inventory/main). HUD overlays
-        // (name prefix "hud_") are always-on gameplay widgets, NOT menus — excluding
+        // (name prefix "hud_") are always-on gameplay widgets, NOT menus â€” excluding
         // them keeps normal play reading as "playing" rather than "menu_overlay".
         nlohmann::json menus = nlohmann::json::array();
         bool anyMenu = false;
@@ -13289,7 +13306,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
     if (action == "spawn_for_test") {
         // Rebuild the currently-loaded character (IE mode: m_ieChar; project mode:
         // animatedCharacter) with the morphology in `appearance`. Used by the
-        // pipeline to fan out the (character × asset) matrix without authoring
+        // pipeline to fan out the (character Ã— asset) matrix without authoring
         // a separate .anim per morphology.
         //
         // Body: { "appearance": { ... CharacterAppearance JSON ... },
@@ -13320,7 +13337,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             return true;
         }
 
-        // Rebuild in place — the rig + clips are re-scaled, no new entity needed.
+        // Rebuild in place â€” the rig + clips are re-scaled, no new entity needed.
         // (`setAppearance` updates colors/morphology fields; `rebuildWithAppearance`
         // re-applies skeleton proportions and re-builds bodies.)
         ch->setAppearance(appearance);
@@ -13352,7 +13369,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 
 // docs/VoxelFoundationPlan.md F2.2 -- POST /api/debug/voxfound_preview (registered in registerMatSimCommands).
 void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::json& response) {
-        // docs/VoxelFoundationPlan.md F2.2 — draw a 1/8 m area: the ENGINE's terrain generator (and flora
+        // docs/VoxelFoundationPlan.md F2.2 â€” draw a 1/8 m area: the ENGINE's terrain generator (and flora
         // planner + the tree_forge --grid 8 library when "flora") sampled at 1/8 m by
         // VoxFound::buildTerrainArea, faces built on the GPU by FaceBuilderGpu, drawn through voxel.frag.
         // Body: {type:"Perlin"|"Mountains"|"Flat", seed, x, z (area origin, metres), size (<= 32 m),
@@ -13443,7 +13460,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
                         {"saved_rows_total", ws ? ws->getVoxFoundBlobCoords().size() : size_t(0)}};
             return;
         }
-        // {"edit":{...}}: F2.16 (§4.6 item 9) -- edit an editable region preview, rebuilt incrementally
+        // {"edit":{...}}: F2.16 (Â§4.6 item 9) -- edit an editable region preview, rebuilt incrementally
         if (cmd.params.contains("edit")) {
             handleVoxFoundEdit(cmd.params["edit"], response);
             return;
@@ -13471,7 +13488,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             renderCoordinator->setVoxFoundShadowCull(cmd.params.value("shadow_cull", true));
         if (cmd.params.contains("shadow_mdi"))
             renderCoordinator->setVoxFoundShadowMdi(cmd.params.value("shadow_mdi", true));
-        // {"face_pool":bool}: F2.17 (§4.6 item 10) device-local face pool, edits copy only their spans (default on)
+        // {"face_pool":bool}: F2.17 (Â§4.6 item 10) device-local face pool, edits copy only their spans (default on)
         if (cmd.params.contains("face_pool")) renderCoordinator->setVoxFoundFacePool(cmd.params.value("face_pool", true));
         // {"tjunction":0|1|2, "tj_px":f}: F2.18 T-junction cracks (0 today, 1 exact sums, 2 + in-plane margin of f px)
         if (cmd.params.contains("tjunction") || cmd.params.contains("tj_px"))
@@ -13549,7 +13566,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
             if (!ok) response["error"] = "coarser levels not built (lod_levels)";
             return;
         }
-        // {"dir_clusters":bool, "dir_cull":bool}: F2.15 (§4.6 item 8) -- the multidraw uses the per-direction clusters,
+        // {"dir_clusters":bool, "dir_cull":bool}: F2.15 (Â§4.6 item 8) -- the multidraw uses the per-direction clusters,
         // and the cull pass drops direction groups that cannot face the camera (both ON by default, F2.15)
         // {"shadow_dir_cull":bool}: F2.15b -- the shadow multidraw (shadow_mdi) drops direction groups facing away from
         // the light
@@ -13605,6 +13622,18 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         if (cmd.params.contains("struct_stub")) {   // F7.11 (tests): build_structure not routed (the red)
             voxFoundStructStub = cmd.params["struct_stub"].get<bool>();
             response = {{"struct_stub", voxFoundStructStub}};
+            return;
+        }
+        if (cmd.params.value("today_census", false) && chunkManager) {   // F7.27 (tests): today's volume per material
+            std::map<std::string, double> vol;
+            for (const auto& [cc, ch] : chunkManager->chunkMap) {
+                if (!ch) continue;
+                const auto& st = ch->getVoxelStore();
+                for (size_t i = 0; i < 32768; ++i) if (st.solid(i)) vol[st.material(i)] += 512.0;
+                for (const auto& sp : ch->getStaticSubcubes()) if (sp) vol[sp->getMaterialName()] += 512.0 / 27.0;
+                for (const auto& mp : ch->getStaticMicrocubes()) if (mp) vol[mp->getMaterialName()] += 512.0 / 729.0;
+            }
+            response = {{"today_voxels_by_material", vol}, {"chunks", chunkManager->chunkMap.size()}};
             return;
         }
         if (cmd.params.contains("item_snap_stub")) {   // F7.25 (tests): items snap by today's cube scan (the red)
@@ -13709,9 +13738,18 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         }
         if (cmd.params.value("census", false)) {   // F8.2: every material's voxel count over the region's stores
             std::vector<uint64_t> n(256, 0);
-            for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {
-                const Core::VoxFound::VoxelGrid g = voxFoundEdit.dense(i);
-                for (uint8_t m : g.mat) ++n[m];
+            for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) {   // F7.27: by block (was a dense copy per chunk:
+                const auto& st = voxFoundEdit.chunk(i).store;            // a 252-chunk region took over 30 min)
+                const glm::ivec3 nb = st.dim() / 8;
+                for (int bx = 0; bx < nb.x; ++bx)
+                    for (int by = 0; by < nb.y; ++by)
+                        for (int bz = 0; bz < nb.z; ++bz) {
+                            uint8_t um = 0;
+                            if (st.uniformBlock({bx, by, bz}, um)) { n[um] += 512; continue; }
+                            for (int x = 0; x < 8; ++x)
+                                for (int y = 0; y < 8; ++y)
+                                    for (int z = 0; z < 8; ++z) ++n[st.at({bx * 8 + x, by * 8 + y, bz * 8 + z})];
+                        }
             }
             nlohmann::json byName = nlohmann::json::object();
             for (size_t m = 1; m < 256; ++m)
@@ -14245,7 +14283,8 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin;
         if (typeName == "Mountains") type = WorldGenerator::GenerationType::Mountains;
         else if (typeName == "Flat") type = WorldGenerator::GenerationType::Flat;
-        else if (typeName != "Perlin") {
+        else if (typeName != "Perlin" && cmd.params.value("source", std::string("generator")) == "generator") {
+            // F7.27: a converted source (today / world_db) uses no generator -- its type does not matter
             response = {{"error", "type must be Perlin, Mountains or Flat"}};
             return;
         }
@@ -14284,7 +14323,7 @@ void Application::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann::j
         VoxelArea area = buildTerrainArea(gen, {x0, y0, z0}, {size, ySize, size});
         FloraStampStats fs;
         if (flora) fs = stampFlora(area, gen, "resources/templates_g8/nature");
-        // "templates":[{"name":"forge_oak_m","x":8,"z":8}] — stamp named 1/8 m library templates (tree_forge
+        // "templates":[{"name":"forge_oak_m","x":8,"z":8}] â€” stamp named 1/8 m library templates (tree_forge
         // --grid 8 output) with stampFlora's rule: footprint centred on metre column (x, z) of the area, base on
         // the ground there. For side-by-side A/B against today's grid-3 template spawned at the same spot.
         nlohmann::json stampedTemplates = nlohmann::json::array();
@@ -14439,7 +14478,7 @@ int Application::voxFoundMaterial(const std::string& name, std::string* err) {
 
 // docs/VoxelFoundationPlan.md F3.3 -- POST /api/debug/voxfound_preview {"save":true}: every chunk of the editable region
 // that an edit (or a load) changed is encoded with codec v3 (BlockStore::encodeV3) and written to world.db
-// (voxfound_chunk_blobs); chunks the generator still produces are not saved (§3.5a point 7).
+// (voxfound_chunk_blobs); chunks the generator still produces are not saved (Â§3.5a point 7).
 void Application::handleVoxFoundSave(nlohmann::json& response) {
     using namespace Core::VoxFound;
     auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
@@ -14563,7 +14602,7 @@ nlohmann::json Application::loadVoxFoundSaved(bool fromDb) {
             {"load_rebuild_ms", writeMs}, {"errors", errors}};
 }
 
-// docs/VoxelFoundationPlan.md F2.16 (§4.6 item 9) -- POST /api/debug/voxfound_preview {"edit":{...}}: edit a region
+// docs/VoxelFoundationPlan.md F2.16 (Â§4.6 item 9) -- POST /api/debug/voxfound_preview {"edit":{...}}: edit a region
 // preview built with {"editable":true}, rebuilt INCREMENTALLY (RegionEdit: only the rows, sprig cells and blocks the
 // brush can change). Body: {"material":"air"|name, "lo":[x,y,z], "hi":[x,y,z]} (world 1/8 m voxels, inclusive) or
 // {"material", "sphere":{"c":[x,y,z], "r":voxels}}; "verify":true also rebuilds every touched chunk fully with
@@ -15074,7 +15113,27 @@ void Application::voxFoundReadBootConfig(const std::string& gameJsonPath) {
         if (text.size() >= 3 && uint8_t(text[0]) == 0xEF && uint8_t(text[1]) == 0xBB && uint8_t(text[2]) == 0xBF)
             text.erase(0, 3);   // a UTF-8 BOM (PowerShell writes one)
         const nlohmann::json g = nlohmann::json::parse(text);
-        if (g.contains("world") && g["world"].is_object() && g["world"].contains("voxfound") &&
+        // F7.27: the switched world is the DEFAULT -- a project world with no "voxfound" key boots switched (a
+        // streaming world around the camera from the generator, as VoxFoundBoot; a fixed world from TODAY's resident
+        // chunks through the converter); "voxfound": {"enabled": false} opts out
+        // (a game.json with no "world" object -- a world that lives only in its DB -- is a fixed world: source today)
+        const bool noWorld = !g.contains("world") || !g["world"].is_object();
+        const bool topOptOut = g.contains("voxfound") && g["voxfound"].is_object() &&
+                               !g["voxfound"].value("enabled", true);   // the opt-out for a project with no world object
+        if (!topOptOut && !g.contains("scenes") && (noWorld || !g["world"].contains("voxfound"))) {
+            nlohmann::json w = noWorld ? nlohmann::json::object() : g["world"];
+            for (auto it = w.begin(); it != w.end();) it = it->is_null() ? w.erase(it) : std::next(it);   // null fields: absent
+            if (w.value("streaming", false))
+                w["voxfound"] = {{"enabled", true}, {"size", {4, 2, 4}}, {"y_from", 0}, {"load_saved", true},
+                                 {"stream", true}, {"default", true}};
+            else
+                w["voxfound"] = {{"enabled", true}, {"source", "today"}, {"load_saved", true}, {"stream", false},
+                                 {"default", true}};
+            voxFoundBootConfig = w;
+            voxFoundBootPending = true;
+            voxFoundBootFrames = 0;
+            LOG_INFO("VoxFound", "boot mode: the DEFAULT (no world.voxfound) for " + gameJsonPath);
+        } else if (g.contains("world") && g["world"].is_object() && g["world"].contains("voxfound") &&
             g["world"]["voxfound"].value("enabled", false)) {
             voxFoundBootConfig = g["world"];
             voxFoundBootPending = true;
@@ -15097,13 +15156,21 @@ void Application::voxFoundBoot() {
     const glm::vec3 cam = camera ? camera->getPosition() : glm::vec3(0.0f);
     const int cx = int(std::floor(cam.x / 32.0f)), cz = int(std::floor(cam.z / 32.0f));
     const int y0 = v.value("y_from", 0);
-    const glm::ivec3 lo(cx - size[0] / 2, y0, cz - size[2] / 2), hi = lo + glm::ivec3(size[0], size[1], size[2]) - 1;
+    glm::ivec3 lo(cx - size[0] / 2, y0, cz - size[2] / 2), hi = lo + glm::ivec3(size[0], size[1], size[2]) - 1;
+    const bool fromToday = v.value("source", std::string()) == "today";
+    if (fromToday && chunkManager && !chunkManager->chunkMap.empty()) {   // F7.27: the box of today's resident chunks
+        lo = glm::ivec3(std::numeric_limits<int>::max());
+        hi = glm::ivec3(std::numeric_limits<int>::min());
+        for (const auto& [cc, ch] : chunkManager->chunkMap)
+            if (ch) lo = glm::min(lo, cc), hi = glm::max(hi, cc);
+    }
     nlohmann::json req = {{"type", w.value("type", std::string("Perlin"))}, {"seed", w.value("seed", 0)},
                           {"flora", w.value("flora", true)}, {"editable", true}, {"hide_world", false},
                           {"flora_window", "open"},
                           {"region", {{"from", {lo.x, lo.y, lo.z}}, {"to", {hi.x, hi.y, hi.z}}}}};
+    if (fromToday) req["source"] = "today";
     Core::APICommand c;
-    nlohmann::json r, on, st;
+    nlohmann::json r = nlohmann::json::object(), on = nlohmann::json::object(), st = nlohmann::json::object();   // F7.27: never null
     c.params = req;
     handleVoxFoundPreview(c, r);
     const auto t1 = std::chrono::steady_clock::now();
@@ -15122,7 +15189,8 @@ void Application::voxFoundBoot() {
                           {"build_error", r.value("error", std::string())}, {"build_ms", ms(t0, t1)},
                           {"switch_ms", ms(t1, t2)}, {"total_ms", ms(t0, t2)}, {"loaded", on.value("loaded", nlohmann::json())},
                           {"stream", st.value("stream", false)}, {"camera", {cam.x, cam.y, cam.z}},
-                          {"today_stream_off", voxFoundTodayStreamOff}};
+                          {"today_stream_off", voxFoundTodayStreamOff},
+                          {"source", fromToday ? "today" : "generator"}, {"default", v.value("default", false)}};
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
 }
 
@@ -16044,7 +16112,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // F2.15f: {"dir_order":"axis"} keeps the F2.15 direction order within a cell (-x, +x, -y, ...); default "octant"
     // (-x, -y, -z, +x, +y, +z), which the compacting cull pass merges into fewer commands
     const bool dirOctant = cmd.params.value("dir_order", std::string("octant")) != "axis";
-    // F2.13 (§3.5a point 3, §4.6 item 7): {"lod_levels":n} also builds pyramid levels 1..n of every chunk (1 = 1/4 m,
+    // F2.13 (Â§3.5a point 3, Â§4.6 item 7): {"lod_levels":n} also builds pyramid levels 1..n of every chunk (1 = 1/4 m,
     // 2 = 1/2, 3 = 1 m; the 1 m margin of each chunk's area gives a coarse level its real neighbours, so 3 is the
     // deepest here) and keeps them all; {"lod_draw":k} (handleVoxFoundPreview) swaps level k in for the whole region
     // without a rebuild. A debug view to see and measure each level; per-region selection is F2.14. Leaf sprigs and
@@ -16103,7 +16171,7 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // leaf mass (today's chunk-LOD handoff of cards); the sprigs then belong to the levels below h and dissolve by
     // size on screen with lod_auto (voxfound_foliage.vert, VoxFound::lodSprigFade).
     const int sprigLevel = std::clamp(cmd.params.value("lod_sprig_level", 0), 0, lodLevels);
-    // F2.16 (§4.6 item 9): {"editable":true} keeps each chunk's voxels, border planes, faces, sprigs and block bits
+    // F2.16 (Â§4.6 item 9): {"editable":true} keeps each chunk's voxels, border planes, faces, sprigs and block bits
     // (RegionEdit, ~17 MB per chunk) so {"edit":...} rebuilds incrementally. Level 0 only: refused with coarse levels,
     // closed casters, seam / exit faces or an alternate level set (each would need its own update: owed).
     const bool editable = cmd.params.value("editable", false);
@@ -16359,9 +16427,26 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
     // F3.4: {"source":"world_db"} -- the region's chunks are the open world.db's SAVED chunks (PXB2) through the
     // converter (VoxFound::convertPxb2) instead of the generator; flora, recipe and margins do not apply.
     const bool fromWorldDb = cmd.params.value("source", std::string("generator")) == "world_db";
+    // F7.27: {"source":"today"} -- each region chunk is TODAY's resident chunk encoded (ChunkBlobCodec) and converted
+    // (VoxFound::convertPxb2): the region is today's world as it stands, hand-built content included
+    const bool fromToday = cmd.params.value("source", std::string("generator")) == "today";
     StoredRegionStats stored;
     RegionBuild rb;
-    if (fromWorldDb) {
+    if (fromToday) {
+        if (!chunkManager) {
+            response = {{"error", "source today: no chunk manager"}};
+            return;
+        }
+        std::string convErr;
+        rb = forEachStoredChunk([this](glm::ivec3 c, std::vector<uint8_t>& out) {
+                                    const Chunk* ch = chunkManager->getChunkAtCoord(c);
+                                    if (!ch) return false;
+                                    out = Phyxel::ChunkBlobCodec::encode(*ch);
+                                    return !out.empty();
+                                },
+                                lo, hi, onChunk, &stored, &convErr);
+        if (!convErr.empty() && err.empty()) err = convErr;
+    } else if (fromWorldDb) {
         auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
         if (!ws || !ws->getDb()) {
             response = {{"error", "source world_db: no world storage (world.db) open"}};
@@ -16520,7 +16605,8 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
                      : size_t(0)},
                 {"editable", editable}, {"edit_store_bytes", voxFoundEdit.bytes()},   // F2.16
                 {"load_saved", loadSaved},   // F3.3
-                {"source", fromWorldDb ? "world_db (PXB2 through VoxFound::convertPxb2)" : "generator"},
+                {"source", fromToday ? "today (resident chunks through VoxFound::convertPxb2)"
+                                     : fromWorldDb ? "world_db (PXB2 through VoxFound::convertPxb2)" : "generator"},
                 {"converted", fromWorldDb ? nlohmann::json{{"chunks_stored", stored.chunksStored},
                                                            {"chunks_missing", stored.chunksMissing},
                                                            {"cubes", stored.sum.cubes}, {"subcubes", stored.sum.subcubes},
@@ -16538,10 +16624,10 @@ void Application::handleVoxFoundRegion(const Core::APICommand& cmd, int generati
 }
 
 // ============================================================================
-// Water-sim (CPU WaterManager) debug commands — first domain migrated off the processAPICommands
+// Water-sim (CPU WaterManager) debug commands â€” first domain migrated off the processAPICommands
 // if-chain onto the CommandRegistry. Handlers run on the game-loop thread; the dispatcher owns
 // onComplete. Registered once during init.
-// MatSim lab routes (docs/MaterialSimPlan.md §6a): POST /api/matsim/<action> -> "matsim_<action>".
+// MatSim lab routes (docs/MaterialSimPlan.md Â§6a): POST /api/matsim/<action> -> "matsim_<action>".
 // The lab is created at init; a handler that runs before it exists, or throws on a mistyped field,
 // answers with an error instead of reaching the legacy dispatch.
 void Application::registerMatSimCommands() {
@@ -16581,7 +16667,7 @@ void Application::registerWaterCommands() {
         waterManager->placeWater(p, cmd.params.value("amount", 1.0f));
         r = {{"success", true}, {"total_mass", waterManager->totalMass()}};
     });
-    // Scoop (tangible-water Phase D): bucket semantics — removes up to `amount` from the column,
+    // Scoop (tangible-water Phase D): bucket semantics â€” removes up to `amount` from the column,
     // reports what was actually taken. Finite ponds stay lowered; pinned bodies refill.
     reg.on("water_scoop", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
@@ -16590,10 +16676,10 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"removed", removed}, {"total_mass", waterManager->totalMass()},
              {"body_deltas", waterManager->bodyDeltaCount()}};
     });
-    // ── water_ground_sync (docs/Water.md — grounded water for UN-BAKED worlds) ────
+    // â”€â”€ water_ground_sync (docs/Water.md â€” grounded water for UN-BAKED worlds) â”€â”€â”€â”€
     // Builds a per-voxel-column water grid from the LIVE chunk terrain and binds it to the water
     // renderer, replacing the implicit flat sea. Per column: find the topmost solid voxel, then let
-    // Phyxel::buildOpenWaterSpan decide wetness against the world's sea level — the SAME function
+    // Phyxel::buildOpenWaterSpan decide wetness against the world's sea level â€” the SAME function
     // whose structural guarantee is "a span's bottom is the terrain surface and nothing else". So:
     //   * a column whose ground stands at/above sea level  -> dry (no sheet through hillsides);
     //   * a column with NO terrain at all (void)           -> dry (water cannot rest on nothing);
@@ -16602,7 +16688,7 @@ void Application::registerWaterCommands() {
     // Defect this replaces, seen live 2026-08-04 in WaterBasinTest: with no bake the shader's
     // flat-sea fallback drew an infinite sheet at y=6 across the void and THROUGH solid rock
     // (camera inside the landmass at (-63,12,9) saw open sea with waves and foam).
-    // ⚑Refused on baked worlds: their water layer is the hydrology upload; two writers to one
+    // âš‘Refused on baked worlds: their water layer is the hydrology upload; two writers to one
     // binding would fight across world loads.
     reg.on("water_ground_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!chunkManager || !renderCoordinator) { r = {{"error", "engine not ready"}}; return; }
@@ -16630,10 +16716,10 @@ void Application::registerWaterCommands() {
         }
 
         const float sea = waterManager ? waterManager->seaLevel() : static_cast<float>(Core::kSeaLevelY);
-        // Spans grouped per chunk — this command is the EDITOR-WORLD writer of chunk-resident
-        // water (docs/Water.md §2 layer 1): un-baked worlds have no generation-time span pass, so
+        // Spans grouped per chunk â€” this command is the EDITOR-WORLD writer of chunk-resident
+        // water (docs/Water.md Â§2 layer 1): un-baked worlds have no generation-time span pass, so
         // the scan persists its result into the chunks (and from there into the world DB via the
-        // normal blob save). ⚑The RENDER upload happens at the END, derived FROM the chunks — the
+        // normal blob save). âš‘The RENDER upload happens at the END, derived FROM the chunks â€” the
         // scan never feeds the renderer directly, so there is exactly one render derivation
         // (rebuildGroundedWaterFromSpans) whether water arrives by boot-load or by this command.
         std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> chunkSpans;
@@ -16668,7 +16754,7 @@ void Application::registerWaterCommands() {
                 }
             }
 
-        // Write-through: every loaded chunk in the scan gets the truth — including chunks whose
+        // Write-through: every loaded chunk in the scan gets the truth â€” including chunks whose
         // spans just became EMPTY (a drained basin must not keep stale water in its blob).
         long spanChunks = 0, spansStored = 0;
         std::vector<glm::ivec3> holders;   // F7.18: every resident span holder (today's chunks or the store)
@@ -16680,7 +16766,7 @@ void Application::registerWaterCommands() {
                 if (!chunkManager->waterSpansAt(cc)->empty()) chunkManager->setWaterSpansAt(cc, {});
                 continue;
             }
-            // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order — sort to the
+            // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order â€” sort to the
             // storage contract rather than weakening the contract.
             std::sort(it->second.begin(), it->second.end(),
                       [](const Chunk::WaterSpanLocal& a, const Chunk::WaterSpanLocal& b) {
@@ -16703,8 +16789,8 @@ void Application::registerWaterCommands() {
              {"mode", "grounded (off-grid dry), rendered from chunk spans"}};
     });
 
-    // ── water_spans_stored — read back the CHUNK-RESIDENT spans (docs/Water.md §2 layer 1) ───
-    // Deliberately reads only what chunks HOLD, never the generator or the scan that wrote them —
+    // â”€â”€ water_spans_stored â€” read back the CHUNK-RESIDENT spans (docs/Water.md Â§2 layer 1) â”€â”€â”€
+    // Deliberately reads only what chunks HOLD, never the generator or the scan that wrote them â€”
     // this is the independent check that water survived into world data (and, after save/reload,
     // through the blob codec). Optional {x1,z1,x2,z2} world-rect filter.
     reg.on("water_spans_stored", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -16764,8 +16850,8 @@ void Application::registerWaterCommands() {
              {"source", "chunk-resident (world data, not a derivation)"}};
     });
 
-    // What the RENDERER holds per column over a world-XZ rect — the camera-walk probe's observable
-    // (Water.md §8 #8b, WaterRethink.md WP0). Reads the sea sheet's CPU shadow of the uploaded
+    // What the RENDERER holds per column over a world-XZ rect â€” the camera-walk probe's observable
+    // (Water.md Â§8 #8b, WaterRethink.md WP0). Reads the sea sheet's CPU shadow of the uploaded
     // level grid through the same lookup rules as water.vert/water.frag, so "wet here?" is
     // answered without a screenshot. Diffing this from two vantages, and against
     // `water_spans_stored`, is how a camera-existence violation is caught automatically.
@@ -16789,7 +16875,7 @@ void Application::registerWaterCommands() {
         const int lx = std::min(x1, x2), hx = std::max(x1, x2);
         const int lz = std::min(z1, z2), hz = std::max(z1, z2);
         const long long cols = static_cast<long long>(hx - lx + 1) * (hz - lz + 1);
-        // Bounded so a typo cannot stall the game loop: 2048² is the span grid's own ceiling.
+        // Bounded so a typo cannot stall the game loop: 2048Â² is the span grid's own ceiling.
         if (cols > 2048LL * 2048LL) { r = {{"error", "rect too large (max 2048x2048 columns)"}}; return; }
         const bool listWet = cmd.params.value("columns", false);
         const size_t maxList = static_cast<size_t>(std::max(0, cmd.params.value("max_columns", 65536)));
@@ -16841,7 +16927,7 @@ void Application::registerWaterCommands() {
         if (!waterManager) return noWater(r);
         const float level = cmd.params.value("level", Core::kSeaLevelY);
         waterManager->setSeaLevel(level);
-        // Keep the flat sea-plane renderer at the same height as the sim — these two
+        // Keep the flat sea-plane renderer at the same height as the sim â€” these two
         // drifting apart is exactly the bug the shared kSeaLevelY default fixed.
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
         // "implicit": the flat sea everywhere outside the sim region / water table (game.json
@@ -16851,14 +16937,14 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"sea_level", waterManager->seaLevel()}, {"implicit_sea", waterManager->implicitSea()}};
     });
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Setting amplitude 0 flattens the
-    // sheet back to the pre-Phase-2 plane — the A/B control for before/after captures.
+    // sheet back to the pre-Phase-2 plane â€” the A/B control for before/after captures.
     reg.on("water_waves", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         const glm::vec3 cur = renderCoordinator->waveSettings();
         renderCoordinator->setWaves(cmd.params.value("amplitude", cur.x),
                                     cmd.params.value("wavelength", cur.y),
                                     cmd.params.value("wind", cur.z));
-        // v4 W3: wind SPEED (m/s) is a separate axis from the swell constants — it drives
+        // v4 W3: wind SPEED (m/s) is a separate axis from the swell constants â€” it drives
         // fetch-limited wave energy per body and Cox-Munk ripple roughness. 6.7 = Beaufort 4.
         if (cmd.params.contains("speed"))
             renderCoordinator->setWindSpeed(cmd.params.value("speed", 6.7f));
@@ -16874,15 +16960,15 @@ void Application::registerWaterCommands() {
     // pixel change. It re-uploads the REAL hydrology texture the shipped path uses, so it cannot
     // pass while that path is broken. {"active": false} restores derivation.
     //
-    // Needs a hydrology bake — a flat-sea world has no water bodies and therefore no profiles.
+    // Needs a hydrology bake â€” a flat-sea world has no water bodies and therefore no profiles.
     // `hydrology_bound` reports whether this world can show anything at all.
-    // ── water_span_scan (docs/Water.md §5.2) ──────────────────────────────────────
+    // â”€â”€ water_span_scan (docs/Water.md Â§5.2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Quantifies the gap between what the COARSE BAKE floods and what the TERRAIN actually holds,
     // over a world rect. Both answers come from the same bake; only the span query also consults
     // the real per-column surface height.
     //
     // `bake_wet_terrain_dry` is THE number: columns the current renderer draws water on that have
-    // no water in them — the floating-water defect, counted. It is the acceptance metric for
+    // no water in them â€” the floating-water defect, counted. It is the acceptance metric for
     // rendering from occupancy (target: the renderer stops drawing those columns).
     reg.on("water_span_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -16893,7 +16979,7 @@ void Application::registerWaterCommands() {
         const int lx = std::min(x1, x2), lz = std::min(z1, z2);
         const int w = std::max(x1, x2) - lx + 1, d = std::max(z1, z2) - lz + 1;
 
-        // BATCH PATH — the one generation uses. Timed, because affordability is the whole point of
+        // BATCH PATH â€” the one generation uses. Timed, because affordability is the whole point of
         // it existing: the per-column form measured 3.4 ms/column, i.e. ~3.5 s per 32x32 chunk.
         const auto t0 = std::chrono::steady_clock::now();
         std::vector<Phyxel::WaterSpan> spans; std::vector<uint8_t> hasSpan;
@@ -16934,14 +17020,14 @@ void Application::registerWaterCommands() {
              {"worst_overhang_at", {{"x", worstX}, {"z", worstZ}}},
              {"batch_ms", elapsedMs},
              {"us_per_column", columns ? (elapsedMs * 1000.0 / columns) : 0.0},
-             // What resolving one 32x32 chunk would cost at this rate — the number that decides
+             // What resolving one 32x32 chunk would cost at this rate â€” the number that decides
              // whether generation can afford to do this at all.
              {"projected_ms_per_chunk", columns ? (elapsedMs * 1024.0 / columns) : 0.0}};
 
         // EQUIVALENCE CHECK, on request: the batch pass may only be trusted if it returns what the
         // per-column query returns. Sampled (it is 3.4 ms a column) but on the REAL world rather
-        // than a unit-test fixture, because the failure mode being guarded against — a body whose
-        // seed sits outside the sampled margin — cannot be produced by a small fixture.
+        // than a unit-test fixture, because the failure mode being guarded against â€” a body whose
+        // seed sits outside the sampled margin â€” cannot be produced by a small fixture.
         const int verify = cmd.params.value("verify", 0);
         if (verify > 0 && columns > 0) {
             const long stride = std::max(1L, columns / verify);
@@ -16974,7 +17060,7 @@ void Application::registerWaterCommands() {
     });
     reg.on("water_look", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
-        // ── G3 (docs/WaterCore.md 18.7): a BODY's look - {body | at:[x,z], clarity, tint:[r,g,b], turbidity,
+        // â”€â”€ G3 (docs/WaterCore.md 18.7): a BODY's look - {body | at:[x,z], clarity, tint:[r,g,b], turbidity,
         //    roughness, clear}. A knob given as null unsets it; `clear` unsets all. Stored on the body record
         //    (persisted by save_world), echoed back with what was clamped. Without body/at the route keeps
         //    its W1 positive-control behaviour below, unchanged.
@@ -17088,9 +17174,9 @@ void Application::registerWaterCommands() {
              // result read as "the feature is broken".
              {"hydrology_bound", g && g->hydrology() != nullptr}};
 
-        // ── DERIVED-PROFILE PROBE (v4 W3) ────────────────────────────────────────────────────
+        // â”€â”€ DERIVED-PROFILE PROBE (v4 W3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Reports what deriveWaterProfile ACTUALLY produces at a world column, using the live
-        // wind — the CPU half of the pipe, observable without inferring it from pixels. Added
+        // wind â€” the CPU half of the pipe, observable without inferring it from pixels. Added
         // because a W3 L4 showed wind changes not reaching the screen and pixel evidence alone
         // could not say whether the derivation or the upload was at fault.
         const Phyxel::HydrologyMap* hyd = g ? g->hydrology() : nullptr;
@@ -17123,15 +17209,15 @@ void Application::registerWaterCommands() {
         r = {{"x", wx}, {"z", wz}, {"table_bound", waterManager->hasWaterTable()},
              {"wet", wl > Core::WaterManager::TABLE_DRY},
              {"level", wl > Core::WaterManager::TABLE_DRY ? wl : 0.0f}};
-        // River probe (Phase C2): Strahler order + whether an order≥3 channel covers this column.
+        // River probe (Phase C2): Strahler order + whether an orderâ‰¥3 channel covers this column.
         const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (const FlowField* f = g ? g->riverNetwork() : nullptr) {
             r["river_order"]   = f->orderAt(wx, wz);
-            // The MEANDERED line — must agree with the runtime ribbon binding (channelHitAt).
+            // The MEANDERED line â€” must agree with the runtime ribbon binding (channelHitAt).
             r["river_channel"] = g->channelHitAt(wx, wz).hit;
         }
     });
-    // FIND A RIVER. Rivers are a baked, procedural network — nobody knows where they are, so
+    // FIND A RIVER. Rivers are a baked, procedural network â€” nobody knows where they are, so
     // without this the only way to look at one is to guess coordinates and fly around. That is
     // exactly why the river work had never actually been LOOKED at: the default testbed has
     // streaming off, so it has no hydrology bake and therefore no rivers at all, and nothing
@@ -17201,7 +17287,7 @@ void Application::registerWaterCommands() {
             const int side = static_cast<int>(ring / step);
             for (int i = -side; i <= side; ++i) {
                 for (int j = -side; j <= side; ++j) {
-                    // Perimeter of this ring only — the interior was covered by earlier rings.
+                    // Perimeter of this ring only â€” the interior was covered by earlier rings.
                     if (side != 0 && std::abs(i) != side && std::abs(j) != side) continue;
                     const float wx = cx + static_cast<float>(i) * step;
                     const float wz = cz + static_cast<float>(j) * step;
@@ -17253,7 +17339,7 @@ void Application::registerWaterCommands() {
         if (!waterManager->hasWaterTable()) { r = {{"error", "no water table bound"}}; return; }
         const glm::ivec2 lo(cmd.params.value("x1", 0), cmd.params.value("z1", 0));
         const glm::ivec2 hi(cmd.params.value("x2", lo.x), cmd.params.value("z2", lo.y));
-        // maxY caps the per-column downward surface scan — the default 200 over a 64² rect is
+        // maxY caps the per-column downward surface scan â€” the default 200 over a 64Â² rect is
         // ~850k voxel queries and blows the 5s game-loop budget in Debug; pass a ceiling just
         // above the local terrain (e.g. 64 at the coast) for interactive use.
         const auto v = waterManager->validateTable(lo, hi, cmd.params.value("maxY", 200));
@@ -17345,7 +17431,7 @@ void Application::registerWaterCommands() {
             glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
             r["mass_at"] = waterManager->massAtWorld(p);
         }
-        // Render-side water state (WaterSystemV3 Phase 1) — the sea PLANE is a separate switch from
+        // Render-side water state (WaterSystemV3 Phase 1) â€” the sea PLANE is a separate switch from
         // the sim, and the underwater overlay is gated on both, so an L4 check needs to see both.
         if (renderCoordinator) {
             float depthBelow = 0.0f;
@@ -17357,17 +17443,17 @@ void Application::registerWaterCommands() {
         }
     });
 
-    // ── Near-field probes (docs/Water.md small-scale Phase 0.4) ──────────────
+    // â”€â”€ Near-field probes (docs/Water.md small-scale Phase 0.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Everything a shallow-water / creek / entity-coupling change needs to assert at L2 without
     // screenshots: per-cell sim state, waterfall lips, a rect confinement scan, and the bake's
     // sea-level configuration.
 
-    // Full per-cell sim state at one world cell — mass, floor, solid, channel tag, source pin, flow.
-    // ── WaterCore Phase A harness routes (docs/WaterCore.md §14.4/§14.5) ─────────────────────
+    // Full per-cell sim state at one world cell â€” mass, floor, solid, channel tag, source pin, flow.
+    // â”€â”€ WaterCore Phase A harness routes (docs/WaterCore.md Â§14.4/Â§14.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // These read TODAY's water (the CA + chunk spans) so the scenario harness can record the
     // current engine's behaviour as the red baseline. They keep their names when WaterCore lands.
 
-    // water_ledger: Σ mass by representation. `drift` is reported by the harness against a
+    // water_ledger: Î£ mass by representation. `drift` is reported by the harness against a
     // baseline it captures itself (the engine has no notion of "initial" yet).
     reg.on("water_ledger", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         (void)cmd;
@@ -17392,7 +17478,7 @@ void Application::registerWaterCommands() {
     });
 
     // water_probe_rect {x1,z1,x2,z2, y1?, y2?}: per column the surface (highest cell with mass >
-    // 0.05 plus its fill) and the column mass, in ONE call — the harness samples a dam-break front
+    // 0.05 plus its fill) and the column mass, in ONE call â€” the harness samples a dam-break front
     // at ~10 Hz over HTTP, which per-cell probes cannot do. Columns outside the sim region read
     // null. Capped at 4096 columns so a typo cannot stall the game loop.
     reg.on("water_probe_rect", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -17462,7 +17548,7 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"placed", placed}, {"mass_each", mass}, {"total_mass", waterManager->totalMass()}};
     });
 
-    // ── WaterCore Phase B active-volume routes (docs/WaterCore.md §15.4) ───────────────────────
+    // â”€â”€ WaterCore Phase B active-volume routes (docs/WaterCore.md Â§15.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
@@ -17524,7 +17610,7 @@ void Application::registerWaterCommands() {
         } else if (seed != "none") { waterCore->destroy(id); r = {{"error", "seed must be 'none' or 'spans'"}}; return; }
         r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}, {"seeded_mass", seeded}};
     });
-    // §27 W1b: {default?, after_s?, id?, on?} frozen 8 m tiles sleep into the record and wake from it. after_s clamped 0.25-600 (below
+    // Â§27 W1b: {default?, after_s?, id?, on?} frozen 8 m tiles sleep into the record and wake from it. after_s clamped 0.25-600 (below
     // 0.25 s a tile would record between two ticks of a wave too small to freeze it; above 600 s it never would). Echoes the state.
     reg.on("water_av_record_tiles", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         using M = Core::Water::WaterCoreManager;
@@ -17562,7 +17648,7 @@ void Application::registerWaterCommands() {
         }
         if (cmd.params.contains("id")) r["applied"] = waterCore->setRecordTiles(cmd.params.value("id", 0), cmd.params.value("on", true));
     });
-    // §27 W1a: {on?, radius?} recorded water near the camera drawn with the pond surface; radius in m, clamped 0-256 (above 256
+    // Â§27 W1a: {on?, radius?} recorded water near the camera drawn with the pond surface; radius in m, clamped 0-256 (above 256
     // the tiles near the camera would be rebuilt over ~1,000 tiles; the far record is W2's). Echoes the settings and the stats.
     // 27.28: the water's CPU per frame by phase - {reset: true} starts a new window; returns frames and, per phase, ms a frame and
     // calls a frame (mean over the window). Phases nest by name: mgr.4 = gpu.* + collect.*; ripples.1 = surf.*
@@ -17591,7 +17677,7 @@ void Application::registerWaterCommands() {
              {"build_ms_last_call", s.buildMsLastCall}, {"build_ms_max", s.buildMsMax}, {"build_ms_on_sleep_last", s.buildMsOnSleepLast},
              {"revision", waterCore->recordRevision()}};
     });
-    // §27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
+    // Â§27 W1 step 0: {id} where the volume's water is - m^3 in air / inside ground / in unknown occupancy / above full cells
     reg.on("water_av_census", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
         Core::Water::WaterCoreManager::Census c;
@@ -17600,7 +17686,7 @@ void Application::registerWaterCommands() {
              {"over_full_m3", c.overFullM3}, {"record_m3", c.recordM3}, {"sentinel_max_fuvw", {c.sentinel.x, c.sentinel.y, c.sentinel.z, c.sentinel.w}}, {"wet_cells", c.wetCells}, {"in_solid_cells", c.inSolidCells},
              {"in_unknown_cells", c.inUnknownCells}, {"over_full_cells", c.overFullCells}};
     });
-    // §40 (L1): the viewer distances every water system reads. Omitted or negative = unchanged (the /api/debug convention).
+    // Â§40 (L1): the viewer distances every water system reads. Omitted or negative = unchanged (the /api/debug convention).
     //   draw_m               recorded water is drawn within this horizontal distance (m), 0..256 (the record cache's reach)
     //   ripple_window_cells  a creek's ripple window side (1/9 m lattice cells), 9..512 (one voxel; the renderer's atlas side).
     //                        Applies to windows made after the change (a live window keeps its size)
@@ -18476,7 +18562,7 @@ void Application::registerWaterCommands() {
         r["flow"] = {{"x", flow.x}, {"z", flow.y}};
     });
 
-    // Current waterfall lips (world lip point + drop height) — the mist emitter inputs.
+    // Current waterfall lips (world lip point + drop height) â€” the mist emitter inputs.
     reg.on("water_waterfalls", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         nlohmann::json arr = nlohmann::json::array();
@@ -18486,7 +18572,7 @@ void Application::registerWaterCommands() {
              {"cap", Core::WaterManager::MAX_WATERFALLS}};
     });
 
-    // Rect confinement scan — THE L2 assertion surface for "water stays where it belongs"
+    // Rect confinement scan â€” THE L2 assertion surface for "water stays where it belongs"
     // (puddle footprints, creek ribbons, no hillside sheets). Scans the world rect clipped to
     // the sim region; wet = mass > threshold (default RENDER_MIN, i.e. what would draw).
     reg.on("water_footprint", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -18524,7 +18610,7 @@ void Application::registerWaterCommands() {
             r["wet_bbox"] = {{"minX", lo.x}, {"minZ", lo.y}, {"maxX", hi.x}, {"maxZ", hi.y}};
     });
 
-    // The bake's sea-level configuration + the §2e closed-basin detector, queryable at runtime.
+    // The bake's sea-level configuration + the Â§2e closed-basin detector, queryable at runtime.
     reg.on("water_bake_info", [this](const Core::APICommand&, nlohmann::json& r) {
         WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (!g) {
@@ -18661,7 +18747,7 @@ void Application::registerWaterCommands() {
              {"bodies", list}};
     });
 
-    // Ripple/disturbance injection (small-scale plan Phase 3) — the entity-independent L4 hook:
+    // Ripple/disturbance injection (small-scale plan Phase 3) â€” the entity-independent L4 hook:
     // poke the field at a world point and watch the ring, no character needed.
     reg.on("water_ripple", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
@@ -18677,7 +18763,7 @@ void Application::registerWaterCommands() {
     });
 }
 
-// build_settlement — thin glue over Core::SettlementBuildService. The composition itself
+// build_settlement â€” thin glue over Core::SettlementBuildService. The composition itself
 // (grounding gate, program/tier resolution, layout, site prep, buildings, residents) now
 // lives in the ENGINE (engine/src/core/SettlementBuildService.cpp) so it is headless-
 // testable and reachable from a shipped game; the editor's only remaining job is to drive
@@ -18693,7 +18779,7 @@ void Application::registerSettlementCommands() {
         deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
         deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
         deps.npcs          = npcManager ? &*npcManager : nullptr;
-        // M3c: without this every settlement interior loses its item props — tableware AND
+        // M3c: without this every settlement interior loses its item props â€” tableware AND
         // the painted trade-sign items (all signs fell back to the blank board).
         deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
         // The scene's transition regions (a cellar hatch) stay furniture-free.
@@ -18752,7 +18838,7 @@ void Application::registerSettlementCommands() {
     });
 }
 
-// worldforge_* — world-scale planning commands (docs/WorldForge.md M0). The plan itself is
+// worldforge_* â€” world-scale planning commands (docs/WorldForge.md M0). The plan itself is
 // engine-side (WorldForgePlan, baked by the streaming WorldGenerator); the editor exposes
 // preview/apply/status/map. All commands require a streaming world (hydrology + the plan
 // live on the streaming generator).
@@ -18766,8 +18852,8 @@ void Application::registerWorldForgeCommands() {
         r = {{"error", "worldforge requires a streaming world (game.json world.streaming: true)"}};
     };
 
-    // Pure preview: bake a plan for the given params (or report the applied one) — NO world
-    // mutation, no recipe write. Empty params → the currently applied plan.
+    // Pure preview: bake a plan for the given params (or report the applied one) â€” NO world
+    // mutation, no recipe write. Empty params â†’ the currently applied plan.
     reg.on("worldforge_plan", [this, streamingGen, noGen](const Core::APICommand& cmd,
                                                           nlohmann::json& r) {
         Phyxel::WorldGenerator* g = streamingGen();
@@ -18788,7 +18874,7 @@ void Application::registerWorldForgeCommands() {
         auto plan = g->previewWorldForge(Phyxel::WorldForgeParams::fromJson(pj));
         if (!plan) {
             r = {{"error", "no hydrology bake on this world (heightmap/Flat worlds have no "
-                           "worldforge plan — logged gap)"}};
+                           "worldforge plan â€” logged gap)"}};
             return;
         }
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -18797,14 +18883,14 @@ void Application::registerWorldForgeCommands() {
              {"plan_hash", std::to_string(plan->planHash())}, {"bake_ms", ms}};
     });
 
-    // Persist params into the world recipe (world.db world_meta) and — when the world has
-    // NO saved chunks — apply LIVE: stop the gen workers (fresh generator snapshots are
+    // Persist params into the world recipe (world.db world_meta) and â€” when the world has
+    // NO saved chunks â€” apply LIVE: stop the gen workers (fresh generator snapshots are
     // re-taken from the live generator on the next pump), evict every resident chunk
     // through the deferred-deletion teardown, drop the stale derived caches, refresh the
     // far-terrain mesher's private generator copy, and let the pump re-stream the world
     // under the new plan. No restart. Falls back to restart_required only for the force
     // path on a world with saved chunks (re-streaming those would destroy built
-    // settlements / player edits — the seam warning stands).
+    // settlements / player edits â€” the seam warning stands).
     reg.on("worldforge_apply", [this, streamingGen, noGen](const Core::APICommand& cmd,
                                                            nlohmann::json& r) {
         Phyxel::WorldGenerator* g = streamingGen();
@@ -18832,7 +18918,7 @@ void Application::registerWorldForgeCommands() {
         if (live) {
             // Live-path guards, BEFORE any state is written:
             // - an in-flight main-thread job (worldforge_build) holds a raw pointer to
-            //   the CURRENT plan for its whole lifetime — re-baking under it is a
+            //   the CURRENT plan for its whole lifetime â€” re-baking under it is a
             //   use-after-free;
             // - a draining boot DB backlog would be lost by the worker stop (those
             //   chunks would never load).
@@ -18866,14 +18952,14 @@ void Application::registerWorldForgeCommands() {
             const size_t evictedChunks = chunkManager->restreamWorldLive();
             if (renderCoordinator) {
                 if (auto* ft = renderCoordinator->getFarTerrainManager()) {
-                    // The far mesher samples through its own private generator copy —
+                    // The far mesher samples through its own private generator copy â€”
                     // refresh it or the far field keeps drawing the OLD plan's roads.
                     if (ft->isConfigured()) {
                         ft->configure(*g);
                         // configure() refreshes the WANTED set but keeps resident tiles:
                         // their meshes still carry the OLD plan's graded road terraces,
                         // which poke up through the re-streamed terrain (user-reported
-                        // "low LOD stuff clipping into the world"). Drop them all — the
+                        // "low LOD stuff clipping into the world"). Drop them all â€” the
                         // worker rebuilds against the new plan. Wait-idle first: tile
                         // buffers may still be referenced by an in-flight frame.
                         if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
@@ -18911,8 +18997,8 @@ void Application::registerWorldForgeCommands() {
     });
 
     // Realize the applied plan's settlements (docs/WorldForge.md M2): an async self-chaining
-    // MainThreadJobs job — per site: streaming-focus residency → SettlementBuildService (the
-    // site's DERIVED seed) → ledger checkpoint. Refusals are recorded outcomes. Poll via
+    // MainThreadJobs job â€” per site: streaming-focus residency â†’ SettlementBuildService (the
+    // site's DERIVED seed) â†’ ledger checkpoint. Refusals are recorded outcomes. Poll via
     // /api/jobs. {"sites": [ids]} restricts; {"residency_timeout_s": N} bounds each site's wait.
     reg.on("worldforge_build", [this, streamingGen, noGen](const Core::APICommand& cmd,
                                                            nlohmann::json& r) {
@@ -18948,7 +19034,7 @@ void Application::registerWorldForgeCommands() {
         d.plan = plan;
         d.worldSeed = g->getSeed();
         // Residency driver: WALK the streaming anchor toward the site (64 u per call, one
-        // call per residency poll) instead of teleporting it — an instant far anchor jump
+        // call per residency poll) instead of teleporting it â€” an instant far anchor jump
         // is the recorded "spawn-swap never finished booting" streaming fragility (it
         // wedged the gen pipeline on the first live run: generation_pending froze at 48).
         // Restore player residency + the load radii when the job finishes.
@@ -19036,7 +19122,7 @@ void Application::registerWorldForgeCommands() {
     });
 
     // Diagnostic: dump the per-frame character/camera trace ring (see the update-loop
-    // recorder). Full float precision — this exists because the polling API rounds.
+    // recorder). Full float precision â€” this exists because the polling API rounds.
     reg.on("frame_trace", [this](const Core::APICommand&, nlohmann::json& r) {
         nlohmann::json rows = nlohmann::json::array();
         const uint64_t n = std::min<uint64_t>(m_frameTraceCounter, kFrameTraceLen);
@@ -19083,7 +19169,7 @@ void Application::registerWorldForgeCommands() {
 
     // ASCII map of the plan over the hydrology region: '~' standing water, 'r' order>=3
     // river, '=' road, T/V/H town/village/hamlet sites, '.' land. ASCII ONLY (the JSON
-    // pipe mojibakes non-ASCII — recorded gotcha).
+    // pipe mojibakes non-ASCII â€” recorded gotcha).
     reg.on("worldforge_map", [this, streamingGen, noGen](const Core::APICommand& cmd,
                                                          nlohmann::json& r) {
         Phyxel::WorldGenerator* g = streamingGen();
@@ -19106,7 +19192,7 @@ void Application::registerWorldForgeCommands() {
                 if (hydro->hasWater(x, z)) c = '~';
                 else if (flow->orderAt(x, z) >= 3) c = 'r';
                 // A road is a few cubes wide; at coarse map steps the sample point almost
-                // never lands ON it — mark the char cell if the centerline passes through it.
+                // never lands ON it â€” mark the char cell if the centerline passes through it.
                 else if (plan->roadAt(x, z).dist <= step * hydro->cellSize() * 0.5f) c = '=';
                 line.push_back(c);
             }
@@ -19123,9 +19209,9 @@ void Application::registerWorldForgeCommands() {
              {"cell_units", hydro->cellSize() * step}, {"lines", lines}};
     });
 
-    // worldforge_minimap: a real IMAGE of the world — biome-colored terrain with hillshade,
+    // worldforge_minimap: a real IMAGE of the world â€” biome-colored terrain with hillshade,
     // depth-shaded water, rivers, roads (graded corridors included), bridge decks, and site
-    // markers — rendered PURE from the generator (sampleSurface per pixel), so it shows the
+    // markers â€” rendered PURE from the generator (sampleSurface per pixel), so it shows the
     // whole planned world including never-visited terrain, chunk residency irrelevant.
     // Writes a PNG (stb) and returns the absolute path. {px, x, z, radius, filename} all
     // optional; the default window is the full hydrology bake region.
@@ -19138,7 +19224,7 @@ void Application::registerWorldForgeCommands() {
             r = {{"error", "no hydrology bake (streaming height-based world required)"}};
             return;
         }
-        const Phyxel::WorldForgePlan* plan = g->worldForge();   // optional — map works planless
+        const Phyxel::WorldForgePlan* plan = g->worldForge();   // optional â€” map works planless
 
         const int px = std::clamp(cmd.params.value("px", 256), 64, 1024);
         const float regionW = hydro->cellsX() * hydro->cellSize();
@@ -19180,7 +19266,7 @@ void Application::registerWorldForgeCommands() {
 // The world-map renderer shared by the worldforge_minimap API and the in-engine World
 // Map panel: biome-colored terrain + NW hillshade + depth-shaded water + roads
 // (centerline-marked at coarse zooms) + bridge decks + site markers + camera cross,
-// sampled PURE from the generator — chunk residency irrelevant.
+// sampled PURE from the generator â€” chunk residency irrelevant.
 bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
                                       std::vector<unsigned char>& img, std::string* err) {
     Phyxel::WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -19238,7 +19324,7 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             } else if (col.roadClass == 1) {
                 c = {139, 105, 60};                      // track (Dirt)
             } else if (plan && stepU > 4.0f) {
-                // Coarse zoom: a 5 u road is sub-pixel — mark the pixel when the
+                // Coarse zoom: a 5 u road is sub-pixel â€” mark the pixel when the
                 // centerline passes through it (the ASCII map's trick), or the road
                 // network vanishes from exactly the view meant to show it.
                 const auto rhit = plan->roadAt(wx, wz);
@@ -19251,7 +19337,7 @@ bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
             img[i * 3 + 2] = static_cast<unsigned char>(c.b);
         }
     }
-    // Hillshade (land only): light from the NW — brighten slopes facing it, darken away.
+    // Hillshade (land only): light from the NW â€” brighten slopes facing it, darken away.
     for (int pz = 0; pz < px - 1; ++pz)
         for (int pxx = 0; pxx < px - 1; ++pxx) {
             const size_t i = static_cast<size_t>(pz) * px + pxx;
@@ -19345,7 +19431,7 @@ void Application::refreshWorldMapTexture() {
 void Application::renderWorldMapPanel() {
     if (!m_showWorldMapPanel) return;
     ImGui::SetNextWindowSize(ImVec2(420, 480), ImGuiCond_FirstUseEver);
-    // NoScrollbar: the map image is sized to FIT the window below — letting a scrollbar
+    // NoScrollbar: the map image is sized to FIT the window below â€” letting a scrollbar
     // appear shrinks the content width, which shrinks the image, which removes the
     // scrollbar, which grows the image again: a per-frame size oscillation (the "super
     // jittery window" bug, reported live).
@@ -19357,7 +19443,7 @@ void Application::renderWorldMapPanel() {
         if (ImGui::Combo("##worldmap_zoom", &m_worldMapZoom, kZooms, 3)) refresh = true;
         ImGui::SameLine();
         if (ImGui::Button("Refresh")) refresh = true;
-        // First open renders once. A FAILED render must not retry every frame — the
+        // First open renders once. A FAILED render must not retry every frame â€” the
         // renderer samples the whole window and waits for the GPU, so a per-frame retry
         // is a slideshow; m_worldMapTried gates it to explicit refreshes.
         if (!m_worldMapTex && !m_worldMapTried) refresh = true;
@@ -19869,7 +19955,7 @@ void Application::registerEffectsCommands() {
         r = {{"success", ok}, {"id", id}};
     });
 
-    // FLOOD BYPASS — disable the Minecraft-style per-cell flood and see what survives.
+    // FLOOD BYPASS â€” disable the Minecraft-style per-cell flood and see what survives.
     // mask bit1 = skylight forced uniform 15, bit2 = block light forced 0. Re-bakes on change.
     // Exists so "which system owns this artifact" is answered by switching a system OFF rather
     // than by reasoning about screenshots.
@@ -19894,7 +19980,7 @@ void Application::registerEffectsCommands() {
 
     // Exposure + tone curve. Live because the atmosphere returns physical RADIANCE, so exposure is a
     // unit conversion that has to be CALIBRATED against measurements (tools/lighting_stats.py) rather
-    // than guessed — and calibrating against a rebuild cycle would be unbearable.
+    // than guessed â€” and calibrating against a rebuild cycle would be unbearable.
     // curve 0 = none (raw linear, the pre-tonemap look, for A/B); 1 = AgX.
     reg.on("set_gi", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
@@ -19971,7 +20057,7 @@ void Application::registerEffectsCommands() {
         r["enabled"] = renderCoordinator->getSkyEnabled();
     });
 
-    // docs/GlassTransparency.md §7 — covered unit faces of one chunk (see the route comment in
+    // docs/GlassTransparency.md Â§7 â€” covered unit faces of one chunk (see the route comment in
     // EngineAPIServer.cpp). Units: microcube-sized squares; a full cube face = 81.
     reg.on("chunk_faces", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
@@ -20018,7 +20104,7 @@ void Application::registerEffectsCommands() {
         if (boxed) r["box"] = {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}};
     });
 
-    // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
+    // Fine (sub/microcube) greedy-merge toggle â€” live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
     // P-DP static depth prepass A/B (docs/PerfProgram2026-09.md).
     // City benchmark tooling (docs/PerfProgram2026-09.md section 16).
@@ -20107,7 +20193,7 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"fine_merge", Graphics::ChunkRenderManager::getFineGreedyMerge()}};
     });
 
-    // B1 deferred buffer-free toggle — live A/B for docs/ChunkUpdateHitchPlan.md. OFF = the old
+    // B1 deferred buffer-free toggle â€” live A/B for docs/ChunkUpdateHitchPlan.md. OFF = the old
     // inline free (the in-flight use-after-free + realloc stall). Affects future reallocs only.
     reg.on("set_defer_buffer_free", [](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
@@ -20115,7 +20201,7 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"defer_buffer_free", Graphics::ChunkRenderBuffer::s_deferBufferFree}};
     });
 
-    // Phase 4.3 region-arena toggle — live A/B for docs/RegionArenaPlan.md (A2 gate).
+    // Phase 4.3 region-arena toggle â€” live A/B for docs/RegionArenaPlan.md (A2 gate).
     // Affects future buffer CREATES only: reload the world after toggling so every chunk
     // recreates its buffers in the selected mode (mixed mode is safe but not a clean A/B).
     reg.on("set_region_arenas", [](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -20129,7 +20215,7 @@ void Application::registerEffectsCommands() {
              {"arena_bytes_used", arena.initialized() ? arena.allocator()->bytesUsed() : 0}};
     });
 
-    // D1 6-index quad-draw toggle — live A/B for docs/RenderDensityPlan.md. ON = draw each chunk
+    // D1 6-index quad-draw toggle â€” live A/B for docs/RenderDensityPlan.md. ON = draw each chunk
     // face as one 6-index quad instead of the 36-index cube (6x fewer primitives, esp. shadow pass).
     reg.on("set_quad_draw", [](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
@@ -20137,7 +20223,7 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"quad_draw", Vulkan::VulkanDevice::s_quadDraw}};
     });
 
-    // D0/D1 pipeline-statistics gate — ON to read overdraw/primitive counts (adds GPU-sync overhead;
+    // D0/D1 pipeline-statistics gate â€” ON to read overdraw/primitive counts (adds GPU-sync overhead;
     // keep OFF during perf A/B). docs/RenderDensityPlan.md.
     reg.on("set_pipeline_stats", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         r = Core::PerfApi::setPipelineStats(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr,
@@ -20171,8 +20257,8 @@ void Application::registerEffectsCommands() {
                                      cmd.params);
     });
 
-    // D1c shadow light-frustum cull toggle — live A/B for docs/RenderDensityPlan.md. ON culls the
-    // shadow pass to the fitted ortho shadow volume (138→fewer chunks). Default ON (loss-free).
+    // D1c shadow light-frustum cull toggle â€” live A/B for docs/RenderDensityPlan.md. ON culls the
+    // shadow pass to the fitted ortho shadow volume (138â†’fewer chunks). Default ON (loss-free).
     reg.on("set_shadow_cull", [](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
             Graphics::RenderCoordinator::s_shadowFrustumCull = cmd.params["enabled"].get<bool>();
@@ -20186,11 +20272,11 @@ void Application::registerEffectsCommands() {
     // C2.1 GPU-driven shadow submission (one multidraw per arena buffer). DEFAULT OFF; this is
     // the live A/B for docs/ContinuousLodPlan.md C2.1. Reports the resulting draw counts so the
     // collapse (~131 chunk draws -> a handful of multidraws) is directly observable.
-    // C4 (docs/ContinuousLodPlan.md) — THE CUT, live. Rebuild every resident chunk's mesh at a
+    // C4 (docs/ContinuousLodPlan.md) â€” THE CUT, live. Rebuild every resident chunk's mesh at a
     // chosen LOD level. level 0 restores the normal fine mesh (which includes sub/microcubes and
     // greedy merging, so it is NOT LodChunkMesh::buildForLevel(0)); level >= 1 swaps in coarse
     // LOD-cell faces that the vertex shaders expand to 2^level-cube quads.
-    // C5 — DISTANCE-DRIVEN LOD (docs/ContinuousLodPlan.md). Body:
+    // C5 â€” DISTANCE-DRIVEN LOD (docs/ContinuousLodPlan.md). Body:
     //   { "enabled": bool, "target_pixels": float, "budget": int }
     // This is the join between C1's screen-space metric and C4's cut: each chunk is meshed at the
     // level where its cells stop earning their pixels. Also reports the live level distribution,
@@ -20228,7 +20314,7 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("budget"))
             Graphics::RenderCoordinator::s_farLodBudgetPerFrame =
                 std::max(1, cmd.params["budget"].get<int>());
-        // Quarantined default-off (floating coarse-tree cells) — opt-in for look-fix iteration.
+        // Quarantined default-off (floating coarse-tree cells) â€” opt-in for look-fix iteration.
         if (cmd.params.contains("eviction_cache"))
             Core::EvictedLodCache::s_evictionFeedEnabled =
                 cmd.params["eviction_cache"].get<bool>();
@@ -20247,7 +20333,7 @@ void Application::registerEffectsCommands() {
         }
     });
 
-    // Tree-LOD harness support: the deterministic flora plan near a coordinate — the SAME
+    // Tree-LOD harness support: the deterministic flora plan near a coordinate â€” the SAME
     // planFlora both near stamping and the far tiers consume, so a harness can aim its
     // camera ladder at a real tree instead of guessing from screenshots.
     reg.on("flora_plan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -20266,8 +20352,8 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"count", plan.size()}, {"trees", trees}};
     });
 
-    // Shadow draw distance A/B knob (WRv2 §7d): reach vs texel density vs draw count.
-    // DAMAGE STAGE COUNT (docs/VoxelDamageVisualization.md §2). Lets 3 / 7 / 15 be
+    // Shadow draw distance A/B knob (WRv2 Â§7d): reach vs texel density vs draw count.
+    // DAMAGE STAGE COUNT (docs/VoxelDamageVisualization.md Â§2). Lets 3 / 7 / 15 be
     // compared in ONE session against ONE scene; three separate builds cannot hold the scene
     // fixed, and the legibility half of the A/B needs the same frame.
     reg.on("set_damage_stages", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -20319,15 +20405,15 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("far_cadence"))
             Graphics::RenderCoordinator::s_farShadowCadence =
                 std::clamp(cmd.params["far_cadence"].get<int>(), 1, 60);
-        // M5: 6-index quad in the shadow chunk draws (A/B — pixel-derive, don't guess).
+        // M5: 6-index quad in the shadow chunk draws (A/B â€” pixel-derive, don't guess).
         if (cmd.params.contains("quad"))
             Graphics::RenderCoordinator::s_shadowQuadDraw = cmd.params["quad"].get<bool>();
         // DEBUG VIEW SELECTOR (the field is named debugShadowMode for historical reasons; it now
         // selects among several albedo-stripped views):
         //   0 = off
-        //   1 = shadow-only — white = lit, black = shadowed. The standard way to judge thin
+        //   1 = shadow-only â€” white = lit, black = shadowed. The standard way to judge thin
         //       casters, since a grass blade's shadow is a hairline that texture detail hides.
-        //   2 = GRASS WIND — each blade coloured by how far the wind is pushing it right now
+        //   2 = GRASS WIND â€” each blade coloured by how far the wind is pushing it right now
         //       (near-black upright, blue slight, green moderate, yellow/red at the lean cap), so
         //       a passing gust reads as a coloured band crossing the field. Added because
         //       "is the wind actually moving?" was costing whole rounds to answer by eye.
@@ -20337,31 +20423,31 @@ void Application::registerEffectsCommands() {
         //   flood is ONE value per CUBE cell; forward point/spot lights do no occlusion test at
         //   all. Which of them produced a given artifact was being decided by eye, and that cost
         //   days on an interior-light bug. These views answer it by isolating one system:
-        //   3 = SKY ACCESS  — baked per-cell skylight, greyscale, albedo stripped
-        //   4 = BLOCK LIGHT — baked per-cell coloured light from emissive voxels, albedo stripped
-        //   5 = FORWARD     — point + spot only (the unoccluded ones)
-        //   6 = DIRECT      — sun + moon, shadow-mapped
-        //   7 = SKY FILL    — hemispheric ambient term
-        // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
-        //  selected the shadow view — the request appeared to work and showed the wrong thing.
-        //   19 = CRACK FIELD — the raw fracture field, greyscale, albedo/lighting/wear all
+        //   3 = SKY ACCESS  â€” baked per-cell skylight, greyscale, albedo stripped
+        //   4 = BLOCK LIGHT â€” baked per-cell coloured light from emissive voxels, albedo stripped
+        //   5 = FORWARD     â€” point + spot only (the unoccluded ones)
+        //   6 = DIRECT      â€” sun + moon, shadow-mapped
+        //   7 = SKY FILL    â€” hemispheric ambient term
+        // âš‘This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
+        //  selected the shadow view â€” the request appeared to work and showed the wrong thing.
+        //   19 = CRACK FIELD â€” the raw fracture field, greyscale, albedo/lighting/wear all
         //        stripped (black = intact, white = open crack). Shown at FULL strength on every
         //        voxel including pristine ones, so the PATTERN can be judged independently of
         //        damage state. Exists because the field is not measurable through a shaded
         //        frame: six pixel statistics failed to detect a chunk-seeded crack, since a
         //        pattern restart does not change brightness and the stone albedo swamps
-        //        structure (docs/VoxelDamageVisualization.md §6).
-        //   10 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
+        //        structure (docs/VoxelDamageVisualization.md Â§6).
+        //   10 = WIND FIELD MAP â€” terrain painted by the gust field itself (white calm -> red ->
         //       black at peak; grass blades hide so the map is unobstructed). The per-pixel
         //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
         //       whether a front is a straight line or a wave (blades are noisy and sub-pixel at
-        //       distance) — that gap cost a whole afternoon of wrong wind diagnoses on 2026-09-03.
+        //       distance) â€” that gap cost a whole afternoon of wrong wind diagnoses on 2026-09-03.
         //       (Was mode 3 pre-merge; the lighting arc's per-system views own 3-9.)
         //  Raising the clamp is REQUIRED when adding a mode; a clamp left at the old max makes a
         //  new mode silently select the last one, which is the same failure wearing a new hat.
         if (cmd.params.contains("mode") && vulkanDevice)
-            // ⚠️ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
-            // new mode to the previous one, so the view "works" while showing the wrong system —
+            // âš ï¸ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
+            // new mode to the previous one, so the view "works" while showing the wrong system â€”
             // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
             // class, 10 = wind field map, 11-18 = G-18 perf probes, 19 = crack field.
             // (It cost one again on 2026-09-22: mode 11 was added to the shader and this bound
@@ -20387,7 +20473,7 @@ void Application::registerEffectsCommands() {
             r["shadow_instances_drawn"] = fs.shadowInstancesDrawn;
             r["shadow_grass_chunks"] = fs.shadowGrassChunks;
             r["shadow_foliage_chunks"] = fs.shadowFoliageChunks;
-            // World size of one shadow texel — drives the grass blade width clamp.
+            // World size of one shadow texel â€” drives the grass blade width clamp.
             r["shadow_texel_world"] = renderCoordinator->getShadowTexelWorld();
         }
     });
@@ -20502,7 +20588,7 @@ void Application::registerEffectsCommands() {
             for (float d : Graphics::RenderCoordinator::s_structureLevelDist)
                 structLadder.push_back(d);
             nlohmann::json structures = nlohmann::json::array();
-            // THE stale-proxy red detector: a proxy DRAWN essentially solid (minFade ≈ 1)
+            // THE stale-proxy red detector: a proxy DRAWN essentially solid (minFade â‰ˆ 1)
             // inside the fade band, where resident chunks should own the view. Nonzero here
             // at close range = the "low poly building stays" bug.
             int solidInBand = 0;
@@ -20553,7 +20639,7 @@ void Application::registerEffectsCommands() {
     // Loading observability (user ask 2026-08-06: "know when we are ready and fully loaded
     // vs currently loading"): every loading pipeline's queue depth + ONE overall verdict.
     // `settled` means every queue that converges on its own is empty. Structure proxies in
-    // state 0 (awaiting chunk residency) are reported but do NOT block settling — a distant
+    // state 0 (awaiting chunk residency) are reported but do NOT block settling â€” a distant
     // structure legitimately waits forever; state 1 (chain building) does block.
     reg.on("load_state", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         (void)cmd;
@@ -20570,7 +20656,7 @@ void Application::registerEffectsCommands() {
                 // GHOST detector: a vector entry whose coord maps to a DIFFERENT object
                 // renders forever but is unreachable by every voxel query (the
                 // "terraces poking out of the meadow" / lingering-Outliner bug). Must
-                // always read 0 — the one-object-per-coord guard in
+                // always read 0 â€” the one-object-per-coord guard in
                 // generateOrLoadChunk enforces it at the source.
                 const glm::ivec3 cc =
                     Utils::CoordinateUtils::worldToChunkCoord(c->getWorldOrigin());
@@ -20864,7 +20950,7 @@ void Application::registerCameraCommands() {
         r["path_stopped"] = pathStopped;
     });
 
-    // Synthetic input injection — drive WASD/jump/attack into the running game so
+    // Synthetic input injection â€” drive WASD/jump/attack into the running game so
     // an agent (the game-production tracker) can confirm player controllability
     // without a human keyboard. Body:
     //   { "keys": ["W","Space"], "mouse": ["LEFT"], "hold": 0.5 }   // hold seconds
@@ -20991,7 +21077,7 @@ void Application::registerEnvAudioCommands() {
         if (!audioSystem) return noAudio(r);
         std::string file = cmd.params.value("file", "");
         if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
-        // resolveSound, not a hardcoded "resources/sounds/" prefix — a game
+        // resolveSound, not a hardcoded "resources/sounds/" prefix â€” a game
         // project's own sounds dir (EngineConfig.soundsSubdir) works too, and
         // subfolder-organized libraries (ambience/, sfx/break/) resolve.
         std::string path = Core::AssetManager::instance().resolveSound(file);
@@ -21016,7 +21102,7 @@ void Application::registerEnvAudioCommands() {
         r = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
     });
 
-    // GET /api/audio/state — same probe GameApiService serves in standalone
+    // GET /api/audio/state â€” same probe GameApiService serves in standalone
     // builds: listener pose read back from miniaudio + pool counts.
     reg.on("get_audio_state", [this, noAudio](const Core::APICommand&, nlohmann::json& r) {
         if (!audioSystem) return noAudio(r);
@@ -21167,7 +21253,7 @@ void Application::processAPICommands() {
                         };
                     }
 
-                    // Fires the VFX (and optional voxel destruction) — either at the
+                    // Fires the VFX (and optional voxel destruction) â€” either at the
                     // animation's release frame or immediately on fallback.
                     bool destroy = cmd.params.value("destroy", false) || cmd.params.contains("damage");
                     float energy = cmd.params.value("damage", 350.0f * mods.power);
@@ -21406,7 +21492,7 @@ void Application::processAPICommands() {
                 // Placement sanity: never bury a spawn inside solid voxels. If the
                 // requested cell is solid, ground it to the first air cell above the
                 // column and report the correction (see SpawnGrounding.h /
-                // EngineRobustnessAudit §0). Intentional airborne spawns are untouched.
+                // EngineRobustnessAudit Â§0). Intentional airborne spawns are untouched.
                 std::string spawnWarning;
                 float requestedY = y;
                 if (chunkManager) {
@@ -21435,7 +21521,7 @@ void Application::processAPICommands() {
                     entityType = "animated";
                     if (!spawned) {
                         // The spawn gate refused (position inside static geometry with no
-                        // clear cell). Say so — a silent no-op is the failure mode we are
+                        // clear cell). Say so â€” a silent no-op is the failure mode we are
                         // removing, not a acceptable outcome.
                         response = {{"error", "spawn refused: the requested position is inside "
                                               "static geometry and no clear position was found"},
@@ -21497,7 +21583,7 @@ void Application::processAPICommands() {
                     response = {{"error", "Entity ID required"}};
                 } else {
                     auto* entity = entityRegistry->getEntity(id);
-                    // "player" must move the LIVE control character — the registry
+                    // "player" must move the LIVE control character â€” the registry
                     // entry can point at a stale duplicate (pre-fix scene leaks),
                     // silently desyncing get_player_state / region triggers from
                     // where move_entity put "the player".
@@ -21735,7 +21821,7 @@ void Application::processAPICommands() {
                         auto pos = chunk->getWorldOrigin();
                         auto cubeCount = chunk->getCubeCount();
                         // Sub/micro counts let a persistence check locate WHICH chunk
-                        // changed across a save/reload (PerfProgram 2026-09 §16.1).
+                        // changed across a save/reload (PerfProgram 2026-09 Â§16.1).
                         chunkArr.push_back({
                             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
                             {"cubeCount", cubeCount},
@@ -22077,7 +22163,7 @@ void Application::processAPICommands() {
                         }
                         // Poured-water persistence (water-as-terrain-stage P3): fold the pours
                         // still inside the sim window into the override store, then persist the
-                        // whole store — a hand-made pond survives save/reload like terrain does.
+                        // whole store â€” a hand-made pond survives save/reload like terrain does.
                         if (waterManager) {
                             auto* ws = chunkManager->m_streamingManager.getWorldStorage();
                             if (ws && ws->getDb()) {
@@ -22288,7 +22374,7 @@ void Application::processAPICommands() {
                                 if (ok) {
                                     // The held visual is built by updateNpcHeldItems() from the
                                     // equipped MainHand item's real template (fine-voxel), the
-                                    // same way as the player's hand — no placeholder box here.
+                                    // same way as the player's hand â€” no placeholder box here.
                                     response = {{"success", true}, {"entityId", entityId}, {"itemId", itemId},
                                                 {"slot", Core::equipSlotToString(def->equipSlot)}};
                                     const std::string eu = npc->getEquipment().getInstanceUuid(def->equipSlot);
@@ -22506,7 +22592,7 @@ void Application::processAPICommands() {
                     // declares "# category: building", run the engine seater. It computes the
                     // floor level from the template geometry, samples the ground under every
                     // occupied column, solves the flush seat Y, EXCAVATES the footprint, and
-                    // builds steps in front of ground-level openings — so a character walks in
+                    // builds steps in front of ground-level openings â€” so a character walks in
                     // naturally and the floor is never buried/floating. This supersedes the
                     // legacy raise-only surface-snap below.
                     bool snapToGround = cmd.params.value("snap", true);
@@ -22542,12 +22628,12 @@ void Application::processAPICommands() {
 
                             // BIDIRECTIONAL snap: a template must neither hover above the
                             // ground nor merge into a hillside. Per footprint column, find
-                            // the local surface — climbing UP out of solid ground when the
+                            // the local surface â€” climbing UP out of solid ground when the
                             // request is buried, scanning DOWN to the ground when it floats
-                            // — and seat the template on the HIGHEST surface found (never
+                            // â€” and seat the template on the HIGHEST surface found (never
                             // buried anywhere). Pass snap:false for intentional placement.
                             // Occupancy at ANY resolution (hasVoxelAt, not getCubeAt):
-                            // carved/kerfed ground is subcube/micro — a cube-only test
+                            // carved/kerfed ground is subcube/micro â€” a cube-only test
                             // disagrees with PlacedObjectManager's oracle and seats
                             // objects one cell above chopped terrain (audit repro).
                             for (const auto& [lx, lz] : footprint) {
@@ -22573,7 +22659,7 @@ void Application::processAPICommands() {
                                          name, requestedY, requiredY);
                                 y = static_cast<float>(requiredY);
                             }
-                            // This block now OWNS seating — disable the legacy raise-only
+                            // This block now OWNS seating â€” disable the legacy raise-only
                             // snap inside placeTemplate so the two layers can't stack
                             // (audit: legacy re-snap pushed an already-correct seat one
                             // cell above the surface).
@@ -22587,7 +22673,7 @@ void Application::processAPICommands() {
                         std::string parentId = cmd.params.value("parent_id", "");
                         std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId, snapToGround);
                         bool ok = !objectId.empty();
-                        // Record persists WITH the chunks on save_world — never eagerly. An
+                        // Record persists WITH the chunks on save_world â€” never eagerly. An
                         // eagerly-saved record whose voxels were never saved is a GHOST on
                         // the next load (bbox + metadata pointing at empty terrain).
                         response = {{"success", ok}, {"template", name},
@@ -22613,7 +22699,7 @@ void Application::processAPICommands() {
                     // Rebuild collision occupancy AND NavGrid for the affected
                     // region. A stamped static template (e.g. a tree) writes voxels
                     // into chunks but does NOT rebuild the physics occupancy grid on
-                    // its own — so without this the tree renders yet the character
+                    // its own â€” so without this the tree renders yet the character
                     // walks straight through it. This is the "every voxel edit must
                     // re-run buildChunkPhysics" occupancy rule (see AgentContext /
                     // EngineRobustnessAudit); StructureBuildService does the same.
@@ -22661,7 +22747,7 @@ void Application::processAPICommands() {
                     response = {{"error", "Missing 'type' parameter"}};
                 } else {
                     // ONE build pipeline (Structure Generation v2) for every generated
-                    // building — the v1 composites (house/tavern/tower, BuildingSpec) are
+                    // building â€” the v1 composites (house/tavern/tower, BuildingSpec) are
                     // REMOVED. Plain house/tavern requests alias onto v2 typologies; the
                     // orchestration lives in Core::StructureBuildService so the API,
                     // GameDefinitionLoader, and settlements share one engine path.
@@ -22904,7 +22990,7 @@ void Application::processAPICommands() {
                     // Make a copy so we can rotate without affecting stored clipboard
                     Core::RegionSnapshot clip = *snapshotManager->getClipboard();
 
-                    // Apply rotation (90Â° increments around Y)
+                    // Apply rotation (90Ã‚Â° increments around Y)
                     int rotSteps = ((rotate % 360) + 360) % 360 / 90;
                     for (int r = 0; r < rotSteps; ++r) {
                         Core::SnapshotManager::rotateY90(clip);
@@ -23109,7 +23195,7 @@ void Application::processAPICommands() {
                 done_generate:;
 
             // ================================================================
-            // SAVE TEMPLATE (region â†’ .txt file)
+            // SAVE TEMPLATE (region Ã¢â€ â€™ .txt file)
             // ================================================================
             } else if (cmd.action == "save_template") {
                 if (!chunkManager) {
@@ -23168,7 +23254,7 @@ void Application::processAPICommands() {
                                 }
                             }
 
-                            // Write into the generated/ category dir — the library
+                            // Write into the generated/ category dir â€” the library
                             // root must stay free of strays (taxonomy 2026-08-07;
                             // curate into a real category before pipelines use it).
                             auto& assets = Core::AssetManager::instance();
@@ -23266,7 +23352,7 @@ void Application::processAPICommands() {
                 // D&D encounter spawn: [{id, count}] of monster stat-block ids,
                 // each resolved to its visual binding (rig + mapping + faction)
                 // and spawned as a hostile Combat NPC. All members share one
-                // faction — an empty faction is hostile to EVERYONE, so a pack
+                // faction â€” an empty faction is hostile to EVERYONE, so a pack
                 // without one would fight itself.
                 if (!npcManager) {
                     response = {{"error", "NPCManager not available"}};
@@ -23311,7 +23397,7 @@ void Application::processAPICommands() {
                         if (encFaction.empty()) encFaction = vis->faction;
 
                         for (int i = 0; i < count; ++i, ++k) {
-                            // deterministic scatter on a ring — no RNG
+                            // deterministic scatter on a ring â€” no RNG
                             const float ang = 2.39996f * k;  // golden angle
                             const float r   = radius * (0.35f + 0.65f * ((k % 5) / 4.0f));
                             glm::vec3 pos(cx + r * std::cos(ang), cy, cz + r * std::sin(ang));
@@ -23444,7 +23530,7 @@ void Application::processAPICommands() {
                                         ch->setAnimationMapping(state, clip);
                                 }
                             }
-                            // Optional weapon for combat NPCs — drives their moveset
+                            // Optional weapon for combat NPCs â€” drives their moveset
                             // through the same mapper as the player's held weapon.
                             if (behaviorType == Core::NPCBehaviorType::Combat &&
                                 cmd.params.contains("weapon")) {
@@ -23838,7 +23924,7 @@ void Application::processAPICommands() {
                             std::string startId = manifest.startScene;
                             if (startId.empty() && !manifest.scenes.empty()) startId = manifest.scenes[0].id;
                             // Combat ruleset + game HUD (parity with the single-scene
-                            // path; multi-scene used to skip both — feedback 2026-06-18).
+                            // path; multi-scene used to skip both â€” feedback 2026-06-18).
                             // Before transitioning so HUD screens exist when a menu
                             // start-scene's loadMenuInto hides them.
                             {
@@ -24294,7 +24380,7 @@ void Application::processAPICommands() {
                                 });
                             }
                             if (placed > 0) {
-                                // Only rebuild nav if NPCs exist — a full-world NavGrid+NavGraph
+                                // Only rebuild nav if NPCs exist â€” a full-world NavGrid+NavGraph
                                 // build is ~seconds and is pure waste with zero NPCs. NPC creation
                                 // paths rebuild nav themselves, so a later-spawned NPC still gets it.
                                 if (npcFill && npcFill->getNPCCount() > 0) npcFill->buildNavGrid();
@@ -24371,7 +24457,7 @@ void Application::processAPICommands() {
 
                         std::string genType = jobParams.value("type", "Perlin");
                         int seed = jobParams.value("seed", 42);
-                        // Terrain tuning params (heightScale, frequency, ...) — applied to the
+                        // Terrain tuning params (heightScale, frequency, ...) â€” applied to the
                         // generator on the worker thread. Captured whole so we stay in parity
                         // with the synchronous generate_world handler.
                         nlohmann::json terrainParams = jobParams.value("params", nlohmann::json::object());
@@ -24500,7 +24586,7 @@ void Application::processAPICommands() {
                                 otmGen->decorateFlora(floraGen, minCX * 32, minCZ * 32, maxCX * 32 + 31, maxCZ * 32 + 31);
                             }
                             // Rebuild nav grid so NPCs can path on freshly generated terrain.
-                            // Only when NPCs exist — a full-world NavGrid+NavGraph build is ~seconds
+                            // Only when NPCs exist â€” a full-world NavGrid+NavGraph build is ~seconds
                             // (the dominant finalize cost) and is pure waste with zero NPCs. NPC
                             // creation paths rebuild nav themselves, so later-spawned NPCs still get it.
                             if (generated > 0 && npcGen && npcGen->getNPCCount() > 0) {
@@ -24532,7 +24618,7 @@ void Application::processAPICommands() {
                         desc.mainThreadFinalize = [this, evSave, cmSave, pomSave,
                                                    locSave](nlohmann::json& result) {
                             if (result.value("success", false)) saveWaterMeta();   // 35: the water's records ride every chunk save
-                            // Placed-object records save WITH the chunks (atomic world save —
+                            // Placed-object records save WITH the chunks (atomic world save â€”
                             // the ghost-record rule). Main thread: the registry isn't locked
                             // for the background chunk write.
                             if (pomSave && cmSave && result.value("success", false)) {
@@ -24601,7 +24687,7 @@ void Application::processAPICommands() {
                     response = {{"success", true}, {"job_id", jobId}, {"status", "Pending"}, {"type", jobType}};
                 }
 
-            // â"€â"€ Custom UI Menu Management â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // Ã¢"â‚¬Ã¢"â‚¬ Custom UI Menu Management Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
             } else if (cmd.action == "create_menu") {
                 std::string name = cmd.params.value("name", "");
                 if (name.empty()) {
@@ -24741,7 +24827,7 @@ void Application::processAPICommands() {
             } else if (dispatchAnimationAPICommand(cmd, response)) {
                 // handled
 
-            // ITEM COMMANDS (spawn_item / drop_item — member function, same nesting-depth reason)
+            // ITEM COMMANDS (spawn_item / drop_item â€” member function, same nesting-depth reason)
             } else if (dispatchItemAPICommand(cmd, response)) {
                 // handled
 
@@ -24966,7 +25052,7 @@ void Application::renderMaterialHotbar() {
             if (i < slotCount - 1) ImGui::SameLine();
         }
 
-        // Slot number labels (small, below buttons — but we're in a fixed window so show above via offset)
+        // Slot number labels (small, below buttons â€” but we're in a fixed window so show above via offset)
         // Instead, show selected material name under the bar as a one-liner
         const std::string selMat = inventory->getSelectedMaterial();
         if (!selMat.empty()) {
@@ -25000,7 +25086,7 @@ void Application::openFileDialog() {
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
     if (GetOpenFileNameA(&ofn)) {
-        // Defer to next frame — can't tear down scene mid-render
+        // Defer to next frame â€” can't tear down scene mid-render
         m_pendingOpenFile = std::string(szFile);
     }
 }
@@ -25173,10 +25259,10 @@ void Application::resetEditorScene() {
     // ---- GPU sync then chunk teardown ----
     // Wait for GPU before destroying chunk Vulkan buffers.
     if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
-    // B1: GPU is idle → free any deferred (already-replaced) chunk buffers now.
+    // B1: GPU is idle â†’ free any deferred (already-replaced) chunk buffers now.
     Graphics::flushDeferredBufferReclaim();
 
-    // Clean up chunk data (destroys ChunkPhysicsManager → unregisters grids)
+    // Clean up chunk data (destroys ChunkPhysicsManager â†’ unregisters grids)
     if (chunkManager) chunkManager->cleanup();
     // A2i (WaterCore 47): the project's water goes with its chunks; an editor scene has no water records to restore
     waterWorldChanged("editor_scene", false);
@@ -25237,7 +25323,7 @@ void Application::switchToEditorMode(const std::string& filePath) {
     } else if (ext == ".json") {
         // Check if this is an interaction profile JSON
         // These live in resources/interactions/ and have an "archetype" + "profiles" structure.
-        // The profile keys are template names (e.g. "test_chair") — open the first one
+        // The profile keys are template names (e.g. "test_chair") â€” open the first one
         // in the interaction editor.
         bool handled = false;
         try {
@@ -25289,7 +25375,7 @@ void Application::switchToEditorMode(const std::string& filePath) {
         }
 
         if (!handled) {
-            LOG_WARN("Application", "Cannot open '{}' — JSON files must be interaction profiles (with archetype + profiles keys) "
+            LOG_WARN("Application", "Cannot open '{}' â€” JSON files must be interaction profiles (with archetype + profiles keys) "
                      "to open in the editor. Use File > Open to select a .voxel template or .anim file instead.",
                      p.filename().string());
         }
@@ -25310,14 +25396,14 @@ void Application::initAssetEditorScene() {
     LOG_INFO("Application", "Asset Editor: initializing scene for '{}'", m_assetEditorFile);
 
     // Clear any world loaded at startup (default.db) or leftover from a previous scene.
-    // When called from switchToEditorMode(), resetEditorScene() already ran cleanup —
+    // When called from switchToEditorMode(), resetEditorScene() already ran cleanup â€”
     // calling it again is a safe no-op. When called at startup it's the only cleanup.
     chunkManager->cleanup();
 
     // Create the chunk that will hold the floor (origin 0,0,0 covers Y=0..31)
     chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
 
-    // Build a clean flat platform: Y=15 floor, 32Ã—32 slab of Stone
+    // Build a clean flat platform: Y=15 floor, 32Ãƒâ€”32 slab of Stone
     for (int x = 0; x < 32; ++x) {
         for (int z = 0; z < 32; ++z) {
             chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
@@ -25376,7 +25462,7 @@ void Application::renderAssetEditorUI() {
     ImGui::TextWrapped("%s", displayName.c_str());
     ImGui::Spacing();
 
-    // Material palette — populated dynamically from MaterialRegistry
+    // Material palette â€” populated dynamically from MaterialRegistry
     ImGui::Text("Material:");
     {
         const auto& allMats = Core::MaterialRegistry::instance().getAllMaterials();
@@ -25576,7 +25662,7 @@ void Application::initAnimEditorScene() {
         LOG_INFO("Application", "Anim Editor: loaded {} body bones from skeleton",
                  m_animEditorBodyBones.size());
 
-        // Start paused — user manually triggers playback
+        // Start paused â€” user manually triggers playback
         ch->setAnimationPaused(true);
 
         // Load existing clip_meta comments so the tuner shows current saved values
@@ -25761,7 +25847,7 @@ void Application::renderAnimEditorUI() {
             }
         }
 
-        // Scrub bar — full width
+        // Scrub bar â€” full width
         ImGui::SetNextItemWidth(-1);
         if (ImGui::SliderFloat("##scrub", &progress, 0.0f, 1.0f, "%.3f")) {
             m_animEditorChar->seekAnimation(progress);
@@ -25857,7 +25943,7 @@ void Application::renderAnimEditorUI() {
 
         if (!clipWarpEnabled)
             ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
-                "(Motion Warp off — spatial offset only, no phase timing)");
+                "(Motion Warp off â€” spatial offset only, no phase timing)");
 
         if (ImGui::Button("Play at this Height", ImVec2(-1, 0))) {
             // Fall time scales as sqrt(height): physics-correct air-phase timing.
@@ -25945,7 +26031,7 @@ void Application::renderAnimEditorUI() {
             //
             // The simplest correct approach: maintain our own copy of the original model.
             // We'll use a lazy-initialized "original model" cache.
-            // Key by the full pointer width — an int key truncates the 64-bit pointer and
+            // Key by the full pointer width â€” an int key truncates the 64-bit pointer and
             // two characters can collide on the low 32 bits.
             static std::map<intptr_t, Phyxel::VoxelModel> s_originalModels;
             auto charKey = (intptr_t)m_animEditorChar;
@@ -26501,7 +26587,7 @@ void Application::renderClipParameterTuner() {
             ImGui::SetTooltip("Plants feet on terrain during this clip.\n"
                               "Disable for jump, fall, and root-motion clips.");
 
-        // Foot planting knobs — shown for stair and locomotion clips (where foot contact matters)
+        // Foot planting knobs â€” shown for stair and locomotion clips (where foot contact matters)
         if (effectiveType == "stair" || effectiveType == "locomotion") {
             ImGui::Separator();
             ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "Foot Planting");
@@ -26526,7 +26612,7 @@ void Application::renderClipParameterTuner() {
                                   "before the IK system plants it.\n"
                                   "0.111 = 1 microcube (subtle, for flat terrain)\n"
                                   "0.333 = 1 subcube (good for stair clips)\n"
-                                  "Larger values plant the foot from further away — set\n"
+                                  "Larger values plant the foot from further away â€” set\n"
                                   "this to match your step height for stair animations.");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
             if (ImGui::SliderFloat("##iksr", &meta.footIKSurfaceReach, 0.0f, 1.0f, "%.3f")) {
@@ -26622,7 +26708,7 @@ void Application::renderClipParameterTuner() {
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Total forward travel over the entire clip.\n"
                               "Used by Test Step Down to drive XZ in the editor.\n"
-                              "In gameplay, W-key handles forward — this is a tuning reference.");
+                              "In gameplay, W-key handles forward â€” this is a tuning reference.");
         ImGui::SetNextItemWidth(100.0f);
         if (ImGui::InputFloat("##ssd", &meta.stairStepDepth, 0.0f, 0.0f, "%.4f")) {
             meta.stairStepDepth = std::max(0.0f, meta.stairStepDepth);
@@ -26704,7 +26790,7 @@ void Application::renderClipParameterTuner() {
                 ImGui::TextDisabled("h=%.4f  d=%.4f  (blue=start, green=land)", pH, pD);
             }
 
-            // Test start offsets — independent of drive values so geometry can be matched exactly
+            // Test start offsets â€” independent of drive values so geometry can be matched exactly
             ImGui::TextDisabled("Test start offsets");
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("How far to raise (Y) and step back (forward) before playing.\n"
@@ -26957,7 +27043,7 @@ void Application::renderClipParameterTuner() {
                 }
                 break;
             }
-            case 1: { // authoredFallDist — shown as a concrete drop-test setup
+            case 1: { // authoredFallDist â€” shown as a concrete drop-test setup
                 // Sync landing Y from character's current position (X/Z ignored; Y is what matters)
                 glm::vec3 charPos = m_animEditorChar->getPosition();
 
@@ -27133,7 +27219,7 @@ void Application::renderClipParameterTuner() {
 
         ImGui::Spacing();
 
-        // "Looks Good" — confirm step and advance
+        // "Looks Good" â€” confirm step and advance
         ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.1f, 0.6f, 0.15f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f,0.75f,0.2f,  1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.05f,0.45f,0.1f,  1.0f));
@@ -27145,7 +27231,7 @@ void Application::renderClipParameterTuner() {
                 ++m_animTunerStep;
                 animTunerReplayCurrentClip();
             } else {
-                // Done — exit wizard and offer save
+                // Done â€” exit wizard and offer save
                 m_animTunerWizard = false;
                 m_animTunerStep = 0;
             }
@@ -27456,7 +27542,7 @@ void Application::ieSaveAssetTemplate() {
     namespace fs = std::filesystem;
     std::string assetName = fs::path(m_interactionEditorFile).stem().string();
 
-    // Scan region around asset origin (same as asset editor: 16Ã—16Ã—16 above floor)
+    // Scan region around asset origin (same as asset editor: 16Ãƒâ€”16Ãƒâ€”16 above floor)
     constexpr int HALF = 8;
     glm::ivec3 minCorner(
         m_ieAssetOrigin.x - HALF,
@@ -27603,7 +27689,7 @@ void Application::renderInteractionEditorUI() {
     }
     ImGui::Spacing();
 
-    // === Material palette — populated dynamically from MaterialRegistry ===
+    // === Material palette â€” populated dynamically from MaterialRegistry ===
     ImGui::Text("Material:");
     {
         const auto& allMats = Core::MaterialRegistry::instance().getAllMaterials();
@@ -28079,7 +28165,7 @@ void Application::renderDockableViewport() {
             // The game HUD now draws in the post-process pass, AFTER the grade and after ImGui,
             // so it is neither bloomed nor tonemapped (docs/UnifiedLightingPlan.md D18). It is no
             // longer inside the offscreen image the ImGui::Image above displays, so it has to be
-            // placed over that image explicitly — otherwise it would cover the whole editor window.
+            // placed over that image explicitly â€” otherwise it would cover the whole editor window.
             // Set every frame: the docked viewport moves and resizes.
             if (renderCoordinator) {
                 if (auto* ui = renderCoordinator->getUISystem()) {

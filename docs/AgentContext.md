@@ -712,8 +712,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       before furnish on the sink path; g8 furniture readable only by loadGridTemplate); bridges DONE F7.23 (grading
       F7.20); API units DONE F7.24 (batch / copy / paste / move / snapshots on the switched world), items' snap DONE F7.25 (the
       LOD template chain: not used inside the region -- the far tier is a question for the switch), items / LOD
-      template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world) -- then the global default
-      and the deletion.
+      template units; nav units DONE F7.22 -- NavGraph cellsPerM 8 on the switched world); the global default ON
+      (F7.27: projects without world.voxfound boot switched; opt-out "voxfound":{"enabled":false}). OWED before the
+      deletion: a streaming "today" source for fixed worlds over 256 chunks (VillageChat, Emberwake refuse) and the
+      converter's thin-part fidelity (building materials +10-12.5 %).
       WAS: F5.5m (the primal split -- the primal leads live at every rung, 1.4-1.8 ms; at 994 pairs 1.6-1.7 and
       hard_body 1.4-1.5 follow) as a measure before its lever, with its prediction BEFORE code. Owed: the reload
       guard's margin in the suite; the uncached pipeline compile (~1 min); an overlapping pair must not sleep (a pair asleep 102 mm deep on the lab's wall);
