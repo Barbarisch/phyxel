@@ -1822,3 +1822,9 @@ get_active_scene (/api/rpg/...): a harness could not drive a standalone's scene 
   gameplay camera" -- neither scene authors a player (0 characters drawn); NOT checked whether the opt-out package
   fails the same way (another package build). Also not diagnosed: white ellipses at the top of the dry frame.
 D3-scenes DONE for the editor and the standalone (scene switching on the switched world); open: the two items above.
+
+D2 gap closed (2026-11-24): a project opened from the LAUNCHER (no --project; POST /api/projects/open) read only the
+boot config -- today's-world switch was never set, so today's chunks would load before the conversion (found by
+reading the open path while checking every host; the red was NOT run). Now preInit there too. Run: TavernTest copy
+opened through /api/projects/open -> booted (generator), today_world_disabled true, 0 of today's chunks, the taverns
+and trees drawn (d2_launcher_open.png).

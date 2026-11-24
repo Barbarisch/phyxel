@@ -3038,7 +3038,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
     auto gameJsonPath = projPath / "game.json";
     if (fs::exists(gameJsonPath)) {
         engineConfig.gameDefinitionFile = gameJsonPath.string();
-        vfw->voxFoundReadBootConfig(gameJsonPath.string());   // F7.16
+        vfw->preInit(gameJsonPath.string());   // F7.16 / D2: the boot mode + the today-world switch (launcher-opened too)
     }
 
     // Update runtime config
