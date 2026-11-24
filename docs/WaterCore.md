@@ -15628,6 +15628,15 @@ In these runs the worst frame is the first 0.3 s (the tile wakes), not the GPU-b
 `s58_windows_now.json` did not recur (run-to-run: the burst's device time varies with where the waves meet the recorded tiles).
 The knob stays at 4 (no behaviour change shipped). What is left for item 1: the first 0.3 s (tile wakes ~10-12 ms, ripples ~5,
 the collect) and the burst's device time when it occurs (b, c above).
+**The tile wake, re-split (2026-11-24, `DISABLED_DiagPatchLife`, headless; the session locked, a 3D screensaver sharing the GPU - the
+host numbers hold, the fence waits do not):** median frame 3.2 ms, p99 14.8, max 18.7; the wake frames (0-0.25 s) ~10 ms for 2
+tiles = ~5 ms a tile: the seed's host part 2.6-2.7 (flags + need 0.7, residency 0.6, the scatter 0.9, fills 0.4) inside
+`seedColumns` 4.2, the seed's surface 1.3, the occupancy 0.6. Each part is near its floor as host code (the scatter already by rows,
+58.3; the submission already deferred). **The structural cut item 1 needs: the tile wake seeded ON THE DEVICE** - upload the
+tile's record runs (a few KB: bottom / top per column) and a compute pass expands them into the bricks (the residency, the fills,
+fPrev, the surface rows), the host left with the run list and the table write. Predicted: ~5 -> ~1 ms a tile. A design step
+(`/design-check`: the parity gate is `ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk` - the device state bit-equal to the host
+seed's) - not started.
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
