@@ -1828,3 +1828,11 @@ boot config -- today's-world switch was never set, so today's chunks would load 
 reading the open path while checking every host; the red was NOT run). Now preInit there too. Run: TavernTest copy
 opened through /api/projects/open -> booted (generator), today_world_disabled true, 0 of today's chunks, the taverns
 and trees drawn (d2_launcher_open.png).
+
+D3b PREDICTION -- the opt-out goes (2026-11-24; not yet written). voxFoundReadBootConfig ignores `world.voxfound.enabled:
+false`, a top-level `voxfound.enabled:false` and `today_world:true` (each logged as a warning: "the opt-out was removed,
+docs/VoxelFoundationPlan.md step 7"): such a project boots by the default rule. An explicit enabled:true config still
+wins (VoxFoundGate8 etc.).
+  B1: the six F7.27 projects in "optout" mode (enabled:false written into the copy) boot switched with 0 of today's
+      chunks -- the same as their default runs (stored_check 0); the warning is in the log.
+  B2: the F7.26 battery is unchanged (explicit config).

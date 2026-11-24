@@ -3297,6 +3297,11 @@ writers or the store (D3b, D4) as staged would break all three. New stage, befor
   region saved into its DB, the arriving scene's region built by the default rules from its `world` (or its DB).
   Gate: WaterBench_Scenes boots switched into its start scene, transitions both ways with 0 of today's chunks, an edit
   in one scene survives leaving and returning; frames captured.
+**Reorder (2026-11-24): the opt-out goes BEFORE the writers.** After D3-core / D3-scenes every host runs the switched
+world (editor projects and launcher, packaged games, scenes, asset / anim editors); the opt-out is the only remaining
+caller of the 1/9 m writers, so they cannot be deleted while it stands. New order: **D3b** the opt-out goes (switched
+is the only world; `enabled:false` / `today_world` are ignored with a warning), **D3c** the 1/9 m writers go (now
+unreachable), **D4** the store and its readers go.
 
 
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks
