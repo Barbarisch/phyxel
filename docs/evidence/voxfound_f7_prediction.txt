@@ -1911,3 +1911,16 @@ pointing at 1/8 m "units":"voxel"), the break_voxel test hook (a today-store Cub
 bodies (sync + job: now unconditional refusals), the fill_region job's legacy loop. Held: K2 (the fill job lands
 4,096 Gold voxels), K3 (ApiTestGame's deferred structures: 3 placed), the battery (G1 {} / {}, 0 lost, max apply
 0.381 s; G2 12 / 12, T3 0; G3 both ways; G4 20, 0 refused; create_refused 0).
+
+D3c-5 PREDICTION -- the 1/9 m store's classes go (2026-11-24; not yet written). Delete Subcube.{h,cpp} and
+Microcube.{h,cpp}, then remove every engine / editor path the compiler names (Chunk + ChunkVoxelManager sub / micro
+storage, ChunkRenderManager's sub / micro face packing, ChunkPhysicsManager's sub / micro boxes, DamageSystem /
+VoxelManipulationSystem / VoxelInteractionSystem / DestructionTool / VoxelRaycaster / RaycastVisualizer sub / micro
+branches, StructureGenerator's legacy place, ChunkBlobCodec's sub / micro sections -- decode skips them, the encoder
+writes none). KEPT: VoxelTemplate's C/S/M data (kinematic parts, loadCsmTemplate), MicroCanvas, convertPxb2 (reads the
+format itself), encodePxb2FromRows. Census: 56 engine / editor files mention the types (some only in comments), 25 test
+files.
+  Q1: phyxel + phyxel_tests build; the battery, the six projects, the D3-scenes run hold with every D3c-4 number.
+  Q2: tests -- each failing / non-compiling test is either PORTED (it tests behaviour that stays) or RETIRED with its
+      subject (it tests the removed store), listed by name; the unit / integration totals recorded against the quiet
+      baseline (unit 4,752 / 3, integration 242 / 5).
