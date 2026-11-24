@@ -1836,3 +1836,14 @@ wins (VoxFoundGate8 etc.).
   B1: the six F7.27 projects in "optout" mode (enabled:false written into the copy) boot switched with 0 of today's
       chunks -- the same as their default runs (stored_check 0); the warning is in the log.
   B2: the F7.26 battery is unchanged (explicit config).
+
+D3b RESULTS (2026-11-24; the prediction above untouched). Release.
+  B1 PASS: the six F7.27 projects with the opt-out written into the copy (voxfound enabled:false) boot switched by the
+     default rule -- CharacterTestbed world_db, the other five generator; 0 of today's chunks each; their default runs
+     unchanged (stored_check 0). The WARNING is NOT seen in phyxel.log: preInit runs before the runtime opens the log
+     file (only one of the day's many preInit "boot mode" lines reached the file either) -- the warning's visibility is
+     unverified; the behaviour is verified.
+  B2 PASS: the F7.26 battery -- G1 census diff {} / {}, 0 lost, max apply 0.401 s; G2 12 / 12 exact, standable, T3 0;
+     G3 nav both ways; G4 20 pieces, 0 refused; today's chunks 0 throughout.
+D3b DONE: the switched world is the only world in every host. Today's store is now reached only by code that no host
+runs (its writers, readers, the PXB2 encoder) and by tests -- D3c / D4 delete it.

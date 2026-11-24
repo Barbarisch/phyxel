@@ -1999,7 +1999,27 @@ void VoxFoundWorld::voxFoundReadBootConfig(const std::string& gameJsonPath) {
         std::string text((std::istreambuf_iterator<char>(gin)), std::istreambuf_iterator<char>());
         if (text.size() >= 3 && uint8_t(text[0]) == 0xEF && uint8_t(text[1]) == 0xBB && uint8_t(text[2]) == 0xBF)
             text.erase(0, 3);   // a UTF-8 BOM (PowerShell writes one)
-        const nlohmann::json g = nlohmann::json::parse(text);
+        nlohmann::json g = nlohmann::json::parse(text);
+        // docs/VoxelFoundationPlan.md step 7 D3b: THE OPT-OUT WAS REMOVED -- the switched world is the only world.
+        // enabled:false (world.voxfound or top-level voxfound) and today_world are ignored, with a warning.
+        auto warnRemoved = [&](const std::string& what) {
+            LOG_WARN("VoxFound", "the opt-out was removed (docs/VoxelFoundationPlan.md step 7): '" + what +
+                                 "' ignored in " + gameJsonPath);
+        };
+        if (g.contains("voxfound") && g["voxfound"].is_object() && !g["voxfound"].value("enabled", true)) {
+            warnRemoved("voxfound.enabled:false");
+            g.erase("voxfound");
+        }
+        if (g.contains("world") && g["world"].is_object() && g["world"].contains("voxfound") &&
+            g["world"]["voxfound"].is_object()) {
+            if (!g["world"]["voxfound"].value("enabled", false)) {
+                warnRemoved("world.voxfound.enabled:false");
+                g["world"].erase("voxfound");
+            } else if (g["world"]["voxfound"].contains("today_world")) {
+                warnRemoved("world.voxfound.today_world");
+                g["world"]["voxfound"].erase("today_world");
+            }
+        }
         // F7.27: the switched world is the DEFAULT -- a project world with no "voxfound" key boots switched (a
         // streaming world around the camera from the generator, as VoxFoundBoot; a fixed world from TODAY's resident
         // chunks through the converter); "voxfound": {"enabled": false} opts out
@@ -2015,7 +2035,7 @@ void VoxFoundWorld::voxFoundReadBootConfig(const std::string& gameJsonPath) {
         if (!topOptOut && !g.contains("scenes") && (noWorld || !g["world"].contains("voxfound"))) {
             nlohmann::json w = defaultBootConfig(noWorld ? nlohmann::json() : g["world"]);
             voxFoundBootConfig = w;
-            voxFoundTodayKeep = w["voxfound"].value("today_world", false);
+            voxFoundTodayKeep = false;   // D3b: no A/B -- today's world never loads
             voxFoundBootPending = true;
             voxFoundBootFrames = 0;
             LOG_INFO("VoxFound", "boot mode: the DEFAULT (no world.voxfound) for " + gameJsonPath);
