@@ -73,6 +73,12 @@ struct SceneCallbacks {
     /// Called once the new scene's world storage is attached (or failed to attach - then none is): state that belongs to one world
     /// resets and restores the new world's (WaterCore 47). Optional.
     std::function<void()> onWorldStorageChanged;
+
+    /// docs/VoxelFoundationPlan.md D3-scenes: the switched (1/8 m) world across scenes, set by a host whose game boots
+    /// switched. Save: the leaving scene's region into its DB (before it disconnects). Load: the arriving scene's
+    /// region (after its DB attached) from its definition's "world" (null = the DB's stored chunks). Optional.
+    std::function<void()> switchedWorldSave;
+    std::function<void(const nlohmann::json& world)> switchedWorldLoad;
 };
 
 /// Result of a scene transition attempt.

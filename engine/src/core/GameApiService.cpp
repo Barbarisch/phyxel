@@ -370,6 +370,21 @@ void GameApiService::registerCommands() {
         r["success"] = true;
     });
 
+    // POST /api/scene/transition {"scene_id"} and GET /api/scene/active -- docs/VoxelFoundationPlan.md D3-scenes: the
+    // harness drives a multi-scene standalone's transitions (the editor host already had both).
+    reg.on("transition_scene", [this](const APICommand& cmd, json& r) {
+        auto* sm = runtime ? runtime->getSceneManager() : nullptr;
+        if (!sm || !sm->hasManifest()) { r = {{"error", "No scene manifest loaded"}}; return; }
+        const std::string id = cmd.params.value("scene_id", "");
+        r = {{"scene_id", id}, {"success", sm->transitionTo(id)}};
+    });
+    reg.on("get_active_scene", [this](const APICommand&, json& r) {
+        auto* sm = runtime ? runtime->getSceneManager() : nullptr;
+        const auto* s = sm ? sm->getActiveScene() : nullptr;
+        if (!s) { r = {{"error", "no active scene"}}; return; }
+        r = {{"id", s->id}, {"name", s->name}, {"transitioning", sm->isTransitioning()}};
+    });
+
     reg.on("voxfound_status", [this](const APICommand&, json& r) {   // D3-core
         if (!voxFoundStatusProvider) { r = {{"error", "no switched-world host"}}; return; }
         r = voxFoundStatusProvider();

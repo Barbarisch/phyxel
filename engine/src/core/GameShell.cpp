@@ -46,6 +46,23 @@ bool GameShell::voxFoundPreInit(const std::string& gameJsonPath) {
     return switched;
 }
 
+void GameShell::voxFoundAttachScenes(SceneCallbacks& cb, EngineRuntime& engine, Graphics::RenderCoordinator* renderer) {
+    if (!vfw_ && s_vfwPending) vfw_ = std::move(s_vfwPending);
+    if (!vfw_ || !vfw_->voxFoundMultiScene) return;
+    auto bind = [this, &engine, renderer]() {
+        vfw_->runtime = &engine;
+        vfw_->vulkanDevice = engine.getVulkanDevice();
+        vfw_->camera = engine.getCamera();
+        vfw_->chunkManager = engine.getChunkManager();
+        vfw_->physicsWorld = engine.getPhysicsWorld();
+        vfw_->renderCoordinator = renderer;
+        vfw_->npcManager = apiNPCManager();
+    };
+    cb.switchedWorldSave = [this, bind]() { bind(); vfw_->sceneSave(); };
+    cb.switchedWorldLoad = [this, bind](const nlohmann::json& w) { bind(); vfw_->sceneLoad(w); };
+    LOG_INFO("VoxFound", "standalone: multi-scene -- each scene's region switched");
+}
+
 void GameShell::voxFoundTick(EngineRuntime& engine, Graphics::RenderCoordinator* renderer, float dt) {
     if (!vfw_ && s_vfwPending) vfw_ = std::move(s_vfwPending);
     if (!vfw_) return;

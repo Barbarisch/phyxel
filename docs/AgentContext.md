@@ -712,7 +712,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       stage D3-core (move it into phyxel_core as VoxFoundWorld) BEFORE deleting writers; D3-core parts 1+2 DONE
       (VoxFoundWorld in phyxel_core, hosted by the editor + GameShell; packaged games boot switched; two D2 regressions
       fixed: black world, clamped player); part 3 DONE (asset / anim editors on a switched stage, grid-8 save) --
-      NEXT D3b (the 1/9 m writers go) -- generation
+      D3-scenes DONE (multi-scene games switched per scene, editor + standalone) -- NEXT D3b (the 1/9 m writers go)
+      -- generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the
       step-7 ports ( 1/8 m furnisher (F7.21a the placer takes perM; F7.21b {"furnish":true} paints the 1/8 m library into

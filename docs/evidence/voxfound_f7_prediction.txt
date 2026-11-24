@@ -1795,3 +1795,30 @@ ChunkStreamingManager::loadAllChunksFromDatabase is gated like D2's other loads.
       `pond` the same.
   C3: an edit (a 1 m Gold block placed through the voxel API) in `dry`, transition away and back: the block is there
       (the voxel query reads Gold) -- and it is NOT in `pond`.
+
+D3-scenes RESULTS, the editor (2026-11-24; the prediction above untouched). Release; a COPY of WaterBench_Scenes;
+raw voxfound_d3s_live.jsonl.
+  C1 PASS: boots multi-scene switched into `pond` (DB-only -> world_db, 7 region chunks), today's chunks 0; the frame
+     shows pond's stored stone block (d3s_start.png).
+  C2 PASS: -> `dry` (typed Flat -> generator, 32 region chunks), today 0, forest + player drawn (d3s_dry.png); -> `pond`
+     again (7 chunks, today 0).
+  C3 PASS: a 1 m Gold block placed in `dry` (voxel API, routed: 512 voxels changed); absent in `pond` (0 voxels);
+     back in `dry` it reads Gold 512 -- saved into dry.db at the leave, loaded at the return.
+  Differences from the opt-out, recorded (not defects of the scene path): opted out `dry` is its fixed range only
+     (x 96-128, two fauna) and no player; switched, `dry` is the typed world generated around the camera (D1b's rule)
+     and the editor's player stays at its last position (45, 55, 45), above the ground -- neither scene authors one.
+QUIET SUITES (2026-11-23/24, the D3-core part 3 build): UNIT 4,752 pass / 3 fail (the two standing + the documented
+  order-dependent WaterCoupling; WorldReads.Cost and VoxFoundBodyRest.F55c PASS); INTEGRATION 242 pass / 5 fail (the
+  3 SceneIntegrationTest + the 2 water-core tolerance rows, all pre-existing; both GPU timing rows PASS). After the
+  scene code: *Scene* unit 54 pass, integration the same 3 pre-existing failures.
+D3-scenes, the packaged game (WaterBench_Scenes scaffolded fresh under build/vfpkg; the scene DBs placed in the
+project before packaging -- my first attempt copied them into the package AFTER the smoke run had created empty ones,
+so both scenes booted empty regions: setup error, recorded). The standalone test API gains transition_scene /
+get_active_scene (/api/rpg/...): a harness could not drive a standalone's scene changes before.
+  Standalone: starts in `pond` (world_db, 7 region chunks, today 0, 10 faces drawn -- the stored stone floor and its
+  basin, d3s_package_pond.png); transition_scene -> `dry` (generator, 32 chunks, today 0, 212 faces; grass, trees,
+  far terrain, d3s_package_dry.png).
+  produce_game: scaffold / configure / build / package PASS; smoke FAILS "injected forward input did not move the
+  gameplay camera" -- neither scene authors a player (0 characters drawn); NOT checked whether the opt-out package
+  fails the same way (another package build). Also not diagnosed: white ellipses at the top of the dry frame.
+D3-scenes DONE for the editor and the standalone (scene switching on the switched world); open: the two items above.

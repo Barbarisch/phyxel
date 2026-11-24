@@ -465,6 +465,11 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
                         {"first_bad", firstBad}, {"overlaid_total", voxFoundOverlaidTotal}};
             return;
         }
+        if (cmd.params.value("scene_status", false)) {   // D3-scenes (tests)
+            response = {{"multi_scene", voxFoundMultiScene}, {"log", voxFoundSceneLog},
+                        {"switched", voxFoundWorldReads != nullptr}, {"region_chunks", voxFoundEdit.chunkCount()}};
+            return;
+        }
         if (cmd.params.value("today_status", false) && chunkManager) {   // D2 (tests)
             response = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
                         {"today_chunks_resident", chunkManager->chunkMap.size()}};
@@ -2002,20 +2007,13 @@ void VoxFoundWorld::voxFoundReadBootConfig(const std::string& gameJsonPath) {
         const bool noWorld = !g.contains("world") || !g["world"].is_object();
         const bool topOptOut = g.contains("voxfound") && g["voxfound"].is_object() &&
                                !g["voxfound"].value("enabled", true);   // the opt-out for a project with no world object
+        if (!topOptOut && g.contains("scenes") && g["scenes"].is_array()) {   // D3-scenes: every scene switched
+            voxFoundMultiScene = true;
+            LOG_INFO("VoxFound", "boot mode: MULTI-SCENE (each scene's region built at its load) for " + gameJsonPath);
+            return;
+        }
         if (!topOptOut && !g.contains("scenes") && (noWorld || !g["world"].contains("voxfound"))) {
-            nlohmann::json w = noWorld ? nlohmann::json::object() : g["world"];
-            for (auto it = w.begin(); it != w.end();) it = it->is_null() ? w.erase(it) : std::next(it);   // null fields: absent
-            if (w.contains("type") && w["type"].is_string()) {   // D1b: "flat" -> "Flat" (the generator's names)
-                std::string t = w["type"].get<std::string>();
-                for (size_t k = 0; k < t.size(); ++k) t[k] = char(k == 0 ? std::toupper(uint8_t(t[k])) : std::tolower(uint8_t(t[k])));
-                w["type"] = t;
-            }
-            if (w.value("streaming", false) || w.contains("type"))   // D1b: typed = generated around the camera
-                w["voxfound"] = {{"enabled", true}, {"size", {4, 2, 4}}, {"y_from", 0}, {"load_saved", true},
-                                 {"stream", true}, {"default", true}, {"overlay_world_db", true}};
-            else
-                w["voxfound"] = {{"enabled", true}, {"source", "world_db"}, {"load_saved", true}, {"stream", false},
-                                 {"default", true}};   // D1: the DB's stored chunks -- no Chunk object read
+            nlohmann::json w = defaultBootConfig(noWorld ? nlohmann::json() : g["world"]);
             voxFoundBootConfig = w;
             voxFoundTodayKeep = w["voxfound"].value("today_world", false);
             voxFoundBootPending = true;
@@ -3715,7 +3713,7 @@ void VoxFoundWorld::tick(float dt) {
 // stream-in boot runs inside EngineRuntime::initialize). Returns true when the project boots switched.
 bool VoxFoundWorld::preInit(const std::string& gameJsonPath) {
     voxFoundReadBootConfig(gameJsonPath);
-    const bool off = voxFoundBootPending && !voxFoundTodayKeep;
+    const bool off = (voxFoundBootPending || voxFoundMultiScene) && !voxFoundTodayKeep;
     ChunkStreamingManager::setTodayWorldDisabled(off);
     return off;
 }
@@ -3781,6 +3779,53 @@ nlohmann::json VoxFoundWorld::saveGrid8Template(const std::string& outPath, glm:
         else f << "B " << p.x << ' ' << p.y << ' ' << p.z << " 1 1 " << r.len << ' ' << mat << '\n';
     }
     return {{"success", true}, {"path", outPath}, {"cells", cells}, {"boxes", runs.size()}, {"per_material", perMat}};
+}
+
+// D3-scenes: the single-scene default rule (F7.27 / D1b), as a function of one world object (null = DB-only)
+nlohmann::json VoxFoundWorld::defaultBootConfig(const nlohmann::json& worldOrNull) const {
+    nlohmann::json w = worldOrNull.is_object() ? worldOrNull : nlohmann::json::object();
+    for (auto it = w.begin(); it != w.end();) it = it->is_null() ? w.erase(it) : std::next(it);   // null fields: absent
+    if (w.contains("type") && w["type"].is_string()) {   // D1b: "flat" -> "Flat" (the generator's names)
+        std::string t = w["type"].get<std::string>();
+        for (size_t k = 0; k < t.size(); ++k) t[k] = char(k == 0 ? std::toupper(uint8_t(t[k])) : std::tolower(uint8_t(t[k])));
+        w["type"] = t;
+    }
+    if (w.value("streaming", false) || w.contains("type"))   // D1b: typed = generated around the camera
+        w["voxfound"] = {{"enabled", true}, {"size", {4, 2, 4}}, {"y_from", 0}, {"load_saved", true},
+                         {"stream", true}, {"default", true}, {"overlay_world_db", true}};
+    else
+        w["voxfound"] = {{"enabled", true}, {"source", "world_db"}, {"load_saved", true}, {"stream", false},
+                         {"default", true}};   // D1: the DB's stored chunks -- no Chunk object read
+    return w;
+}
+
+void VoxFoundWorld::sceneSave() {
+    if (!voxFoundWorldReads || voxFoundEdit.empty()) return;
+    nlohmann::json saved = nlohmann::json::object(), off = nlohmann::json::object();
+    handleVoxFoundSave(saved);
+    Core::APICommand c;
+    c.params = {{"world_switch", false}};
+    handleVoxFoundPreview(c, off);
+    voxFoundStreamOn = false;
+    voxFoundStreamCache.clear();   // the leaving scene's chunks
+    voxFoundStructures.clear();    // its registry (saved with it; the next scene loads its own)
+    voxFoundOverlayDb = false;
+    voxFoundHistory.clear();
+    voxFoundSceneLog.push_back({{"save", saved}, {"off", off}});
+}
+
+void VoxFoundWorld::sceneLoad(const nlohmann::json& world) {
+    voxFoundBootConfig = defaultBootConfig(world);
+    voxFoundBootPending = false;
+    try {
+        voxFoundBoot();
+    } catch (const std::exception& e) {
+        voxFoundBootReport = {{"booted", false}, {"build_error", std::string("scene boot threw: ") + e.what()}};
+    }
+    voxFoundSceneLog.push_back({{"load", voxFoundBootReport.value("booted", false)},
+                                {"source", voxFoundBootReport.value("source", std::string())},
+                                {"error", voxFoundBootReport.value("build_error", std::string())}});
+    LOG_INFO("VoxFound", "scene region: " + voxFoundBootReport.dump());
 }
 
 }  // namespace Phyxel

@@ -299,11 +299,13 @@ void SceneManager::executeLoad() {
             !scene->resolvedWorldPath.empty()) {
             auto* cm = subsystems_->chunkManager;
             if (callbacks_.beforeWorldSave) callbacks_.beforeWorldSave();
+            if (callbacks_.switchedWorldSave) callbacks_.switchedWorldSave();   // D3-scenes
             cm->saveDirtyChunks();
             cm->cleanup();
             cm->disconnectWorldStorage();
             const bool opened = cm->initializeWorldStorage(scene->resolvedWorldPath);
             if (callbacks_.onWorldStorageChanged) callbacks_.onWorldStorageChanged();
+            if (opened && callbacks_.switchedWorldLoad) callbacks_.switchedWorldLoad(scene->definition["world"]);   // D3-scenes
             if (opened) {
                 subsystems_->activeSceneIdForLoad = scene->id;   // G-171: for the slain ledger
                 auto result = GameDefinitionLoader::load(scene->definition, *subsystems_);
@@ -346,6 +348,7 @@ void SceneManager::executeLoad() {
     if (subsystems_->chunkManager) {
         auto* cm = subsystems_->chunkManager;
         if (callbacks_.beforeWorldSave) callbacks_.beforeWorldSave();   // WaterCore 47: live water into the chunks first
+        if (callbacks_.switchedWorldSave) callbacks_.switchedWorldSave();   // D3-scenes: the leaving region into its DB
         if (subsystems_->placedObjectManager) {
             auto* ws = cm->m_streamingManager.getWorldStorage();
             if (ws) subsystems_->placedObjectManager->saveToDb(ws->getDb());
@@ -380,6 +383,9 @@ void SceneManager::executeLoad() {
                 auto* ws = cm->m_streamingManager.getWorldStorage();
                 if (ws) subsystems_->placedObjectManager->loadFromDb(ws->getDb());
             }
+            if (callbacks_.switchedWorldLoad)   // D3-scenes: the arriving region (the scene's world, or its DB)
+                callbacks_.switchedWorldLoad(scene->definition.contains("world") ? scene->definition["world"]
+                                                                                 : nlohmann::json());
         }
         if (callbacks_.onWorldStorageChanged) callbacks_.onWorldStorageChanged();   // WaterCore 47: the new world's records
     }

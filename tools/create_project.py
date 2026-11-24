@@ -2508,6 +2508,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             }}
                             if (engine_) updateCursorMode(*engine_);
                         }};
+                        voxFoundAttachScenes(cb, engine, renderCoordinator_.get());   // D3-scenes: each scene switched
                         sm->setCallbacks(cb);
 
                         sm->loadManifest(manifest);

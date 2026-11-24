@@ -2687,6 +2687,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             // are saved, then the next scene's records restored (nothing of the last scene's water stays)
             cb.beforeWorldSave = [this]() { waterWorldLeaving(); };
             cb.onWorldStorageChanged = [this]() { waterWorldChanged("scene", true); };
+            if (vfw && vfw->voxFoundMultiScene) {   // D3-scenes: the switched world across scenes
+                cb.switchedWorldSave = [this]() { vfwBind(); vfw->sceneSave(); };
+                cb.switchedWorldLoad = [this](const nlohmann::json& w) { vfwBind(); vfw->sceneLoad(w); };
+            }
 
             // Unload cleanup. The SceneManager only INVOKES these callbacks â€” if the
             // host doesn't provide them, nothing clears on transition and player

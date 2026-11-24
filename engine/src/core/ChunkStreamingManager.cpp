@@ -744,6 +744,7 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
 }
 
 std::vector<glm::ivec3> ChunkStreamingManager::loadAllChunksFromDatabase() {
+    if (s_todayDisabled.load()) return {};   // D2 / D3-scenes: today's world never loads
     std::vector<glm::ivec3> loadedChunks;
     
     if (!worldStorage) {

@@ -61,6 +61,8 @@ public:
     static bool voxFoundPreInit(const std::string& gameJsonPath);
     void voxFoundTick(EngineRuntime& engine, Graphics::RenderCoordinator* renderer, float dt);
     VoxFoundWorld* voxFoundWorld() const { return vfw_.get(); }
+    /// D3-scenes: a multi-scene game's callbacks -- each scene's region saved / built (no-op when not multi-scene).
+    void voxFoundAttachScenes(struct SceneCallbacks& cb, EngineRuntime& engine, Graphics::RenderCoordinator* renderer);
     GameShell();             // out of line: unique_ptr<VoxFoundWorld> is incomplete here
     ~GameShell() override;
 

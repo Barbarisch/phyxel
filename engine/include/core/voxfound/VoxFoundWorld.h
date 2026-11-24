@@ -150,7 +150,13 @@ public:
     void tick(float dt);                                          // D3-core: per frame (every host)
     bool preInit(const std::string& gameJsonPath);                 // D3-core: before EngineRuntime::initialize
     // D3-core part 3: the special editors (asset / anim / interaction) on the switched world
-    nlohmann::json buildEditorStage();   // an editable region over chunk (0,0,0): Flat, no flora, switched on
+    nlohmann::json buildEditorStage();
+    // D3-scenes: multi-scene games
+    bool voxFoundMultiScene = false;
+    nlohmann::json defaultBootConfig(const nlohmann::json& worldOrNull) const;   // the single-scene default rule
+    void sceneSave();                              // the region's edits into the attached DB, then off + cleared
+    void sceneLoad(const nlohmann::json& world);   // the arriving scene's region (the default rule, boot now)
+    nlohmann::json voxFoundSceneLog = nlohmann::json::array();   // an editable region over chunk (0,0,0): Flat, no flora, switched on
     /// the cells in [loVox, hiVox) (1/8 m voxels) as a `# grid: 8` template (z runs as B lines), rebased to 0
     nlohmann::json saveGrid8Template(const std::string& outPath, glm::ivec3 loVox, glm::ivec3 hiVox,
                                      const std::string& name);
