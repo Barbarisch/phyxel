@@ -472,6 +472,7 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
         }
         if (cmd.params.value("today_status", false) && chunkManager) {   // D2 (tests)
             response = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
+                        {"create_refused", ChunkManager::s_createRefused.load()},
                         {"today_chunks_resident", chunkManager->chunkMap.size()}};
             return;
         }
@@ -2132,6 +2133,10 @@ void VoxFoundWorld::voxFoundBoot() {
                                             {"chunks_missing", r.contains("converted") && r["converted"].is_object()
                                                                ? r["converted"].value("chunks_missing", 0) : 0}}}};   // F7.31 / D1
     LOG_INFO("VoxFound", "boot mode: " + voxFoundBootReport.dump());
+    if (voxFoundWorldReads) {   // D3c-1: the world is up -- the loader content deferred until now
+        Core::GameDefinitionLoader::setSwitchedReady(true);
+        voxFoundBootReport["deferred_content"] = Core::GameDefinitionLoader::applyDeferred();
+    }
 }
 
 // F7.18 (step-7 port 1): the switched world's water spans -- every region chunk's generation-time spans from
@@ -3733,6 +3738,8 @@ void VoxFoundWorld::tick(float dt) {
 // stream-in boot runs inside EngineRuntime::initialize). Returns true when the project boots switched.
 bool VoxFoundWorld::preInit(const std::string& gameJsonPath) {
     voxFoundReadBootConfig(gameJsonPath);
+    Core::GameDefinitionLoader::setSwitchedEdit(   // D3c-1: the loader's fill / place_voxel structures
+        [this](const std::string& a, const nlohmann::json& p, nlohmann::json& r) { return voxFoundApiEdit(a, p, r); });
     const bool off = (voxFoundBootPending || voxFoundMultiScene) && !voxFoundTodayKeep;
     ChunkStreamingManager::setTodayWorldDisabled(off);
     return off;
@@ -3820,6 +3827,7 @@ nlohmann::json VoxFoundWorld::defaultBootConfig(const nlohmann::json& worldOrNul
 }
 
 void VoxFoundWorld::sceneSave() {
+    Core::GameDefinitionLoader::setSwitchedReady(false);   // D3c-1: the next scene's content waits for its region
     if (!voxFoundWorldReads || voxFoundEdit.empty()) return;
     nlohmann::json saved = nlohmann::json::object(), off = nlohmann::json::object();
     handleVoxFoundSave(saved);

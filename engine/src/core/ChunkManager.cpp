@@ -391,6 +391,13 @@ void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
 }
 
 void ChunkManager::createChunk(const glm::ivec3& origin, bool populate) {
+    // docs/VoxelFoundationPlan.md D3c-1: today's world is not loaded on a switched world -- no Chunk is created
+    if (ChunkStreamingManager::todayWorldDisabled()) {
+        if (s_createRefused++ < 8)
+            LOG_WARN("ChunkManager", "createChunk refused on the switched world at (" + std::to_string(origin.x) + "," +
+                                     std::to_string(origin.y) + "," + std::to_string(origin.z) + ")");
+        return;
+    }
     // NEVER shadow a SAVED chunk with an empty one. Every "get or create" caller
     // (template spawn/erase, the definition loader, voxel placement) reaches here
     // when a chunk is not in memory - and on a DB-backed world "not in memory" often

@@ -1864,3 +1864,23 @@ Not rerouted (refuse visibly instead -- recorded gaps): dynamic / sequential tem
   K2: the fill_region JOB on VoxFoundGate8: a 2 x 2 x 2 m Gold fill lands in the switched world (voxel query Gold 512
       per metre cube); the red = the pre-change build (today's chunk created, switched world unchanged).
   K3: a game.json structures "fill" (a 1 m Stone cube, in a copy of a project) appears in the switched world at boot.
+
+D3c-1 RESULTS (2026-11-24; the prediction above untouched). Release; raw voxfound_d3c1_live.jsonl, voxfound_f727_live.jsonl.
+  FOUND while designing (not in the prediction): game.json `structures` and transition markers were LOST on every
+     switched boot since D2 -- the loader places them during project load, before the switched region exists (it boots
+     ~30 frames later), and today's chunks they used to land in are no longer loaded. Now DEFERRED: the loader keeps
+     them (GameDefinitionLoader::setSwitchedReady false until the boot), VoxFoundWorld applies them once the region is
+     up (applyDeferred; reported as the boot's deferred_content); scene loads build the region first, so nothing defers.
+  K1 PASS: create_refused 0 in all six projects and through the whole battery; today's chunks 0; battery G1 {} / {},
+     0 lost, max apply 0.394 s; G2 12 / 12 exact + standable, T3 0; G3 nav both ways; G4 20 pieces, 0 refused.
+     stored_check: five projects 0; VillageChat 1 chunk -- (0,0,0), where its game.json structures now land AFTER the
+     overlay: the Stone plaza fill placed 0 voxels (fill-into-air only, the stored floor occupies it) and the glow marker
+     1,536 (3 m^3, into air) -- exactly today's loader semantics (structures over the loaded DB every load); stored_check
+     compares stored blobs only, so this is the expected difference, not a conversion error.
+  K2 PASS: the fill_region JOB (2 x 2 x 2 m Gold) on VoxFoundGate8 -> the switched world: 4,096 voxels, all 8 metre
+     cubes read Gold; create_refused 0.
+  K3 PASS: ApiTestGame copy with NO world DB: deferred_content {structures_placed 3}; platform (11,17,11) Stone, hut
+     wall (12,19,16) Wood, hut inside (16,19,16) air; the player stands on the hut (d3c1_k3_apitestgame.png). The
+     "doorway" (16,19,12) reads Wood, not Glass: that fill has no "replace", so it fills air only -- today's addCube
+     fails on occupied cells the same way (the comment in its game.json expects a cut-out it never made).
+  Not rerouted (refuse visibly now; gaps recorded): dynamic / sequential template spawns, the Python add_cube.

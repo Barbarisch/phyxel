@@ -18870,6 +18870,8 @@ void Application::processAPICommands() {
                     } else {
                         ok = chunkManager->saveDirtyChunks();
                     }
+                    // D3c-1: a switched world has no today chunks (the save count is 0) -- success is the region's save
+                    if (vfw->voxFoundWorldReads) ok = true;
                     response = {{"success", ok},
                                 {"mode", saveAll ? "all" : "dirty"}};
                     // docs/VoxelFoundationPlan.md F7.6a: the switched world's edited region chunks (codec v3, F3.3)
@@ -19839,6 +19841,10 @@ void Application::processAPICommands() {
             } else if (cmd.action == "generate_world") {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
+                } else if (ChunkStreamingManager::todayWorldDisabled()) {   // D3c-1
+                    response = {{"success", false}, {"world", "voxfound"},
+                                {"error", "generate_world does not apply to the switched world: its region is built from the "
+                                          "world's recipe at boot (game.json world / voxfound_preview region)"}};
                 } else {
                     std::string typeStr = cmd.params.value("type", "Perlin");
                     uint32_t seed = cmd.params.value("seed", 0u);
@@ -21043,6 +21049,11 @@ void Application::processAPICommands() {
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }
+                        if (vfw->voxFoundApiEdit("fill_region", jobParams, response)) {   // D3c-1: the switched world
+                            response["job"] = "fill_region";
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
                         
                         int x1 = jobParams.value("x1", 0), y1 = jobParams.value("y1", 0), z1 = jobParams.value("z1", 0);
                         int x2 = jobParams.value("x2", 0), y2 = jobParams.value("y2", 0), z2 = jobParams.value("z2", 0);
@@ -21196,6 +21207,12 @@ void Application::processAPICommands() {
                     } else if (jobType == "generate_world") {
                         if (!chunkManager) {
                             response = {{"error", "ChunkManager not available"}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        if (ChunkStreamingManager::todayWorldDisabled()) {   // D3c-1
+                            response = {{"success", false}, {"world", "voxfound"},
+                                        {"error", "generate_world does not apply to the switched world (built at boot)"}};
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }

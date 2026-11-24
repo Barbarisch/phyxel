@@ -204,6 +204,11 @@ class GameDefinitionLoader {
 public:
     /// Load a complete game definition. Must be called on the game loop thread.
     static GameDefinitionResult load(const json& definition, GameSubsystems& subsystems);
+    /// docs/VoxelFoundationPlan.md D3c-1: the switched world. Its edit path (bound by VoxFoundWorld); its readiness
+    /// (a switched boot that is not up yet DEFERS structures + transition markers); applyDeferred places them.
+    static void setSwitchedEdit(std::function<bool(const std::string&, const json&, json&)> fn);
+    static void setSwitchedReady(bool ready);
+    static json applyDeferred();
 
     /// Export the current game state as a game definition JSON.
     static json exportDefinition(const GameSubsystems& subsystems);
@@ -239,6 +244,8 @@ private:
     static void loadWorld(const json& worldDef, float bakeSeaLevelY, GameSubsystems& sub,
                           GameDefinitionResult& result);
     static void loadStructures(const json& structures, GameSubsystems& sub, GameDefinitionResult& result);
+    /// Every transition trigger's visible marker (factored out of load(); deferred with the structures, D3c-1).
+    static void placeTransitionMarkers(const json& triggers, GameSubsystems& sub);
     static void loadPlayer(const json& playerDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadCamera(const json& cameraDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadNPCs(const json& npcsDef, GameSubsystems& sub, GameDefinitionResult& result);

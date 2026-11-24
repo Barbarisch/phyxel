@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 
 #include <map>
 #include "Types.h"
@@ -50,6 +51,7 @@ namespace Phyxel {
 // 
 class ChunkManager : public IChunkManager {
 public:
+    static inline std::atomic<size_t> s_createRefused{0};   // D3c-1: createChunk calls refused while switched
     std::vector<std::unique_ptr<Chunk>> chunks;
 
     // Access the world database (for per-world recipe/metadata). May be null if the world
