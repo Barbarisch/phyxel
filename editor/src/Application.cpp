@@ -18389,146 +18389,17 @@ void Application::processAPICommands() {
                        vfw->voxFoundApiRegion(cmd.action, cmd.params, response)) {
                 // F7.24: routed to the switched world (response set)
             } else if (cmd.action == "place_voxel") {
-                int x = cmd.params.value("x", 0);
-                int y = cmd.params.value("y", 0);
-                int z = cmd.params.value("z", 0);
-                if (chunkManager) {
-                    std::string material = cmd.params.value("material", "");
-                    bool ok = false;
-                    if (!material.empty()) {
-                        ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                            glm::ivec3(x, y, z), material);
-                    } else {
-                        ok = chunkManager->addCube(glm::ivec3(x, y, z));
-                    }
-                    response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-                    if (ok && gameEventLog) {
-                        gameEventLog->emit("voxel_placed", {
-                            {"x", x}, {"y", y}, {"z", z},
-                            {"material", material.empty() ? "Default" : material}
-                        });
-                    }
-                    if (ok && npcManager) {
-                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-                    }
-                } else {
-                    response = {{"error", "ChunkManager not available"}};
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("place_voxel: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "place_subcube") {
-                int x = cmd.params.value("x", 0);
-                int y = cmd.params.value("y", 0);
-                int z = cmd.params.value("z", 0);
-                int sx = cmd.params.value("sx", 0);
-                int sy = cmd.params.value("sy", 0);
-                int sz = cmd.params.value("sz", 0);
-                if (chunkManager) {
-                    std::string material = cmd.params.value("material", "Default");
-                    LOG_DEBUG("API", "place_subcube: world({},{},{}) sub({},{},{}) mat={}",
-                              x, y, z, sx, sy, sz, material);
-                    bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
-                        glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
-                    LOG_DEBUG("API", "place_subcube result: {}", ok ? "true" : "false");
-                    response = {{"success", ok},
-                                {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                                {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
-                    if (ok && npcManager) {
-                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-                    }
-                } else {
-                    LOG_ERROR("API", "place_subcube: ChunkManager not available!");
-                    response = {{"error", "ChunkManager not available"}};
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("place_subcube: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "fill_region") {
-                // Fill a 3D box with voxels  --  batched per-chunk for performance
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else {
-                    int x1 = cmd.params.value("x1", 0);
-                    int y1 = cmd.params.value("y1", 0);
-                    int z1 = cmd.params.value("z1", 0);
-                    int x2 = cmd.params.value("x2", 0);
-                    int y2 = cmd.params.value("y2", 0);
-                    int z2 = cmd.params.value("z2", 0);
-                    std::string material = cmd.params.value("material", "");
-                    bool hollow = cmd.params.value("hollow", false);
-                    // replace=true overwrites occupied voxels (default: fills only
-                    // land in empty air and occupied positions count as failed).
-                    bool replace = cmd.params.value("replace", false);
-
-                    // Normalize coordinates
-                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
-                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
-                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
-
-                    // Safety limit: max 100k voxels per call
-                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-                    if (volume > 100000) {
-                        response = {{"error", "Region too large"},
-                                    {"volume", volume}, {"max_volume", 100000}};
-                    } else {
-                        // Auto-snapshot for undo
-                        pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                         glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ),
-                                         "fill_region");
-                        int placed = 0, failed = 0;
-
-                        // Group positions by chunk for batch placement
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = minX; ix <= maxX; ++ix) {
-                            for (int iy = minY; iy <= maxY; ++iy) {
-                                for (int iz = minZ; iz <= maxZ; ++iz) {
-                                    if (hollow &&
-                                        ix > minX && ix < maxX &&
-                                        iy > minY && iy < maxY &&
-                                        iz > minZ && iz < maxZ) {
-                                        continue;
-                                    }
-                                    glm::ivec3 worldPos(ix, iy, iz);
-                                    if (replace && chunkManager->hasVoxelAt(worldPos)) {
-                                        chunkManager->removeCubeFast(worldPos);  // defers re-mesh
-                                    }
-                                    glm::ivec3 cc = ChunkManager::worldToChunkCoord(worldPos);
-                                    glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
-                                    chunkBatches[cc].push_back(lp);
-                                }
-                            }
-                        }
-
-                        for (auto& [cc, positions] : chunkBatches) {
-                            // Ensure chunk exists
-                            if (!chunkManager->getChunkAtCoord(cc)) {
-                                glm::ivec3 origin = cc * 32;
-                                chunkManager->createChunk(origin, false);
-                            }
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) { failed += static_cast<int>(positions.size()); continue; }
-                            int batchPlaced = chunk->addCubesBatch(positions, material);
-                            placed += batchPlaced;
-                            failed += static_cast<int>(positions.size()) - batchPlaced;
-                        }
-                        response = {{"success", true}, {"placed", placed}, {"failed", failed},
-                                    {"volume", volume}, {"hollow", hollow},
-                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
-                        if (placed > 0 && gameEventLog) {
-                            gameEventLog->emit("region_filled", {
-                                {"placed", placed}, {"failed", failed}, {"volume", volume},
-                                {"material", material.empty() ? "Default" : material},
-                                {"hollow", hollow},
-                                {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
-                            });
-                        }
-                        if (placed > 0 && npcManager) {
-                            // Only the filled columns: a whole-world rebuild here froze the frame ~1 s
-                            // per call (measured, WaterCore.md 26.19). Every other edit path does this.
-                            npcManager->onRegionChanged(glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ));
-                        }
-                    }
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("fill_region: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "list_materials") {
                 auto& reg = Phyxel::Core::MaterialRegistry::instance();
                 const auto& materials = reg.getAllMaterials();
@@ -18588,126 +18459,17 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "clear_region") {
-                // Clear (remove) all voxels in a 3D box  --  batched per-chunk for performance
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else {
-                    int x1 = cmd.params.value("x1", 0);
-                    int y1 = cmd.params.value("y1", 0);
-                    int z1 = cmd.params.value("z1", 0);
-                    int x2 = cmd.params.value("x2", 0);
-                    int y2 = cmd.params.value("y2", 0);
-                    int z2 = cmd.params.value("z2", 0);
-
-                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
-                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
-                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
-
-                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-                    if (volume > 100000) {
-                        response = {{"error", "Region too large"},
-                                    {"volume", volume}, {"max_volume", 100000}};
-                    } else {
-                        // Stage times, echoed in the response: this runs on the main thread, so its
-                        // cost is a frame hitch (WaterCore.md 26.19: a one-voxel dig froze ~1.1 s).
-                        using StageClock = std::chrono::steady_clock;
-                        const auto tStage0 = StageClock::now();
-                        auto stageMs = [](StageClock::time_point a, StageClock::time_point b) {
-                            return std::chrono::duration<double, std::milli>(b - a).count();
-                        };
-                        // Auto-snapshot for undo
-                        pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                         glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ),
-                                         "clear_region");
-                        const auto tStage1 = StageClock::now();
-                        int removed = 0, skipped = 0;
-
-                        // Group positions by chunk for batch removal
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = minX; ix <= maxX; ++ix) {
-                            for (int iy = minY; iy <= maxY; ++iy) {
-                                for (int iz = minZ; iz <= maxZ; ++iz) {
-                                    glm::ivec3 worldPos(ix, iy, iz);
-                                    glm::ivec3 cc = ChunkManager::worldToChunkCoord(worldPos);
-                                    glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
-                                    chunkBatches[cc].push_back(lp);
-                                }
-                            }
-                        }
-
-                        for (auto& [cc, positions] : chunkBatches) {
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) { skipped += static_cast<int>(positions.size()); continue; }
-
-                            // If clearing all 32k positions, use fast path
-                            if (positions.size() >= 32 * 32 * 32) {
-                                // Count existing cubes before clearing
-                                int existing = 0;
-                                for (const auto& p : positions) {
-                                    if (chunk->getCubeAt(p)) ++existing;
-                                }
-                                chunk->clearAll();
-                                removed += existing;
-                                skipped += static_cast<int>(positions.size()) - existing;
-                            } else {
-                                int batchRemoved = chunk->removeCubesBatch(positions);
-                                removed += batchRemoved;
-                                // Also clear subcubes/microcubes at each position
-                                int subRemoved = 0;
-                                for (const auto& p : positions) {
-                                    if (chunk->clearSubdivisionAt(p)) ++subRemoved;
-                                }
-                                removed += subRemoved;
-                                skipped += static_cast<int>(positions.size()) - batchRemoved - subRemoved;
-                            }
-                        }
-                        const auto tStage2 = StageClock::now();
-                        response = {{"success", true}, {"removed", removed}, {"skipped", skipped},
-                                    {"volume", volume},
-                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
-                        if (removed > 0 && gameEventLog) {
-                            gameEventLog->emit("region_cleared", {
-                                {"removed", removed}, {"skipped", skipped}, {"volume", volume},
-                                {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
-                            });
-                        }
-                        const auto tStage3 = StageClock::now();
-                        if (removed > 0 && npcManager) {
-                            // Only the cleared columns: a whole-world rebuild here was 1,051 ms of a
-                            // 1,051 ms one-voxel clear (measured, WaterCore.md 26.19).
-                            npcManager->onRegionChanged(glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ));
-                        }
-                        const auto tStage4 = StageClock::now();
-                        response["timing_ms"] = {{"undo_snapshot", stageMs(tStage0, tStage1)},
-                                                 {"remove", stageMs(tStage1, tStage2)},
-                                                 {"event", stageMs(tStage2, tStage3)},
-                                                 {"nav_rebuild", stageMs(tStage3, tStage4)},
-                                                 {"total", stageMs(tStage0, tStage4)}};
-                    }
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("clear_region: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "clear_chunk") {
-                // Instantly clear all voxels in a chunk (bulk operation)
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else {
-                    int cx = cmd.params.value("x", 0);
-                    int cy = cmd.params.value("y", 0);
-                    int cz = cmd.params.value("z", 0);
-                    glm::ivec3 cc(cx, cy, cz);
-                    bool ok = chunkManager->clearChunk(cc);
-                    if (ok) {
-                        response = {{"success", true}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
-                        if (gameEventLog) {
-                            gameEventLog->emit("chunk_cleared", {{"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}});
-                        }
-                    } else {
-                        response = {{"error", "Chunk not found"}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
-                    }
-                }
-
+                // D3c-3: the switched world -- a clear_region over the chunk's 32 m box (today's chunk store was removed)
+                const int cx = cmd.params.value("x", 0), cy = cmd.params.value("y", 0), cz = cmd.params.value("z", 0);
+                const nlohmann::json cp = {{"x1", cx * 32}, {"y1", cy * 32}, {"z1", cz * 32},
+                                           {"x2", cx * 32 + 31}, {"y2", cy * 32 + 31}, {"z2", cz * 32 + 31}};
+                if (!vfw->voxFoundApiEdit("clear_region", cp, response))
+                    response = {{"success", false}, {"world", "voxfound"},
+                                {"error", "clear_chunk: the switched world is not up (no region)"}};
             } else if (cmd.action == "rebuild_physics") {
                 // Force rebuild physics collision for all or specific chunks
                 if (!chunkManager) {
@@ -19232,252 +18994,19 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "remove_voxel") {
-                int x = cmd.params.value("x", 0);
-                int y = cmd.params.value("y", 0);
-                int z = cmd.params.value("z", 0);
-                if (chunkManager) {
-                    bool ok = chunkManager->removeCube(glm::ivec3(x, y, z));
-                    response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-                    if (ok && gameEventLog) {
-                        gameEventLog->emit("voxel_removed", {{"x", x}, {"y", y}, {"z", z}});
-                    }
-                    if (ok && npcManager) {
-                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-                    }
-                } else {
-                    response = {{"error", "ChunkManager not available"}};
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("remove_voxel: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "place_voxels_batch") {
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else if (!cmd.params.contains("voxels")) {
-                    response = {{"error", "Missing 'voxels' array"}};
-                } else {
-                    // Auto-snapshot: compute bounding box of all voxels
-                    if (snapshotManager) {
-                        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
-                        for (const auto& v : cmd.params["voxels"]) {
-                            glm::ivec3 p(v.value("x", 0), v.value("y", 0), v.value("z", 0));
-                            bmin = glm::min(bmin, p);
-                            bmax = glm::max(bmax, p);
-                        }
-                        if (bmin.x <= bmax.x) {
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(), bmin, bmax, "place_voxels_batch");
-                        }
-                    }
-                    int placed = 0;
-                    int failed = 0;
-                    glm::ivec3 batchMin(INT_MAX), batchMax(INT_MIN);
-                    for (const auto& v : cmd.params["voxels"]) {
-                        int x = v.value("x", 0);
-                        int y = v.value("y", 0);
-                        int z = v.value("z", 0);
-                        std::string material = v.value("material", "");
-                        bool ok = false;
-                        if (!material.empty()) {
-                            ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                                glm::ivec3(x, y, z), material);
-                        } else {
-                            ok = chunkManager->addCube(glm::ivec3(x, y, z));
-                        }
-                        if (ok) {
-                            ++placed;
-                            batchMin = glm::min(batchMin, glm::ivec3(x, y, z));
-                            batchMax = glm::max(batchMax, glm::ivec3(x, y, z));
-                        } else ++failed;
-                    }
-                    if (npcManager && placed > 0) {
-                        npcManager->onRegionChanged(batchMin, batchMax);
-                    }
-                    response = {{"success", true}, {"placed", placed}, {"failed", failed}};
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("place_voxels_batch: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "spawn_template" && vfw->voxFoundWorldReads && !vfw->voxFoundTemplateStub) {
                 response = vfw->voxFoundSpawnTemplate(cmd.params);   // docs/VoxelFoundationPlan.md F7.10
             } else if (cmd.action == "spawn_template") {
-                std::string name = cmd.params.value("name", "");
-                if (name.empty()) {
-                    response = {{"error", "Template name required"}};
-                } else if (!objectTemplateManager) {
-                    response = {{"error", "ObjectTemplateManager not available"}};
-                } else {
-                    float x = 0, y = 0, z = 0;
-                    if (cmd.params.contains("position")) {
-                        x = cmd.params["position"].value("x", 0.0f);
-                        y = cmd.params["position"].value("y", 0.0f);
-                        z = cmd.params["position"].value("z", 0.0f);
-                    }
-                    const bool isStatic = true;
-                    int rotation = cmd.params.value("rotation", 0);
-
-                    // Auto-snapshot the affected region before spawning
-                    if (isStatic && chunkManager && snapshotManager) {
-                        const auto* tmpl = objectTemplateManager->getTemplate(name);
-                        if (tmpl && !tmpl->cubes.empty()) {
-                            glm::ivec3 tmin(INT_MAX), tmax(INT_MIN);
-                            for (const auto& c : tmpl->cubes) {
-                                tmin = glm::min(tmin, c.relativePos);
-                                tmax = glm::max(tmax, c.relativePos);
-                            }
-                            for (const auto& s : tmpl->subcubes) {
-                                tmin = glm::min(tmin, s.parentRelativePos);
-                                tmax = glm::max(tmax, s.parentRelativePos);
-                            }
-                            for (const auto& m : tmpl->microcubes) {
-                                tmin = glm::min(tmin, m.parentRelativePos);
-                                tmax = glm::max(tmax, m.parentRelativePos);
-                            }
-                            glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             origin + tmin, origin + tmax,
-                                             "spawn_template:" + name);
-                        }
-                    }
-
-                    // Structure seating (deterministic): when "seat": true, or the template
-                    // declares "# category: building", run the engine seater. It computes the
-                    // floor level from the template geometry, samples the ground under every
-                    // occupied column, solves the flush seat Y, EXCAVATES the footprint, and
-                    // builds steps in front of ground-level openings â€” so a character walks in
-                    // naturally and the floor is never buried/floating. This supersedes the
-                    // legacy raise-only surface-snap below.
-                    bool snapToGround = cmd.params.value("snap", true);
-                    Core::PlacedObjectManager::SeatPlan seatPlan;
-                    {
-                        bool seatMode = cmd.params.value("seat", false);
-                        const auto* tmplSeat = objectTemplateManager->getTemplate(name);
-                        if (!seatMode && tmplSeat && tmplSeat->category == "building") seatMode = true;
-                        if (seatMode && placedObjectManager && chunkManager) {
-                            seatPlan = placedObjectManager->seatStructure(
-                                name, glm::ivec3(static_cast<int>(x), static_cast<int>(y),
-                                                 static_cast<int>(z)), rotation);
-                            if (seatPlan.ok) {
-                                y = static_cast<float>(seatPlan.seatY);
-                                snapToGround = false;  // exact placement at the computed seat Y
-                            }
-                        }
-                    }
-                    if (!seatPlan.ok && snapToGround && chunkManager) {
-                        const auto* tmpl = objectTemplateManager->getTemplate(name);
-                        if (tmpl) {
-                            // Collect all integer cube XZ positions the template occupies
-                            std::set<std::pair<int,int>> footprint;
-                            for (const auto& c : tmpl->cubes)
-                                footprint.insert({c.relativePos.x, c.relativePos.z});
-                            for (const auto& s : tmpl->subcubes)
-                                footprint.insert({s.parentRelativePos.x, s.parentRelativePos.z});
-                            for (const auto& m : tmpl->microcubes)
-                                footprint.insert({m.parentRelativePos.x, m.parentRelativePos.z});
-
-                            int requestedY = static_cast<int>(y);
-                            int requiredY  = INT_MIN;
-
-                            // BIDIRECTIONAL snap: a template must neither hover above the
-                            // ground nor merge into a hillside. Per footprint column, find
-                            // the local surface â€” climbing UP out of solid ground when the
-                            // request is buried, scanning DOWN to the ground when it floats
-                            // â€” and seat the template on the HIGHEST surface found (never
-                            // buried anywhere). Pass snap:false for intentional placement.
-                            // Occupancy at ANY resolution (hasVoxelAt, not getCubeAt):
-                            // carved/kerfed ground is subcube/micro â€” a cube-only test
-                            // disagrees with PlacedObjectManager's oracle and seats
-                            // objects one cell above chopped terrain (audit repro).
-                            for (const auto& [lx, lz] : footprint) {
-                                int wx = static_cast<int>(x) + lx;
-                                int wz = static_cast<int>(z) + lz;
-                                if (chunkManager->hasVoxelAt({wx, requestedY, wz})) {
-                                    int wy = requestedY;
-                                    while (wy < requestedY + 96 &&
-                                           chunkManager->hasVoxelAt({wx, wy + 1, wz})) ++wy;
-                                    requiredY = std::max(requiredY, wy + 1);
-                                } else {
-                                    for (int sy = requestedY - 1; sy >= requestedY - 96; --sy) {
-                                        if (chunkManager->hasVoxelAt({wx, sy, wz})) {
-                                            requiredY = std::max(requiredY, sy + 1);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (requiredY != INT_MIN && requiredY != requestedY) {
-                                LOG_INFO("SpawnTemplate", "Surface-snap: {} moved from y={} to y={}",
-                                         name, requestedY, requiredY);
-                                y = static_cast<float>(requiredY);
-                            }
-                            // This block now OWNS seating â€” disable the legacy raise-only
-                            // snap inside placeTemplate so the two layers can't stack
-                            // (audit: legacy re-snap pushed an already-correct seat one
-                            // cell above the surface).
-                            snapToGround = false;
-                        }
-                    }
-
-                    // Route static placements through PlacedObjectManager for tracking
-                    if (isStatic && placedObjectManager) {
-                        glm::ivec3 pos(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
-                        std::string parentId = cmd.params.value("parent_id", "");
-                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId, snapToGround);
-                        bool ok = !objectId.empty();
-                        // Record persists WITH the chunks on save_world â€” never eagerly. An
-                        // eagerly-saved record whose voxels were never saved is a GHOST on
-                        // the next load (bbox + metadata pointing at empty terrain).
-                        response = {{"success", ok}, {"template", name},
-                                    {"object_id", objectId},
-                                    {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                                    {"rotation", rotation}};
-                        if (seatPlan.ok) {
-                            response["seat"] = {{"seat_y", seatPlan.seatY},
-                                                {"floor_y", seatPlan.floorWorldY},
-                                                {"ground_top", seatPlan.groundTop},
-                                                {"interior_surface", seatPlan.floorWorldY + 1},
-                                                {"excavated", seatPlan.excavated},
-                                                {"steps", seatPlan.stepsPlaced},
-                                                {"flush", seatPlan.flush}};
-                        }
-                    } else {
-                        bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic, rotation);
-                        response = {{"success", ok}, {"template", name},
-                                    {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                                    {"rotation", rotation}};
-                    }
-
-                    // Rebuild collision occupancy AND NavGrid for the affected
-                    // region. A stamped static template (e.g. a tree) writes voxels
-                    // into chunks but does NOT rebuild the physics occupancy grid on
-                    // its own â€” so without this the tree renders yet the character
-                    // walks straight through it. This is the "every voxel edit must
-                    // re-run buildChunkPhysics" occupancy rule (see AgentContext /
-                    // EngineRobustnessAudit); StructureBuildService does the same.
-                    if (isStatic && chunkManager) {
-                        const auto* tmpl = objectTemplateManager->getTemplate(name);
-                        if (tmpl) {
-                            glm::ivec3 tmin(INT_MAX), tmax(INT_MIN);
-                            for (const auto& c : tmpl->cubes) {
-                                tmin = glm::min(tmin, c.relativePos);
-                                tmax = glm::max(tmax, c.relativePos);
-                            }
-                            for (const auto& s : tmpl->subcubes) {
-                                tmin = glm::min(tmin, s.parentRelativePos);
-                                tmax = glm::max(tmax, s.parentRelativePos);
-                            }
-                            for (const auto& m : tmpl->microcubes) {
-                                tmin = glm::min(tmin, m.parentRelativePos);
-                                tmax = glm::max(tmax, m.parentRelativePos);
-                            }
-                            if (tmin.x <= tmax.x) {  // non-empty template
-                                glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y),
-                                                  static_cast<int>(z));
-                                // Rebuild the CPU occupancy grids so the template collides.
-                                chunkManager->buildChunkPhysicsInRegion(origin + tmin, origin + tmax);
-                                // Keep NPC pathing in sync with the new obstacle.
-                                if (npcManager) npcManager->onRegionChanged(origin + tmin, origin + tmax);
-                            }
-                        }
-                    }
-                }
-
+                response = {{"success", false}, {"world", "voxfound"},
+                            {"error", std::string("spawn_template: the switched world is not up (no region, or a test stub) -- "
+                                                  "today's 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7 D3c)")}};
             } else if (cmd.action == "list_templates") {
                 if (objectTemplateManager) {
                     auto names = objectTemplateManager->getTemplateNames();

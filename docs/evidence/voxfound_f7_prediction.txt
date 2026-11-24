@@ -1893,3 +1893,14 @@ format) + WorldStorage::readLegacyRows; the migration uses them (the Chunk path 
   RESULT (VoxFoundV1Migration.RowsEncoderEqualsChunkEncoder, PHYXEL_V1_DBS = the four DBs, each COPIED to a temp file
   and opened unmigrated): 108 chunks -- content-equal 108, BYTE-identical 108. VoxFoundStorageLab* + WorldStorage*
   tests: 46 pass. (No prediction was committed before this step: it is a refactor gated by an exact equality test.)
+
+D3c-3 (2026-11-24) -- the editor API's legacy 1/9 m voxel handlers DELETED (499 lines): place_voxel, place_subcube,
+fill_region, clear_region, remove_voxel, place_voxels_batch, spawn_template -- each ran only when the switched route
+fell through (a test stub or no region) and now refuses with that reason; clear_chunk (no switched route before) is
+a clear_region over the chunk's 32 m box on the switched world. Every number held (no prediction committed: a deletion
+gated by the existing drivers):
+  F7.24 API driver (VoxFoundBoot, DB restored after): P1 batch +5,120, undo -> 0; P2 / P3 copy + paste equal; P4 move
+  586 voxels, source empty, equal; P5 snapshot create / clear / restore equal.
+  clear_chunk: a Gold cube in the camera's chunk read Gold 512, after clear_chunk 0 (11,237,338 voxels cleared).
+  The F7.26 battery: G1 {} / {}, 0 lost, max apply 0.405 s; G2 12 / 12, T3 0; G3 both ways; G4 20, 0 refused;
+  today's chunks 0, create_refused 0.
