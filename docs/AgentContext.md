@@ -713,7 +713,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (VoxFoundWorld in phyxel_core, hosted by the editor + GameShell; packaged games boot switched; two D2 regressions
       fixed: black world, clamped player); part 3 DONE (asset / anim editors on a switched stage, grid-8 save) --
       D3-scenes DONE (multi-scene games switched per scene, editor + standalone); D3b DONE (REORDERED: the opt-out
-      removed -- switched is the only world) -- NEXT D3c (the now-unreachable 1/9 m writers go), then D4
+      removed -- switched is the only world); D3c DONE (1/9 m writers + Subcube / Microcube classes deleted,
+      D3c-5 -8,896 lines, every gate held) -- NEXT D4 (the Chunk store + its readers go)
       -- generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the

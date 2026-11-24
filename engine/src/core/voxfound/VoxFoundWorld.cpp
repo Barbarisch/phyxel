@@ -421,8 +421,6 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
                 if (!ch) continue;
                 const auto& st = ch->getVoxelStore();
                 for (size_t i = 0; i < 32768; ++i) if (st.solid(i)) vol[st.material(i)] += 512.0;
-                for (const auto& sp : ch->getStaticSubcubes()) if (sp) vol[sp->getMaterialName()] += 512.0 / 27.0;
-                for (const auto& mp : ch->getStaticMicrocubes()) if (mp) vol[mp->getMaterialName()] += 512.0 / 729.0;
             }
             response = {{"today_voxels_by_material", vol}, {"chunks", chunkManager->chunkMap.size()}};
             return;

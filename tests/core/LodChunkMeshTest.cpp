@@ -158,63 +158,6 @@ TEST(LodChunkMeshTest, HollowShellIsNotFilledIn) {
 }
 
 // ---------------------------------------------------------------------------
-// RED (solution-auditor, 2026-07-30): SUB/MICROCUBE-ONLY CONTENT WAS INVISIBLE TO THE CUT.
-//
-// volumeFromChunk originally marked a cell solid only via getCubeAt(), which reports FULL-CUBE
-// presence. A cell holding only subcubes/microcubes — exactly how the structure generator
-// authors thin walls (timber_cottage interior_wall is ONE microcube,
-// resources/structure_styles.json) — never sets that flag, so the coarse mesh emitted ZERO
-// faces and every structure silently vanished at distance.
-//
-// This contradicted the plan's own §2.1 premise: sub/micro detail is the cube's APPEARANCE,
-// carried as `coverage` — which is precisely what LodCell::coverage exists for and what the
-// first implementation failed to populate.
-// ---------------------------------------------------------------------------
-TEST(LodChunkMeshTest, SubcubeOnlyWallIsVisibleToTheCut) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
-    // A thin wall made ONLY of subcubes — no addCube anywhere.
-    for (int y = 0; y < 4; ++y)
-        for (int z = 0; z < 4; ++z)
-            c->addSubcube(glm::ivec3(5, y, z), glm::ivec3(0, 1, 1), "Wood");
-
-    std::vector<InstanceData> faces;
-    LodChunkMesh::buildForLevel(*c, 0, SquashConfig{}, faces);
-    EXPECT_GT(faces.size(), 0u)
-        << "a subcube-only wall produced NO coarse faces — the cut deletes structure detail";
-}
-
-TEST(LodChunkMeshTest, MicrocubeOnlyContentIsVisibleToTheCut) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
-    // The thinnest thing the generator emits: a single microcube.
-    c->addMicrocube(glm::ivec3(2, 2, 2), glm::ivec3(1, 1, 1), glm::ivec3(1, 1, 1), "Stone");
-    std::vector<InstanceData> faces;
-    LodChunkMesh::buildForLevel(*c, 0, SquashConfig{}, faces);
-    EXPECT_GT(faces.size(), 0u)
-        << "a single microcube vanished from the coarse mesh";
-}
-
-// Coverage must reflect HOW MUCH of the cube is filled, not just that something is there —
-// that is the quantity the squash rules (thin-wall survival, HalfThreshold) reason about.
-TEST(LodChunkMeshTest, CoverageReflectsSubCubeFillLevel) {
-    auto full = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    full->initializeForLoading();
-    full->addCube(glm::ivec3(1, 1, 1), "Stone");
-
-    auto thin = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    thin->initializeForLoading();
-    thin->addMicrocube(glm::ivec3(1, 1, 1), glm::ivec3(0, 0, 0), glm::ivec3(0, 0, 0), "Stone");
-
-    const LodVolume vf = LodChunkMesh::volumeFromChunk(*full);
-    const LodVolume vt = LodChunkMesh::volumeFromChunk(*thin);
-    EXPECT_EQ(vf.at(1, 1, 1).coverage, LodVolume::kFullCoverage);
-    EXPECT_GT(vt.at(1, 1, 1).coverage, 0u) << "microcube contributed no coverage";
-    EXPECT_LT(vt.at(1, 1, 1).coverage, vf.at(1, 1, 1).coverage)
-        << "one microcube must not read as a FULL cube — coverage is a quantity, not a flag";
-}
-
-// ---------------------------------------------------------------------------
 // RED (visual defect found 2026-07-30): coarse terrain renders with long STRIPE-SHAPED GAPS.
 // Full detail is solid; uniform level 2 is full of holes, so it is the coarse mesher, not
 // mixed-level cracking. Turning the screenshot into a falsifiable invariant:
@@ -283,18 +226,6 @@ TEST(LodChunkMeshTest, SolidCellWithUnresolvedMaterialStillEmitsFaces) {
             << "level " << level << ": an isolated SOLID cell must emit all 6 faces even when its "
                "material cannot be resolved — dropping it is a see-through hole";
     }
-}
-
-// The same must hold when the solidity came from sub/microcubes.
-TEST(LodChunkMeshTest, SolidSubCellWithUnresolvedMaterialStillEmitsFaces) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
-    for (int y = 0; y < 3; ++y)
-        for (int z = 0; z < 3; ++z)
-            c->addSubcube(glm::ivec3(4, y, z), glm::ivec3(1, 1, 1), "");
-    std::vector<InstanceData> faces;
-    LodChunkMesh::buildForLevel(*c, 0, SquashConfig{}, faces);
-    EXPECT_GT(faces.size(), 0u) << "sub-cell solidity dropped for an unresolved material";
 }
 
 // ---------------------------------------------------------------------------
@@ -567,9 +498,8 @@ TEST(LodQuadFootprintTest, BothOrRulesAgreeOnRealChunksBecauseNoOpeningsAreAutho
     for (int x = 8; x < 20; ++x)                       // a wall with a gap in it (a "doorway")
         for (int y = 5; y < 11; ++y)
             if (!(x >= 13 && x <= 15 && y < 9)) c->addCube(glm::ivec3(x, y, 10), "WoodPlanks");
-    for (int y = 0; y < 3; ++y)                        // sub/micro detail
-        for (int z = 0; z < 3; ++z) c->addSubcube(glm::ivec3(6, 6, 6), glm::ivec3(1, y, z), "Wood");
-    c->addMicrocube(glm::ivec3(7, 6, 6), glm::ivec3(1, 1, 1), glm::ivec3(1, 1, 1), "Metal");
+    c->addCube(glm::ivec3(6, 6, 6), "Wood");          // (was sub/micro detail; D3c-5)
+    c->addCube(glm::ivec3(7, 6, 6), "Metal");
 
     SquashConfig preserve; preserve.occupancy = OccupancyRule::OrPreserveOpenings;
     SquashConfig mask;     mask.occupancy     = OccupancyRule::OrWithOpeningMask;

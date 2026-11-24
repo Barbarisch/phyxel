@@ -530,16 +530,14 @@ void WorldOutlinerPanel::renderChunksSection() {
         return;
 
     // Sort chunks by origin for stable display
-    struct ChunkInfo { glm::ivec3 origin; size_t cubes; size_t subcubes; size_t microcubes; };
+    struct ChunkInfo { glm::ivec3 origin; size_t cubes; };
     std::vector<ChunkInfo> infos;
     infos.reserve(chunkCount);
     for (auto& [coord, chunk] : m_chunkManager->chunkMap) {
         if (!chunk) continue;
         infos.push_back({
             chunk->getWorldOrigin(),
-            chunk->getCubeCount(),
-            chunk->getStaticSubcubeCount(),
-            chunk->getStaticMicrocubeCount()
+            chunk->getCubeCount()
         });
     }
     std::sort(infos.begin(), infos.end(), [](const ChunkInfo& a, const ChunkInfo& b) {
@@ -550,9 +548,8 @@ void WorldOutlinerPanel::renderChunksSection() {
 
     for (auto& info : infos) {
         char chunkLabel[256];
-        snprintf(chunkLabel, sizeof(chunkLabel), "(%d, %d, %d)  cubes:%zu sub:%zu micro:%zu",
-                 info.origin.x, info.origin.y, info.origin.z,
-                 info.cubes, info.subcubes, info.microcubes);
+        snprintf(chunkLabel, sizeof(chunkLabel), "(%d, %d, %d)  cubes:%zu",
+                 info.origin.x, info.origin.y, info.origin.z, info.cubes);
 
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         ImGui::TreeNodeEx(chunkLabel, flags);

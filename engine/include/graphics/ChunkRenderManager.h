@@ -14,8 +14,6 @@ namespace Phyxel {
 
 // Forward declarations
 class Cube;
-class Subcube;
-class Microcube;
 class ChunkVoxelStore;
 
 namespace Graphics {
@@ -39,12 +37,6 @@ public:
     // materializing border Cubes. One call answers occupancy AND see-through, so the two
     // can never disagree.)
     using NeighborLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldPos)>;
-    // The same question at SUB-VOXEL resolution, for sub/micro faces on a chunk border (GlassTransparency.md §5).
-    // worldMicro = worldCube*9 + sub*3 + micro, in WORLD micro units. level 1 = "is this
-    // SUBCUBE cell filled" (a solid cube or that subcube; microcubes do not fill a sub-cell),
-    // level 2 = "is this MICROCUBE cell filled" (cube, parent subcube or that microcube) — exactly
-    // subCellSolid / microCellSolid, so a border cell answers as an interior one would.
-    using NeighborFineLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldMicro, int level)>;
     // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
     struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
     // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
@@ -177,20 +169,15 @@ public:
     // store answers. nullptr = pure-Cube path (unit tests that hand-build cube vectors).
     void rebuildAllFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
         const NeighborLightFunc& getNeighborLight = nullptr,
         const std::vector<uint8_t>* columnOpenMask = nullptr,
-        const ChunkVoxelStore* voxelStore = nullptr,
-        const NeighborFineLookupFunc& getNeighborFine = nullptr
+        const ChunkVoxelStore* voxelStore = nullptr
     );
 
     void rebuildCubeFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,      // for emissive/flaming block-light seeding
-        const std::vector<std::unique_ptr<Microcube>>& microcubes,  // (sub/micro sources seed at their parent cube cell)
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
         const std::vector<uint8_t>* columnOpenMask = nullptr,
@@ -242,30 +229,6 @@ public:
     };
     const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }
 
-    void rebuildSubcubeFaces(
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const glm::ivec3& worldOrigin
-    );
-
-    // Increment 3: greedy-merged subcube path (within-cube same-appearance rectangles), selected by
-    // s_fineGreedyMerge. Same algorithm as rebuildMicrocubeFacesMerged at the 3x3 subcube grid.
-    void rebuildSubcubeFacesMerged(
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const glm::ivec3& worldOrigin
-    );
-
-    void rebuildMicrocubeFaces(
-        const std::vector<std::unique_ptr<Microcube>>& microcubes,
-        const glm::ivec3& worldOrigin
-    );
-
-    // Increment 2: greedy-merged microcube path (within-cube same-appearance rectangles), selected
-    // by s_fineGreedyMerge. See docs/BinaryGreedyMeshingPlan.md.
-    void rebuildMicrocubeFacesMerged(
-        const std::vector<std::unique_ptr<Microcube>>& microcubes,
-        const glm::ivec3& worldOrigin
-    );
-
     // Vulkan buffer management
     void createVulkanBuffer();
     void updateVulkanBuffer();
@@ -290,26 +253,10 @@ public:
         const std::vector<std::unique_ptr<Cube>>& cubes
     );
 
-    void updateSingleSubcubeTexture(
-        const glm::ivec3& parentLocalPos,
-        const glm::ivec3& subcubePos,
-        uint16_t textureIndex,
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const glm::ivec3& worldOrigin
-    );
-
     void updateSingleCubeColor(
         const glm::ivec3& localPos,
         const glm::vec3& newColor,
         const std::vector<std::unique_ptr<Cube>>& cubes
-    );
-
-    void updateSingleSubcubeColor(
-        const glm::ivec3& localPos,
-        const glm::ivec3& subcubePos,
-        const glm::vec3& newColor,
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const glm::ivec3& worldOrigin
     );
 
     // Accessors
@@ -466,51 +413,6 @@ private:
     bool blocksAxis(int cell, int axis) const {
         return (m_lightOpaque[cell] & (1u << axis)) != 0u;
     }
-    // Sub-voxel fill per cell in MICRO-equivalents (a subcube = 27, a microcube = 1, full = 729).
-    // A cell counts as light-opaque at or above kLightOpaqueFill: the volume of one full
-    // subcube-thick slab (243 = 729/3), which is what a 1-subcube wall or roof actually occupies.
-    // Chosen over a slab-shape test because it is one counter per cell instead of a 27-bit mask,
-    // and it errs toward DARKER interiors (a scattered third-full cell blocks) — the safe direction.
-    // A single decorative subcube (27) or a 1-microcube-thick trim course (81) stays transparent.
-    std::vector<uint16_t> m_subFill;
-    static constexpr uint16_t kLightOpaqueFill = 243;  // 729 / 3 = one subcube-thick slab
-
-    // --- Sub/microcube hidden-face culling (Phase 1) ---
-    // Occupancy of the chunk's leaf subcubes/microcubes, rebuilt once per rebuildAllFaces straight
-    // from the voxel hierarchy (the source of truth) and consumed by the sub/micro face builders to
-    // skip faces whose neighbour cell is fully solid. Cube-level occupancy reuses m_solidVis (built
-    // first in rebuildCubeFaces). Keys: subKey = cubeIdx*27 + subLocalIdx (cubeIdx = z+y*32+x*1024,
-    // local index = z+y*3+x*9); microKey = subKey*27 + microLocalIdx.
-    std::unordered_set<uint32_t> m_subOcc;
-    std::unordered_set<uint32_t> m_microOcc;
-    // Keys (same encoding as m_subOcc / m_microOcc) of the TRANSPARENT ones (GlassTransparency.md §5).
-    std::unordered_set<uint32_t> m_subTransparent;
-    std::unordered_set<uint32_t> m_microTransparent;
-    // Cross-chunk sub/micro lookup for the CURRENT rebuild only (set and cleared by
-    // rebuildAllFaces). nullptr = no neighbour data: border sub/micro faces are drawn.
-    const NeighborFineLookupFunc* m_fineLookup = nullptr;
-    void buildSubMicroOccupancy(
-        const std::vector<std::unique_ptr<Subcube>>& subcubes,
-        const std::vector<std::unique_ptr<Microcube>>& microcubes,
-        const glm::ivec3& worldOrigin);
-    // Is the cell at the given resolution fully solid (so a face against it is hidden)? Coarser
-    // fills roll up: a micro/sub cell is solid if its parent sub/cube is solid. Out-of-chunk → false.
-    bool cubeCellSolid(int lx, int ly, int lz) const;
-    bool subCellSolid(int lx, int ly, int lz, int sx, int sy, int sz) const;
-    bool microCellSolid(int lx, int ly, int lz, int sx, int sy, int sz, int mx, int my, int mz) const;
-    // The same three questions, answered as a render class (Empty / Opaque / Transparent). The
-    // precedence is identical to the *Solid predicates: a solid parent cube (or subcube) fills
-    // the cell, so ITS class is the answer.
-    NeighborOccupancy cubeCellClass(int lx, int ly, int lz) const;
-    NeighborOccupancy subCellClass(int lx, int ly, int lz, int sx, int sy, int sz) const;
-    NeighborOccupancy microCellClass(int lx, int ly, int lz, int sx, int sy, int sz,
-                                     int mx, int my, int mz) const;
-    // THE sub/micro face-culling decision (GlassTransparency.md §5), for all four sub/micro emission paths and their
-    // leaf-exposure tests. (gx,gy,gz) = the NEIGHBOUR cell, chunk-local, at `level` resolution
-    // (1 = subcube grid 0..95, 2 = microcube grid 0..287); it may lie outside the chunk, which
-    // means "exposed" unless the rebuild has the cross-chunk fine lookup.
-    bool fineFaceHidden(int gx, int gy, int gz, int level, bool selfTransparent) const;
-
     // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
     // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.
     NeighborLightFunc m_neighborLight;

@@ -44,19 +44,6 @@ protected:
                 for (int z = z0; z <= z1; ++z) put(x, y, z, mat);
     }
     bool solid(int x, int y, int z) { return chunkManager->hasVoxelAt(glm::ivec3(x, y, z)); }
-    /// Add one microcube (1/9 voxel) into the cell at world pos, at subcube slot `sub`
-    /// (0..2 per axis) / micro slot `mic` (0..2 per axis).
-    bool putMicro(glm::ivec3 cell, glm::ivec3 sub, glm::ivec3 mic, const char* mat) {
-        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(cell));
-        if (!ch) return false;
-        return ch->addMicrocube(ChunkManager::worldToLocalCoord(cell), sub, mic, mat);
-    }
-    // Add one static subcube (1/3 voxel) at subcube slot `sub` (0..2 per axis).
-    bool putSub(glm::ivec3 cell, glm::ivec3 sub, const char* mat) {
-        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(cell));
-        if (!ch) return false;
-        return ch->addSubcube(ChunkManager::worldToLocalCoord(cell), sub, mat);
-    }
     int countSolid(int x0, int y0, int z0, int x1, int y1, int z1) {
         int n = 0;
         for (int x = x0; x <= x1; ++x)
@@ -147,83 +134,6 @@ TEST_F(TreeCollapseIntegrationTest, StandingTree_AdjacentTerrainBlast_TreeStays)
 // P2.1 — microcube-resolution trees + "leaves shed, wood topples"
 // ============================================================================
 
-TEST_F(TreeCollapseIntegrationTest, MicroLeafCanopy_OverhangCutTrunk_TopDetaches) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-
-    // Like OverhangCanopy, but the canopy is MICROCUBE-only Leaf cells (real fine trees).
-    // Red on baseline: cellMaterial() reads only cube/first-subcube, so a micro-only leaf
-    // cell reports "" -> NOT a tree cell -> the flood spreads canopy->hill -> anchored ->
-    // the severed top never falls.
-    putBox(6, 3, 6, 14, 3, 14, "Stone");    // floor (yAnchor 3)
-    putBox(10, 4, 10, 10, 12, 10, "Log");   // 1x1 trunk
-    // Micro-leaf canopy: cells (8..12, 13..15, 8..12), a few Leaf micros per cell.
-    for (int x = 8; x <= 12; ++x)
-        for (int y = 13; y <= 15; ++y)
-            for (int z = 8; z <= 12; ++z) {
-                ASSERT_TRUE(putMicro({x, y, z}, {1, 1, 1}, {1, 1, 1}, "Leaf"));
-                ASSERT_TRUE(putMicro({x, y, z}, {1, 0, 1}, {1, 1, 1}, "Leaf"));
-            }
-    // Canopy must connect to the trunk top: trunk cube (10,12,10) borders cell (10,13,10). ✓
-    ASSERT_TRUE(solid(10, 13, 10)) << "micro cells not registered in hasVoxelAt";
-    putBox(13, 3, 8, 13, 15, 12, "Stone");  // hill wall flush against the canopy (x12<->x13)
-
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.applyDamage(glm::vec3(10.5f, 8.5f, 10.5f), 1.5f, 500.0f, "force",
-                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ false);
-
-    EXPECT_LT(countSolid(8, 13, 8, 12, 15, 12), 10)
-        << "micro-leaf canopy stayed up — micro cells not recognized as tree material";
-    EXPECT_TRUE(solid(10, 5, 10)) << "stump fell";
-    EXPECT_TRUE(solid(13, 10, 10)) << "hill fell";
-}
-
-TEST_F(TreeCollapseIntegrationTest, MicroWoodCoheres_CanopyRidesAlong) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-    auto* voxelWorld = physicsWorld->getVoxelWorld();
-    ASSERT_NE(voxelWorld, nullptr);
-
-    // A floating (unrooted -> detaches when seeded) tree piece: 2 Log cubes + one cell of
-    // 4 Log MICROcubes (a fine branch) + 2 Leaf cubes (canopy). With coherent=true the
-    // WOOD (cubes + micros, full micro resolution) topples as ONE body and the CANOPY
-    // RIDES ALONG as cargo (F1: leaves are never voxel debris — the tree falls as a tree).
-    putBox(20, 20, 20, 21, 20, 20, "Log");   // 2 Log cubes
-    for (int m = 0; m < 4; ++m)
-        ASSERT_TRUE(putMicro({22, 20, 20}, {0, 1, 1}, {m % 3, m / 3, 1}, "Log"));  // 4 Log micros
-    putBox(20, 21, 20, 21, 21, 20, "Leaf");  // 2 Leaf cubes (canopy)
-
-    Core::KinematicVoxelManager   kin;
-    Core::CoherentFragmentManager mgr;
-    mgr.setDeps(voxelWorld, &kin);
-    const size_t bodiesBefore = voxelWorld->getBodyCount();
-
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.setFragmentManager(&mgr);
-    // Blast the first Log cube only (r=1.0: neighbours at dist 1.0 -> falloff 0, survive).
-    auto damageRes = dmg.applyDamage(glm::vec3(20.5f, 20.5f, 20.5f), 1.0f, 600.0f, "force",
-                    glm::vec3(0.0f), DamageSystem::NO_SUPPORT, /*collapse*/ true, /*coherent*/ true);
-
-    ASSERT_EQ(mgr.count(), 1u) << "severed micro-wood did not cohere (micro gather missing)";
-    EXPECT_EQ(voxelWorld->getBodyCount(), bodiesBefore + 1);
-    // The fragment holds the wood (1 remaining Log cube + 4 Log micros = 5) AND the
-    // canopy cargo: leaf cell (21,21,20) is nearest the detached wood -> rides; leaf
-    // (20,21,20) sat over the destroyed cube -> orphan (removed, no debris). So the
-    // fragment has 5 wood + at least 1 leaf voxel.
-    ASSERT_EQ(kin.getObjects().size(), 1u);
-    const auto& frag = kin.getObjects().begin()->second;
-    int wood = 0, leaf = 0;
-    for (const auto& v : frag.voxels) {
-        if (v.materialName.rfind("Leaf", 0) == 0) ++leaf; else ++wood;
-    }
-    EXPECT_EQ(wood, 5) << "wood voxels missing from the fragment";
-    EXPECT_GE(leaf, 1) << "canopy did not ride the fragment (leaves must not shed/vanish)";
-    // Everything is gone from the grid (wood + riding leaves into the body; orphan
-    // leaves removed without debris).
-    EXPECT_EQ(countSolid(20, 20, 20, 22, 21, 20), 0);
-    // Leaves never become voxel debris: total debris stays small (only the one blasted
-    // Log cube's pieces + the body), far below what leaf-shed would produce.
-    EXPECT_LE(damageRes.debrisSpawned, 30);
-}
-
 // ============================================================================
 // Fix F1 (post-demo) — support flows through WOOD only; leaves are cargo
 // ============================================================================
@@ -261,40 +171,6 @@ TEST_F(TreeCollapseIntegrationTest, InterlockedCanopies_CutTrunk_TopStillFalls) 
 // ============================================================================
 // Fix F2 (post-demo) — bounded collision boxes for big fragments
 // ============================================================================
-
-TEST_F(TreeCollapseIntegrationTest, LongMicroBranch_FellsWithBoundedCollisionBoxes) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-    auto* voxelWorld = physicsWorld->getVoxelWorld();
-    ASSERT_NE(voxelWorld, nullptr);
-    ASSERT_EQ(voxelWorld->getBodyCount(), 0u);
-
-    // A floating micro-resolution branch spanning 10 cells (90 fine cells > the 64 merge
-    // grid). On the pre-F2 code the merge falls back to ONE COLLISION BOX PER VOXEL —
-    // the 2005-box pine that tanked the demo to 4 FPS. The fell must produce a body
-    // with a BOUNDED box count (cell-resolution collision), while the render keeps
-    // every fine voxel.
-    for (int x = 20; x <= 29; ++x)
-        for (int m = 0; m < 4; ++m)
-            ASSERT_TRUE(putMicro({x, 25, 25}, {1, 1, 1}, {m % 3, m / 3, 1}, "Log"));
-
-    Core::KinematicVoxelManager   kin;
-    Core::CoherentFragmentManager mgr;
-    mgr.setDeps(voxelWorld, &kin);
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.setFragmentManager(&mgr);
-    // Blast the first cell only; the remaining 9 cells (36 micro voxels) detach.
-    dmg.applyDamage(glm::vec3(20.5f, 25.5f, 25.5f), 1.0f, 600.0f, "force",
-                    glm::vec3(0.0f), DamageSystem::NO_SUPPORT, /*collapse*/ true, /*coherent*/ true);
-
-    ASSERT_EQ(mgr.count(), 1u) << "branch did not cohere";
-    auto* body = voxelWorld->getBodyById(1);
-    ASSERT_NE(body, nullptr);
-    EXPECT_LE(body->getLocalBoxes().size(), 12u)
-        << "collision box count unbounded (per-voxel fallback — the 2005-box pine bug)";
-    // Render fidelity preserved: all 36 fine voxels in the kinematic object.
-    ASSERT_EQ(kin.getObjects().size(), 1u);
-    EXPECT_EQ(kin.getObjects().begin()->second.voxels.size(), 36u);
-}
 
 // ============================================================================
 // P2.3 — directional hinge topple (asymmetry decides the fall direction)
@@ -366,135 +242,10 @@ TEST_F(TreeCollapseIntegrationTest, SymmetricTop_TipsAlongChopDirection) {
 // Fix F5 (post-demo) — MIXED log+leaf cells must be wood-floodable
 // ============================================================================
 
-TEST_F(TreeCollapseIntegrationTest, MixedLogLeafCells_WholeCanopyFalls) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-    auto* voxelWorld = physicsWorld->getVoxelWorld();
-    ASSERT_NE(voxelWorld, nullptr);
-
-    // Forge trees MIX micro-Log branch wood and micro-Leaf foliage in the SAME cell.
-    // First-sub-voxel classification labels a leaf-first mixed cell "leaf", the wood
-    // flood skips it, and every branch beyond it is unreachable — left FLOATING when
-    // the trunk below is severed (the live DestructionDemo floating-canopy bug:
-    // only 80+76 of a full birch detached; a blast probe on the "ghost" canopy broke
-    // 340 real voxels). A cell containing ANY wood must transmit the wood flood.
-    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor (yAnchor 3)
-    putBox(10, 4, 10, 10, 7, 10, "Log");     // rooted trunk, y4..7
-    // BARRIER mixed cell at (10,8,10): Leaf micro in the LOWEST-ordered subcube slot
-    // (found first by a first-voxel scan), Log micro deeper in the cell.
-    ASSERT_TRUE(putMicro({10, 8, 10}, {0, 0, 0}, {0, 0, 0}, "Leaf"));
-    ASSERT_TRUE(putMicro({10, 8, 10}, {1, 1, 1}, {1, 1, 1}, "Log"));
-    putBox(10, 9, 10, 10, 10, 10, "Log");    // upper branch wood, reachable ONLY through the mixed cell
-    putBox(9, 10, 9, 11, 11, 11, "Leaf");    // canopy around the upper wood
-
-    Core::KinematicVoxelManager   kin;
-    Core::CoherentFragmentManager mgr;
-    mgr.setDeps(voxelWorld, &kin);
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.setFragmentManager(&mgr);
-    // Sever the trunk at y5 (r=1.0 removes only that cube; neighbours survive).
-    dmg.applyDamage(glm::vec3(10.5f, 5.5f, 10.5f), 1.0f, 600.0f, "force",
-                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
-
-    // The WHOLE top must go: trunk above the cut, the mixed cell, the upper wood, and
-    // the canopy — nothing floats.
-    EXPECT_FALSE(solid(10, 6, 10)) << "trunk above the cut floats";
-    EXPECT_FALSE(solid(10, 8, 10)) << "mixed log+leaf cell floats (classified leaf, skipped by wood flood)";
-    EXPECT_FALSE(solid(10, 9, 10)) << "upper wood floats — unreachable past the mixed cell";
-    EXPECT_EQ(countSolid(9, 8, 9, 11, 11, 11), 0)
-        << "canopy left floating (the DestructionDemo ghost-canopy bug)";
-    // And it fell as coherent pieces, not a shower. The twig-scale mixed cell can't
-    // rigidly bind the two wood chunks (F6: micro wood transmits no support), so the
-    // trunk piece and the upper piece fall as TWO bodies — the twig and canopy riding
-    // their nearest wood.
-    ASSERT_EQ(mgr.count(), 2u) << "severed pieces did not cohere";
-    ASSERT_EQ(kin.getObjects().size(), 2u);
-    int wood = 0, leaf = 0;
-    for (const auto& [id, obj] : kin.getObjects()) {
-        for (const auto& v : obj.voxels) {
-            if (v.materialName.rfind("Leaf", 0) == 0) ++leaf; else ++wood;
-        }
-    }
-    // Wood: trunk y6..7 (2) + the mixed cell's Log micro (1) + upper wood y9..10 (2).
-    // Leaves: 17 canopy cubes (3x2x3 region minus the Log cell) + the mixed cell's
-    // Leaf micro = 18 — the mixed cell's own foliage rides along.
-    EXPECT_EQ(wood, 5) << "wood missing from the fragments";
-    EXPECT_EQ(leaf, 18) << "canopy did not ride the fragments";
-}
-
 // ============================================================================
 // Fix F6 — support flows through STRUCTURAL wood only (cube/subcube cross-
 // section). Micro-only "twig" wood neither transmits support nor anchors.
 // ============================================================================
-
-TEST_F(TreeCollapseIntegrationTest, GroundTouchingTwigSkirt_DoesNotAnchor) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-    auto* voxelWorld = physicsWorld->getVoxelWorld();
-    ASSERT_NE(voxelWorld, nullptr);
-
-    // The live pine: after a base cut, a drooping micro-wood skirt (twig cells reaching
-    // the ground) kept the whole tree "rooted" — an ~11cm twig column held a multi-ton
-    // trunk up. Twig wood must not anchor.
-    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor (yAnchor 3)
-    putBox(10, 4, 10, 10, 10, 10, "Log");    // rooted 1x1 trunk, y4..10
-    // Micro-wood skirt: a twig chain from the trunk at y6 down to a ground-touching
-    // cell at (11,4,10) (terrain directly below -> a rooted anchor under pre-F6 rules).
-    for (int y = 4; y <= 6; ++y)
-        for (int m = 0; m < 4; ++m)
-            ASSERT_TRUE(putMicro({11, y, 10}, {1, 1, 1}, {m % 3, m / 3, 1}, "LogPine"));
-
-    Core::KinematicVoxelManager   kin;
-    Core::CoherentFragmentManager mgr;
-    mgr.setDeps(voxelWorld, &kin);
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.setFragmentManager(&mgr);
-    // Sever the trunk at y5 (r=1.0 removes only that cube; the skirt cells survive).
-    dmg.applyDamage(glm::vec3(10.5f, 5.5f, 10.5f), 1.0f, 600.0f, "force",
-                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
-
-    // The top must FALL: the surviving skirt (micro wood touching the ground) must not
-    // hold it up.
-    EXPECT_FALSE(solid(10, 6, 10)) << "trunk floats — twig skirt anchored the tree";
-    EXPECT_FALSE(solid(10, 8, 10)) << "upper trunk floats";
-    EXPECT_EQ(countSolid(10, 6, 10, 10, 10, 10), 0) << "severed top stayed up";
-    EXPECT_GE(mgr.count(), 1u) << "severed top did not cohere";
-    // The rooted stump below the cut stays.
-    EXPECT_TRUE(solid(10, 4, 10)) << "rooted stump fell";
-}
-
-TEST_F(TreeCollapseIntegrationTest, TwigBridgeBetweenTrees_DoesNotTransmitSupport) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-    auto* voxelWorld = physicsWorld->getVoxelWorld();
-    ASSERT_NE(voxelWorld, nullptr);
-
-    // The live birch: interpenetrating canopies touch twig-to-twig. Cutting tree B's
-    // trunk left it hanging off tree A's branches through micro-wood contact. Twig
-    // wood must not transmit support between trees.
-    putBox(4, 3, 4, 18, 3, 16, "Stone");     // floor (yAnchor 3)
-    putBox(8, 4, 10, 8, 10, 10, "Log");      // tree A trunk (rooted)
-    putBox(13, 4, 10, 13, 10, 10, "Log");    // tree B trunk (rooted)
-    // Twig bridge: micro-wood cells linking A's top to B's top (x9..12 at y10).
-    for (int x = 9; x <= 12; ++x)
-        for (int m = 0; m < 4; ++m)
-            ASSERT_TRUE(putMicro({x, 10, 10}, {1, 1, 1}, {m % 3, m / 3, 1}, "Log"));
-
-    Core::KinematicVoxelManager   kin;
-    Core::CoherentFragmentManager mgr;
-    mgr.setDeps(voxelWorld, &kin);
-    DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.setFragmentManager(&mgr);
-    // Cut B's trunk at y6 (r=1.0 removes only that cube).
-    dmg.applyDamage(glm::vec3(13.5f, 6.5f, 10.5f), 1.0f, 600.0f, "force",
-                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
-
-    // B's severed top must FALL — the twig bridge into rooted A must not hold it.
-    EXPECT_FALSE(solid(13, 8, 10)) << "B's top floats — twig bridge transmits support";
-    EXPECT_EQ(countSolid(13, 7, 10, 13, 10, 10), 0) << "B's severed top stayed up";
-    // A is untouched: trunk intact top to bottom.
-    EXPECT_TRUE(solid(8, 10, 10)) << "A's trunk top was taken down";
-    EXPECT_TRUE(solid(8, 4, 10))  << "A's trunk base was taken down";
-    // B's rooted stump below the cut stays.
-    EXPECT_TRUE(solid(13, 4, 10)) << "B's rooted stump fell";
-}
 
 // ============================================================================
 // Fix F7 — support never flows between different tree SPECIES. Structural
@@ -536,31 +287,6 @@ TEST_F(TreeCollapseIntegrationTest, CrossSpeciesLimbContact_DoesNotTransmitSuppo
     EXPECT_TRUE(solid(13, 4, 10)) << "birch rooted stump fell";
 }
 
-// U0/F1: a blast on a MICRO-only leaf cell must emit ZERO voxel debris — leaves are
-// foliage, never voxels. Pre-fix the blast scan read subcubes only (getStaticSubcubesAt),
-// so a micro-resolution leaf cell fell through to a "Wood" representative material and
-// scattered wood voxel debris: the "fireballed leaves explode into blocks" report.
-TEST_F(TreeCollapseIntegrationTest, BlastOnMicroLeafCell_EmitsNoVoxelDebris) {
-    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
-
-    // A cell containing ONLY Leaf microcubes (no cube, no subcube) — real fine-tree foliage.
-    const glm::ivec3 cell(10, 10, 10);
-    for (int mx = 0; mx < 3; ++mx)
-        for (int my = 0; my < 3; ++my)
-            for (int mz = 0; mz < 3; ++mz)
-                putMicro(cell, glm::ivec3(1, 1, 1), glm::ivec3(mx, my, mz), "LeafBirch");
-    ASSERT_TRUE(solid(10, 10, 10)) << "micro leaf cell not created";
-
-    DamageSystem dmg(chunkManager.get(), nullptr);   // no GPU: spawnDebris no-ops, counter still tallies
-    auto res = dmg.applyDamage(glm::vec3(10.5f, 10.5f, 10.5f), 1.5f, 1500.0f, "force",
-                               glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT,
-                               /*collapse*/ false, /*coherentFragments*/ false);
-
-    EXPECT_GT(res.voxelsBroken, 0) << "blast never reached the leaf cell (test setup wrong)";
-    EXPECT_EQ(res.debrisSpawned, 0)
-        << "leaf foliage spawned voxel debris — F1 violated (the fireball-explodes-leaves bug)";
-}
-
 // U2: the CrossSectionAnalyzer (DamageSystem::scorePlaneY) is the shared primitive behind
 // chop neck-shear / statics / impact fracture. Verify its material-weighted area scoring:
 // full cube = 9 subcube-units, static subcube = 1, microcubes = 0 (cargo), gated by weight.
@@ -569,30 +295,25 @@ TEST_F(TreeCollapseIntegrationTest, CrossSectionAnalyzer_ScoresMaterialWeightedA
     const int Y = 20;
     put(10, Y, 10, "Stone");                          // full Stone cube  -> 9 (stone), 0 (wood)
     put(12, Y, 10, "Log");                            // full Log cube    -> 9 (wood)
-    // 3 Log subcubes in one cell -> 3 (wood)
-    putSub(glm::ivec3(14, Y, 10), glm::ivec3(0, 0, 0), "Log");
-    putSub(glm::ivec3(14, Y, 10), glm::ivec3(1, 0, 0), "Log");
-    putSub(glm::ivec3(14, Y, 10), glm::ivec3(2, 0, 0), "Log");
-    // A micro-only cell -> 0 (cargo, never structural)
-    for (int m = 0; m < 3; ++m) putMicro(glm::ivec3(16, Y, 10), glm::ivec3(1, 1, 1), glm::ivec3(m, 0, 0), "LeafBirch");
+    // (the subcube / microcube cells went with the Chunk 1/9 m store, D3c-5)
 
     const glm::ivec3 center(13, Y, 10);
     auto woodW  = [](const std::string& s) { return s.rfind("Log", 0) == 0 ? 1.0f : 0.0f; };
     auto stoneW = [](const std::string& s) { return s == "Stone" ? 1.0f : 0.0f; };
     auto anyW   = [](const std::string&) { return 1.0f; };
 
-    // Wood weight over x∈[9,17]: Log cube (9) + 3 Log subcubes (3) = 12; Stone + micros ignored.
+    // Wood weight over x in [9,17]: the Log cube (9); Stone ignored.
     auto wood = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, woodW);
-    EXPECT_FLOAT_EQ(wood.strength, 12.0f) << "wood cross-section = cube(9) + 3 subcubes(3)";
-    EXPECT_EQ(wood.cells.size(), 2u) << "two cells contributed wood (the cube and the subcube cell)";
+    EXPECT_FLOAT_EQ(wood.strength, 9.0f) << "wood cross-section = cube(9)";
+    EXPECT_EQ(wood.cells.size(), 1u) << "one cell contributed wood (the Log cube)";
 
     // Stone weight: only the full Stone cube = 9.
     auto stone = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, stoneW);
     EXPECT_FLOAT_EQ(stone.strength, 9.0f);
 
-    // Any-solid weight: Stone(9) + Log(9) + 3 subcubes(3) = 21; the micro-only cell still 0.
+    // Any-solid weight: Stone(9) + Log(9) = 18.
     auto all = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, anyW);
-    EXPECT_FLOAT_EQ(all.strength, 21.0f) << "microcubes must contribute 0 (cargo)";
+    EXPECT_FLOAT_EQ(all.strength, 18.0f);
 
     // A plane one above holds nothing -> zero strength, no cells.
     auto empty = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y + 5, anyW);

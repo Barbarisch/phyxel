@@ -105,50 +105,6 @@ TEST_F(ChunkRenderFlagsTest, ControlGlassAsAFullCubeMarksTheChunkTransparent) {
 // full-cube glass happens to be in view, which is appearance coupled to chunk contents.
 // ---------------------------------------------------------------------------------------------
 
-TEST_F(ChunkRenderFlagsTest, SubVoxelGlassMarksTheChunkTransparent) {
-    ASSERT_TRUE(loaded_);
-    auto chunk = makeChunk();
-    ASSERT_TRUE(chunk->addSubcube(glm::ivec3(4, 4, 4), glm::ivec3(0, 0, 0), "Glass"));
-    ASSERT_EQ(chunk->getStaticSubcubeCount(), 1u) << "precondition: the glass subcube was placed";
-
-    chunk->rebuildFaces();
-
-    EXPECT_TRUE(chunk->hasTransparentVoxel())
-        << "a chunk whose ONLY glass is a subcube still contains glass. The flag gates the whole "
-           "OIT pass (RenderCoordinator.cpp:1904), so reporting false here renders that glass "
-           "opaque — and every generated building's window is sub-voxel.";
-}
-
-TEST_F(ChunkRenderFlagsTest, MicrocubeGlassMarksTheChunkTransparent) {
-    ASSERT_TRUE(loaded_);
-    auto chunk = makeChunk();
-    ASSERT_TRUE(chunk->addSubcube(glm::ivec3(4, 4, 4), glm::ivec3(0, 0, 0), "Glass"));
-    ASSERT_TRUE(chunk->addMicrocube(glm::ivec3(6, 6, 6), glm::ivec3(0, 0, 0), glm::ivec3(0, 0, 0),
-                                    "Glass"));
-
-    chunk->rebuildFaces();
-
-    EXPECT_TRUE(chunk->hasTransparentVoxel())
-        << "microcube glass is the finest tier and the one interior trim actually uses";
-}
-
-// Same scan, same omission, different flag: a sub-voxel mirror is invisible to the reflection pass
-// for exactly the reason glass is invisible to the transparent pass. Pinned here so the fix closes
-// the whole defect rather than the half that was reported.
-TEST_F(ChunkRenderFlagsTest, SubVoxelMirrorMarksTheChunkMirrored) {
-    ASSERT_TRUE(loaded_);
-    const auto* mirror = MaterialRegistry::instance().getMaterial("Mirror");
-    ASSERT_NE(mirror, nullptr) << "Mirror is missing from materials.json";
-    ASSERT_TRUE(mirror->isMirror) << "Mirror is no longer flagged isMirror";
-
-    auto chunk = makeChunk();
-    ASSERT_TRUE(chunk->addSubcube(glm::ivec3(4, 4, 4), glm::ivec3(0, 0, 0), "Mirror"));
-    chunk->rebuildFaces();
-
-    EXPECT_TRUE(chunk->hasMirrorVoxel())
-        << "a sub-voxel mirror is still a mirror; the reflection pass is gated on this flag";
-}
-
 // EVERY face-install path must leave the flag correct (docs/GlassTransparency.md §1).
 //
 // Under the GlassTransparency.md §1 routing (transparent faces drawn by the OIT pass ONLY), a wrong
@@ -185,8 +141,6 @@ TEST_F(ChunkRenderFlagsTest, TheFlagIsConservativeAcrossEveryVoxelTier) {
     struct Tier { const char* name; bool (*place)(Chunk&); };
     const Tier tiers[] = {
         {"cube",      [](Chunk& c) { return c.addCube(glm::ivec3(2, 2, 2), "Glass", true); }},
-        {"subcube",   [](Chunk& c) { return c.addSubcube(glm::ivec3(8, 8, 8), glm::ivec3(1, 1, 1), "Glass"); }},
-        {"microcube", [](Chunk& c) { return c.addMicrocube(glm::ivec3(12, 12, 12), glm::ivec3(1, 1, 1), glm::ivec3(1, 1, 1), "Glass"); }},
     };
     for (const auto& tier : tiers) {
         auto chunk = makeChunk();

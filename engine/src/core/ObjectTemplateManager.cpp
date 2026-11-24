@@ -7,8 +7,6 @@
 #include "core/KinematicVoxelManager.h"
 #include "core/KinematicAnimator.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
@@ -556,15 +554,7 @@ void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkC
             glm::ivec3 w = base + c.relativePos;
             if (inChunk(w)) chunk.addCube(Utils::CoordinateUtils::worldToLocalCoord(w), c.material);
         }
-        for (const auto& s : t.subcubes) {
-            glm::ivec3 w = base + s.parentRelativePos;
-            if (inChunk(w)) chunk.addSubcube(Utils::CoordinateUtils::worldToLocalCoord(w), s.subcubePos, s.material);
-        }
-        for (const auto& m : t.microcubes) {
-            glm::ivec3 w = base + m.parentRelativePos;
-            if (inChunk(w)) chunk.addMicrocube(Utils::CoordinateUtils::worldToLocalCoord(w),
-                                               m.subcubePos, m.microcubePos, m.material);
-        }
+        // (template subcubes/microcubes are not stamped: a Chunk has no 1/9 m store since D3c-5)
     };
 
     for (const auto& p : placements) {
@@ -774,10 +764,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             for (const auto& v : vfTmp) vfCells.push_back({v, tSub.material});
             continue;
         }
-        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-        if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addSubcube(localPos, subPos, tSub.material, tSub.tint, tSub.state);
-        }
+        // (no Chunk write: the Chunk 1/9 m subcube store was deleted in D3c-5)
     }
 
     // Spawn Microcubes
@@ -806,10 +793,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             for (const auto& v : vfTmp) vfCells.push_back({v, tMicro.material});
             continue;
         }
-        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-        if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material, tMicro.tint, tMicro.state);
-        }
+        // (no Chunk write: the Chunk 1/9 m microcube store was deleted in D3c-5)
     }
     if (vfWrite && !vfCells.empty()) m_chunkManager->voxFoundWrite()(vfCells, "spawn_template:" + name);   // F7.15
 
@@ -1019,9 +1003,8 @@ int ObjectTemplateManager::countTemplateMicroPresent(const std::string& name, co
         const Chunk* chunk = it->second;
         const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
         const std::string* have = nullptr;
-        if (const Microcube* mc = chunk->getMicrocubeAt(lp, sub, mic)) have = &mc->getMaterialName();
-        else if (const Subcube* sc = chunk->getSubcubeAt(lp, sub))     have = &sc->getMaterialName();
-        else if (const Cube* cb = chunk->getCubeAt(lp))                have = &cb->getMaterialName();
+        (void)sub; (void)mic;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
+        if (const Cube* cb = chunk->getCubeAt(lp)) have = &cb->getMaterialName();
         if (have && *have == *c.mat) ++present;
     }
     if (total) *total = static_cast<int>(cells.size());
@@ -1079,20 +1062,7 @@ bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm
     auto floorDiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
     auto floorMod = [&](int a, int b) { return a - floorDiv(a, b) * b; };
 
-    std::unordered_set<Chunk*> modifiedChunks;
-    auto getOrCreateChunk = [&](const glm::ivec3& worldBlockPos) -> Chunk* {
-        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldBlockPos);
-        auto it = m_chunkManager->chunkMap.find(chunkCoord);
-        if (it == m_chunkManager->chunkMap.end()) {
-            m_chunkManager->createChunk(chunkCoord * 32, false);
-            it = m_chunkManager->chunkMap.find(chunkCoord);
-        }
-        if (it == m_chunkManager->chunkMap.end()) return nullptr;
-        Chunk* chunk = it->second;
-        if (modifiedChunks.insert(chunk).second) chunk->setPhysicsBulkMode(true);
-        return chunk;
-    };
-
+    std::unordered_set<Chunk*> modifiedChunks;   // stays empty: a Chunk has no 1/9 m store (D3c-5)
     const bool vfWriteM = m_chunkManager && static_cast<bool>(m_chunkManager->voxFoundWrite());   // F7.15
     std::vector<std::pair<glm::ivec3, std::string>> vfCellsM;
     std::vector<glm::ivec3> vfTmpM;
@@ -1108,11 +1078,7 @@ bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm
             for (const auto& v : vfTmpM) vfCellsM.push_back({v, erase ? std::string() : cell.mat});
             continue;
         }
-        if (Chunk* chunk = getOrCreateChunk(cube)) {
-            const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
-            if (erase) chunk->removeMicrocube(lp, sub, mic);
-            else       chunk->addMicrocube(lp, sub, mic, cell.mat);
-        }
+        // No Chunk fallback: the Chunk 1/9 m microcube store was deleted in D3c-5.
     }
     if (vfWriteM && !vfCellsM.empty()) m_chunkManager->voxFoundWrite()(vfCellsM, "spawn_template_micro:" + name);
 
@@ -1212,33 +1178,7 @@ void ObjectTemplateManager::update(float deltaTime) {
     // Process Subcubes Batch
     // ---------------------------------------------------------
     while (spawn.currentSubcubeIndex < tmpl->subcubes.size() && processedVoxels < m_voxelsPerFrame) {
-        const auto& tSub = tmpl->subcubes[spawn.currentSubcubeIndex];
-        glm::ivec3 parentPos = basePos + tSub.parentRelativePos;
-        
-        if (spawn.isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-            
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                 glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false);
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material, tSub.tint, tSub.state)) {
-                    modifiedChunks.insert(chunk);
-                }
-            }
-        }
-
+        // (no Chunk write: the Chunk 1/9 m subcube store was deleted in D3c-5)
         spawn.currentSubcubeIndex++;
         processedVoxels++;
     }
@@ -1247,33 +1187,7 @@ void ObjectTemplateManager::update(float deltaTime) {
     // Process Microcubes Batch
     // ---------------------------------------------------------
     while (spawn.currentMicrocubeIndex < tmpl->microcubes.size() && processedVoxels < m_voxelsPerFrame) {
-        const auto& tMicro = tmpl->microcubes[spawn.currentMicrocubeIndex];
-        glm::ivec3 parentPos = basePos + tMicro.parentRelativePos;
-        
-        if (spawn.isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-            
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                 glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false);
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material, tMicro.tint, tMicro.state)) {
-                    modifiedChunks.insert(chunk);
-                }
-            }
-        }
-
+        // (no Chunk write: the Chunk 1/9 m microcube store was deleted in D3c-5)
         spawn.currentMicrocubeIndex++;
         processedVoxels++;
     }

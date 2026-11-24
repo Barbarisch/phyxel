@@ -565,12 +565,7 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                         continue;
                     }
                     if (col.bridgeRail && wy == col.bridgeDeckY + 1) {
-                        for (int sy = 0; sy < 2; ++sy)
-                            for (int sx = 0; sx < 3; ++sx)
-                                for (int sz = 0; sz < 3; ++sz)
-                                    chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz),
-                                                     "WoodPlanks");
-                        continue;
+                        continue;   // the 2/3-high subcube rail: a Chunk has no 1/9 m store since D3c-5
                     }
                     if (col.bridgePierTopY != INT_MIN && wy <= col.bridgePierTopY) {
                         chunk.addCube(localPos, "Stone");
@@ -586,29 +581,9 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                     if (caveNoise > terrainParams.caveThreshold) continue;
                 }
 
-                // Creek bed recess (water-as-terrain-stage P2): the surface voxel of an inner-band
-                // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
-                // below the banks, and the runtime's fractional ribbon pin rests IN the recess
-                // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
-                if (col.creekBed && wy == col.surfaceY && m_creekCarve) {
-                    // WaterCore.md 25.22: the bed carved to the 1/3 m grid by ROUNDING DOWN the continuous height - the
-                    // drawn top is <= bedHeight and within 1/3 m of it, so water flowing on bedHeight never hides in it
-                    const int layers = creekLayers(col);
-                    const std::string& bedMat = materialForColumn(wy, col);
-                    for (int sy = 0; sy < layers; ++sy)
-                        for (int sx = 0; sx < 3; ++sx)
-                            for (int sz = 0; sz < 3; ++sz)
-                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), bedMat);
-                    continue;   // layers == 0: the voxel is air, the bed is the voxel below
-                }
-                if (col.creekBed && wy == col.surfaceY) {
-                    const std::string& shelfMat = materialForColumn(wy, col);
-                    for (int sy = 0; sy < 2; ++sy)
-                        for (int sx = 0; sx < 3; ++sx)
-                            for (int sz = 0; sz < 3; ++sz)
-                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), shelfMat);
-                    continue;
-                }
+                // Creek bed recess (water-as-terrain-stage P2): the surface voxel of a creek column was a
+                // subcube shelf. A Chunk has no 1/9 m subcube store since D3c-5, so the shelf voxel is air.
+                if (col.creekBed && wy == col.surfaceY) continue;
 
                 chunk.addCube(localPos, materialForColumn(wy, col));
             }

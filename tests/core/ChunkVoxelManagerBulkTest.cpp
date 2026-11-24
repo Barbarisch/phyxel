@@ -5,8 +5,6 @@
 
 #include "core/ChunkVoxelManager.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 
 using namespace Phyxel;
 
@@ -23,8 +21,6 @@ namespace {
 // can assert exactly how many per-voxel collision adds fire.
 struct Harness {
     std::vector<std::unique_ptr<Cube>> cubes{32768};   // 32^3, pre-sized like a real chunk
-    std::vector<std::unique_ptr<Subcube>> subs;
-    std::vector<std::unique_ptr<Microcube>> micros;
     glm::ivec3 origin{0, 0, 0};
     int collisionAdds = 0;
     bool bulk = true;
@@ -33,8 +29,6 @@ struct Harness {
     Harness() {
         vm.setCallbacks(
             [this]() -> std::vector<std::unique_ptr<Cube>>& { return cubes; },
-            [this]() -> std::vector<std::unique_ptr<Subcube>>& { return subs; },
-            [this]() -> std::vector<std::unique_ptr<Microcube>>& { return micros; },
             [this]() -> const glm::ivec3& { return origin; },
             [](bool) {}, [](bool) {}, []() {},
             [this](const glm::ivec3&) { ++collisionAdds; },   // addCollision — counted
@@ -46,13 +40,12 @@ struct Harness {
 };
 } // namespace
 
-// In bulk mode, NONE of cube/subcube/microcube fire a per-voxel collision add.
+// In bulk mode a cube add fires no per-voxel collision add (sub/micro levels went with D3c-5).
 TEST(ChunkVoxelManagerBulkTest, CollisionDeferredDuringBulkForAllLevels) {
     Harness h;
     h.bulk = true;
     EXPECT_TRUE(h.vm.addCube(glm::ivec3(1, 1, 1), "Stone"));
-    EXPECT_TRUE(h.vm.addSubcube(glm::ivec3(2, 2, 2), glm::ivec3(0, 0, 0), "Wood"));
-    EXPECT_TRUE(h.vm.addMicrocube(glm::ivec3(3, 3, 3), glm::ivec3(0, 0, 0), glm::ivec3(0, 0, 0), "Wood"));
+    EXPECT_TRUE(h.vm.addCube(glm::ivec3(2, 2, 2), "Wood"));
     EXPECT_EQ(h.collisionAdds, 0)
         << "per-voxel collision was NOT deferred in bulk mode (the cube path was the perf gap)";
 }
@@ -64,6 +57,4 @@ TEST(ChunkVoxelManagerBulkTest, CollisionAddedWhenNotInBulk) {
     h.bulk = false;
     EXPECT_TRUE(h.vm.addCube(glm::ivec3(1, 1, 1), "Stone"));
     EXPECT_EQ(h.collisionAdds, 1) << "collision not added for a normal (non-bulk) cube placement";
-    EXPECT_TRUE(h.vm.addSubcube(glm::ivec3(4, 4, 4), glm::ivec3(0, 0, 0), "Wood"));
-    EXPECT_EQ(h.collisionAdds, 2) << "collision not added for a normal (non-bulk) subcube placement";
 }

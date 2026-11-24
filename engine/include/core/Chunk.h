@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Types.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "graphics/ChunkRenderBuffer.h"
 #include "graphics/ChunkRenderManager.h"
 #include "physics/ChunkPhysicsManager.h"
@@ -73,8 +71,6 @@ private:
     // Index formula: z + y*32 + x*32*32 (see localToIndex())
     // Always use getCubeAt(localPos) for O(1) lookup, never linear search!
     std::vector<std::unique_ptr<Cube>> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
-    std::vector<std::unique_ptr<Subcube>> staticSubcubes;          // Static subcubes (part of chunk physics body)
-    std::vector<std::unique_ptr<Microcube>> staticMicrocubes;      // Static microcubes (finest subdivision level)
     std::vector<WaterSpanLocal> waterSpans;                        // Water as world data — see setWaterSpans
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     
@@ -183,12 +179,10 @@ public:
     /// used to return the raw slot-array size (32768 for any loaded chunk) — every caller
     /// actually wanted "how many cubes are there", which this now truthfully is.
     size_t getCubeCount() const { return voxelManager.getVoxelStore().solidCount(); }
-    /// True if the chunk holds at least one solid cube/subcube/microcube. O(1): cube presence
-    /// is the store's maintained count (every solid cube voxel is in the store, materialized
-    /// or not).
+    /// True if the chunk holds at least one solid cube. O(1): cube presence is the store's
+    /// maintained count (every solid cube voxel is in the store, materialized or not).
     bool hasAnySolidVoxel() const {
-        return voxelManager.getVoxelStore().solidCount() > 0 ||
-               !staticSubcubes.empty() || !staticMicrocubes.empty();
+        return voxelManager.getVoxelStore().solidCount() > 0;
     }
     /// Hybrid read: is there a VISIBLE solid cube at this local cell? Overlay Cube wins if
     /// materialized, else the store answers. Never allocates — this is the probe the mesher's
@@ -206,11 +200,6 @@ public:
     /// §5). The neighbour lookup for cross-chunk FACE culling. Built on visibleSolidCubeAtIndex,
     /// which is deliberately NOT changed: physics must go on treating glass as solid (GlassTransparency.md §5).
     Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAt(const glm::ivec3& localPos) const;
-    /// The same at sub-voxel resolution (GlassTransparency.md §5). localMicro = chunk-local micro coordinate
-    /// (0..287 per axis); level 1 = subcube cell (cube or that subcube), level 2 = microcube cell
-    /// (cube, parent subcube or that microcube) — the precedence of subCellSolid/microCellSolid.
-    Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAtFine(const glm::ivec3& localMicro,
-                                                                          int level) const;
     /// How many times this chunk's mesh state has been recomputed (every rebuildFaces, and the
     /// uniform air/sealed short-circuits). Monotonic; for tests and the chunk_faces debug route.
     uint32_t rebuildCount() const { return m_rebuildCount; }
@@ -223,9 +212,6 @@ public:
         return m;
     }
 
-    size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
-    size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
-    size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
     // Face-direction ranges for bucketed draws (Phase 3) — see ChunkRenderManager::getFaceDirRanges().
     const std::array<uint32_t, 7>& getFaceDirRanges() const { return renderManager.getFaceDirRanges(); }
@@ -235,25 +221,6 @@ public:
     const std::array<uint64_t, Graphics::TierRanges::kTiers>& getTierUnitFaces() const { return renderManager.getTierUnitFaces(); }
     void countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const { renderManager.countCoveredCubeFaces(covered, unknown); }
 
-    /// Stored static voxels and the CPU bytes their objects take (I5 census). Bytes = sizeof(object)
-    /// + its owning unique_ptr + a heap-allocated material-name buffer (beyond the small-string
-    /// buffer). EXCLUDES allocator overhead and the ChunkVoxelManager lookup maps, so it is a floor.
-    struct FineStorageStats {
-        size_t cubes = 0, subcubes = 0, microcubes = 0;
-        size_t subcubeBytes = 0, microcubeBytes = 0;
-    };
-    FineStorageStats fineStorageStats() const {
-        FineStorageStats s;
-        s.cubes = getVoxelStore().solidCount();
-        s.subcubes = staticSubcubes.size();
-        s.microcubes = staticMicrocubes.size();
-        auto heapName = [](const std::string& n) { return n.capacity() > 15 ? n.capacity() + 1 : size_t(0); };
-        for (const auto& p : staticSubcubes)
-            s.subcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
-        for (const auto& p : staticMicrocubes)
-            s.microcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
-        return s;
-    }
     bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
     // Occlusion graph query: can sight pass from face a to face b through this chunk?
@@ -282,28 +249,9 @@ public:
     Cube* getCubeAtIndex(size_t index);
     const Cube* getCubeAtIndex(size_t index) const;
     
-    // Subcube access
-    Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
-    const Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
-    std::vector<Subcube*> getSubcubesAt(const glm::ivec3& localPos);
-    std::vector<Subcube*> getStaticSubcubesAt(const glm::ivec3& localPos);
-    
-    // Microcube access
-    Microcube* getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    const Microcube* getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) const;
-    std::vector<Microcube*> getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
-    
-    // Physics-related subcube access (legacy for transfer process)
-    const std::vector<std::unique_ptr<Subcube>>& getStaticSubcubes() const { return staticSubcubes; }
-    const std::vector<std::unique_ptr<Microcube>>& getStaticMicrocubes() const { return staticMicrocubes; }
-    
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
     bool hasVoxelAt(const glm::ivec3& localPos) const;
-    bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
-    // Sub-voxel floor height as a fraction of the voxel, or negative if it must be treated as
-    // fully solid. See ChunkVoxelManager::subVoxelFloor (WaterSystemV3 Phase 4B).
-    float subVoxelFloor(const glm::ivec3& localPos) const;
     VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
     
     // NEW: O(1) optimized lookups (replace linear searches)
@@ -332,15 +280,6 @@ public:
     // 4.2b). Scan-heavy readers (mesher, occupancy) should move to this.
     const ChunkVoxelStore& getVoxelStore() const { return voxelManager.getVoxelStore(); }
 
-    // Internal: Maintain hash map consistency (subdivided voxels only — the cube-keyed
-    // updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio went away with the dense
-    // cubeMap/voxelTypeMap in Phase 4.1; cube presence/type derive from `cubes` on read).
-    void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
-    void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
-    void addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube);
-    void removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    void initializeVoxelMaps();  // Initialize hash maps from existing data
-    
     // Cube manipulation
     bool removeCube(const glm::ivec3& localPos, bool deferRebuild = false);
     bool addCube(const glm::ivec3& localPos);
@@ -350,19 +289,9 @@ public:
     int removeCubesBatch(const std::vector<glm::ivec3>& positions);
     int addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material = "");
     
-    // Subcube manipulation
-    bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 static subcubes
-    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material = "Default", uint32_t tint = 0xFFFFFFu, uint8_t state = 0);
-    bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
-    bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
+    void initializeVoxelMaps();  // Reconcile materialized overlay Cubes into the palette store (gen/load)
     int clearCellsBulk(const std::vector<glm::ivec3>& localCells);  // Bulk clear (one storage pass); caller owns occupancy+remesh
-    
-    // Microcube manipulation
-    bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Convert subcube to 27 microcubes
-    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material = "Default", uint32_t tint = 0xFFFFFFu, uint8_t state = 0);
-    bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes at subcube position (leaves empty space)
-    
+
     
     // Chunk operations
     void clearAll();                                   // Bulk clear: remove all voxels, rebuild once
@@ -380,11 +309,9 @@ public:
     using BakedLight         = Graphics::ChunkRenderManager::BakedLight;
     // columnOpenMask (optional): 32x32 sky-open grid (x*32+z) precomputed by ChunkManager from
     // the chunks above, so the skylight bake skips the slow per-cell roof probe.
-    using NeighborFineLookupFunc = Graphics::ChunkRenderManager::NeighborFineLookupFunc;
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                       const NeighborLightFunc& getNeighborLight = nullptr,
-                      const std::vector<uint8_t>* columnOpenMask = nullptr,
-                      const NeighborFineLookupFunc& getNeighborFine = nullptr);
+                      const std::vector<uint8_t>* columnOpenMask = nullptr);
 
     // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
     bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }
@@ -444,8 +371,6 @@ public:
     
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex);
-    void updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex);
-    // void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     
     // Dirty tracking for smart saves
     bool getIsDirty() const { return isDirty; }
@@ -481,15 +406,12 @@ public:
 
     // Collision shape creation helpers (occupancy grid only)
     void createCubeCollisionShape(const glm::ivec3& localPos);
-    void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
-    void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const Microcube* microcube);
     
     // ENHANCED DEBUG: Spatial grid debugging and validation infrastructure
     void validateCollisionSystem() const;                             // Validate spatial grid consistency and detect issues
     void debugLogSpatialGrid() const;                                 // Log detailed spatial grid information for debugging
     size_t getCollisionEntityCount() const;                           // Get total collision entity count from spatial grid
     size_t getCubeEntityCount() const;                                // Get cube collision entity count
-    size_t getSubcubeEntityCount() const;                             // Get subcube collision entity count
     void debugPrintSpatialGridStats() const;                          // Print comprehensive spatial grid performance statistics
     void updateNeighborCollisionShapes(const glm::ivec3& localPos);   // Update collision shapes of neighboring cubes
     void beginBulkOperation();                                         // Begin bulk loading: skip per-voxel collision adds (rebuilt once by endBulkOperation)
@@ -502,7 +424,6 @@ public:
     // Utility functions
     static size_t localToIndex(const glm::ivec3& localPos);
     static glm::ivec3 indexToLocal(size_t index);
-    static size_t subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     
     // Access for ChunkManager (friend access or public as needed)
     VkBuffer getInstanceBuffer() const { return renderManager.getInstanceBuffer(); }

@@ -72,16 +72,16 @@ public:
                          bool isMouseCaptured);
     
     // Cube manipulation functions
-    void subdivideHoveredCube();       // Subdivide the currently hovered cube into 27 subcubes
-    void subdivideHoveredSubcube();     // Subdivide the currently hovered subcube into 27 microcubes
     void breakHoveredCube(const glm::vec3& cameraPos);            // Break the currently hovered cube into a dynamic cube with physics
-    void breakHoveredSubcube();         // Break the currently hovered subcube into a dynamic subcube with physics
-    void breakHoveredMicrocube();       // Break the currently hovered microcube (simple removal for now)
+    // Subcube / microcube modes are the switched world's 2- and 1-voxel brushes (F7.4); without a
+    // world editor they do nothing (the Chunk 1/9 m store was deleted in D3c-5).
+    void breakHoveredSubcube();
+    void breakHoveredMicrocube();
     
     // Placement functions
     void placeVoxelAtHover();           // Place a voxel adjacent to the currently hovered face
-    void placeSubcubeAtHover();         // Place a subcube adjacent to the currently hovered face
-    void placeMicrocubeAtHover();       // Place a microcube adjacent to the currently hovered face
+    void placeSubcubeAtHover();         // switched world: 2-voxel brush (F7.4); else no-op
+    void placeMicrocubeAtHover();       // switched world: 1-voxel brush (F7.4); else no-op
     
     // Target mode management
     void setTargetMode(TargetMode mode) { m_targetMode = mode; }
@@ -241,15 +241,9 @@ private:
 
     // Optimized O(1) raycasting functions (delegated to VoxelRaycaster)
     VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, 
-                                       const VoxelLocation& voxelHit) const;
     
     // Conversion and compatibility functions
     CubeLocation voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const;
-    CubeLocation findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, 
-                                       const glm::ivec3& cubeWorldPos, 
-                                       const glm::vec3& rayOrigin, 
-                                       const glm::vec3& rayDirection) const;
     
     // Chunk-based hover management (optimized)
     void setHoveredCubeInChunksOptimized(const CubeLocation& location);

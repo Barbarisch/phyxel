@@ -292,12 +292,9 @@ nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, con
 
     for (const auto& ch : cm->chunks) {
         if (!ch) continue;
-        const auto fs = ch->fineStorageStats();
+        // Cube-only since D3c-5: the 1/9 m sub/micro store was deleted, so those counts are 0.
+        struct { size_t cubes, subcubes, microcubes; } fs{ch->getVoxelStore().solidCount(), 0, 0};
         storedCubes += fs.cubes;
-        storedSubs += fs.subcubes;
-        storedMicros += fs.microcubes;
-        subBytes += fs.subcubeBytes;
-        microBytes += fs.microcubeBytes;
         const auto& tf = ch->getTierFaces();
         const auto& tu = ch->getTierUnitFaces();
         for (uint32_t t = 0; t < TR::kTiers; ++t) {

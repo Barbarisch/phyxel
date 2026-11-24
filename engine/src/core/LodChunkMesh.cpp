@@ -5,8 +5,6 @@
 
 #include "core/Chunk.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "core/MaterialRegistry.h"
 
 namespace Phyxel {
@@ -60,44 +58,7 @@ LodVolume LodChunkMesh::volumeFromChunk(const Chunk& chunk, std::vector<std::str
 
     }
 
-    // SUB/MICROCUBE CONTENT — plan §2.1: sub/micro detail is not a rung on the ladder, it is the
-    // cube's APPEARANCE, carried as `coverage`. Reading only getCubeAt() made every sub/micro-only
-    // cell read EMPTY, so thin structure walls (timber_cottage interior_wall is ONE microcube)
-    // vanished entirely from the coarse mesh.
-    //   1 subcube = 3^3 microcubes = 27   |   1 microcube = 1
-    //
-    // Iterate the chunk's OWN sub/micro containers rather than probing all 32768 cells x 756
-    // slots: the probing version was correct but took 79 s for ten unit tests, which would make
-    // a real LOD build unusable. This is O(actual sub/micro voxels).
-    {
-        std::map<size_t, std::map<uint16_t, uint32_t>> weights;   // cell index -> material weights
-        auto cellIndex = [&](const glm::ivec3& p) -> size_t {
-            return size_t(p.z) + size_t(p.y) * kChunk + size_t(p.x) * kChunk * kChunk;
-        };
-        auto addTo = [&](const glm::ivec3& cp, uint64_t amount, const std::string& mat) {
-            if (cp.x < 0 || cp.y < 0 || cp.z < 0 ||
-                cp.x >= kChunk || cp.y >= kChunk || cp.z >= kChunk) return;
-            LodCell& cell = v.at(cp.x, cp.y, cp.z);
-            if (cell.coverage >= LodVolume::kFullCoverage) return;   // already a full cube
-            cell.coverage += amount;
-            weights[cellIndex(cp)][idFor(mat)] += static_cast<uint32_t>(amount);
-        };
-        for (const auto& sc : chunk.getStaticSubcubes())
-            if (sc) addTo(sc->getLocalPosition(), 27, sc->getMaterialName());
-        for (const auto& mc : chunk.getStaticMicrocubes())
-            if (mc) addTo(mc->getParentCubePosition(), 1, mc->getMaterialName());
-
-        for (const auto& kv : weights) {
-            const size_t idx = kv.first;
-            const int x = int(idx / (kChunk * kChunk));
-            const int y = int((idx / kChunk) % kChunk);
-            const int z = int(idx % kChunk);
-            uint16_t best = 0; uint32_t bw = 0;
-            for (const auto& mw : kv.second) if (mw.second > bw) { bw = mw.second; best = mw.first; }
-            LodCell& cell = v.at(x, y, z);
-            if (cell.bulkMaterial == 0) cell.bulkMaterial = cell.skinMaterial = best;
-        }
-    }
+    // (Sub/microcube coverage was read here; the Chunk 1/9 m store was deleted in D3c-5.)
 
     if (outPalette) *outPalette = std::move(palette);
     return v;

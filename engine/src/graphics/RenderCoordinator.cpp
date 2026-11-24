@@ -49,7 +49,6 @@
 #include "core/HydrologyMap.h"
 #include "core/WaterProfile.h"   // v4 W1: per-body appearance profile + hydrology texture packing
 #include "core/Chunk.h"
-#include "core/Subcube.h"
 #include "core/TemplateLodChain.h"
 #include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
@@ -625,16 +624,6 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                                     for (int mz = 0; mz < 9; ++mz)
                                         soup.micros.push_back(
                                             {rel * 9 + glm::ivec3(mx2, my, mz), m});
-                        }
-                        for (Subcube* s : chunk->getSubcubesAt(lp)) {
-                            if (!s) continue;
-                            const uint16_t m = matId(s->getMaterialName());
-                            const glm::ivec3 sp = s->getLocalPosition();
-                            for (int mx2 = 0; mx2 < 3; ++mx2)
-                                for (int my = 0; my < 3; ++my)
-                                    for (int mz = 0; mz < 3; ++mz)
-                                        soup.micros.push_back(
-                                            {rel * 9 + sp * 3 + glm::ivec3(mx2, my, mz), m});
                         }
                     }
             if (allResident && !soup.micros.empty()) {

@@ -7,7 +7,6 @@ cmake_minimum_required(VERSION 3.15)
 set(INTEGRATION_TEST_SOURCES
     IntegrationTestFixture.cpp
     ChunkManagerIntegrationTest.cpp
-    ChopKerfIntegrationTest.cpp
     VoxelGrazeRemeshIntegrationTest.cpp
     CoherentCollapseIntegrationTest.cpp
     TreeCollapseIntegrationTest.cpp

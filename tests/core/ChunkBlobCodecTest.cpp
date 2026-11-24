@@ -2,8 +2,7 @@
 #include "core/ChunkBlobCodec.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
+#include "core/voxfound/StorageLab.h"
 
 namespace Phyxel {
 namespace Testing {
@@ -95,46 +94,48 @@ TEST_F(ChunkBlobCodecTest, UniformSolidChunkEncodesUnder1KB) {
 
 // --- Subcubes / microcubes with tint + state ---
 
-TEST_F(ChunkBlobCodecTest, SubcubeTintStateRoundTrip) {
-    auto src = makeChunk();
-    ASSERT_TRUE(src->addSubcube(glm::ivec3(4, 5, 6), glm::ivec3(1, 2, 0),
-                                "Wood", 0x88CC44u, 3));
-    ASSERT_TRUE(src->addSubcube(glm::ivec3(4, 5, 6), glm::ivec3(0, 0, 1),
-                                "Bricks")); // default tint/state
+// --- Blobs written before D3c-5 can still hold subcube / microcube sections. The Chunk 1/9 m store
+// is gone, so decode must PARSE those sections (and keep validating them) and DISCARD them, keeping
+// every cube. The blob is built WITHOUT a Chunk by encodePxb2FromRows (the v1 migration's encoder,
+// which writes ChunkBlobCodec's format), so the sub/micro sections are really there. ---
 
-    auto dst = roundTrip(*src);
-    auto subs = dst->getStaticSubcubesAt(glm::ivec3(4, 5, 6));
-    ASSERT_EQ(subs.size(), 2u);
+TEST_F(ChunkBlobCodecTest, DecodeSkipsSubcubeAndMicrocubeSections) {
+    Core::VoxFound::V1ChunkRows rows;
+    rows.cubes.push_back({glm::ivec3(1, 2, 3), "Stone"});
+    rows.cubes.push_back({glm::ivec3(30, 31, 0), "Wood"});
+    rows.subs.push_back({glm::ivec3(4, 5, 6), glm::ivec3(1, 2, 0), "Bricks"});
+    rows.micros.push_back({glm::ivec3(10, 11, 12), glm::ivec3(0, 1, 2), glm::ivec3(2, 0, 1), "Glass"});
+    Core::VoxFound::Pxb2Counts written;
+    const auto blob = Core::VoxFound::encodePxb2FromRows(rows, &written);
+    ASSERT_EQ(written.subcubes, 1u) << "premise: the blob carries a subcube section";
+    ASSERT_EQ(written.microcubes, 1u) << "premise: the blob carries a microcube section";
 
-    const Subcube* tinted = nullptr;
-    const Subcube* plain = nullptr;
-    for (const auto* s : subs) {
-        if (s->getLocalPosition() == glm::ivec3(1, 2, 0)) tinted = s;
-        if (s->getLocalPosition() == glm::ivec3(0, 0, 1)) plain = s;
+    auto dst = makeChunk();
+    ChunkBlobCodec::Counts decoded;
+    ASSERT_TRUE(ChunkBlobCodec::decode(blob.data(), blob.size(), *dst, &decoded));
+    EXPECT_EQ(decoded.subcubes, 1u);
+    EXPECT_EQ(decoded.microcubes, 1u);
+    ASSERT_NE(dst->getCubeAt(glm::ivec3(1, 2, 3)), nullptr);
+    EXPECT_EQ(dst->getCubeAt(glm::ivec3(1, 2, 3))->getMaterialName(), "Stone");
+    ASSERT_NE(dst->getCubeAt(glm::ivec3(30, 31, 0)), nullptr);
+    EXPECT_EQ(dst->getCubeAt(glm::ivec3(30, 31, 0))->getMaterialName(), "Wood");
+    EXPECT_FALSE(dst->hasVoxelAt(glm::ivec3(4, 5, 6))) << "a subcube's cell must not become a cube";
+    EXPECT_FALSE(dst->hasVoxelAt(glm::ivec3(10, 11, 12))) << "a microcube's cell must not become a cube";
+    EXPECT_EQ(dst->getCubeCount(), 2u);
+
+    // Re-encoding writes zero sub/micro entries (the format is unchanged, the counts are 0).
+    ChunkBlobCodec::Counts reenc;
+    ChunkBlobCodec::encode(*dst, &reenc);
+    EXPECT_EQ(reenc.cubes, 2u);
+    EXPECT_EQ(reenc.subcubes, 0u);
+    EXPECT_EQ(reenc.microcubes, 0u);
+
+    // Truncating inside the sub/micro sections still fails cleanly (they are still validated).
+    for (size_t len = 0; len < blob.size(); ++len) {
+        auto fresh = makeChunk();
+        EXPECT_FALSE(ChunkBlobCodec::decode(blob.data(), len, *fresh))
+            << "truncated decode at " << len << " bytes did not fail";
     }
-    ASSERT_NE(tinted, nullptr);
-    ASSERT_NE(plain, nullptr);
-    EXPECT_EQ(tinted->getMaterialName(), "Wood");
-    EXPECT_EQ(tinted->getTint(), 0x88CC44u);
-    EXPECT_EQ(tinted->getState(), 3);
-    EXPECT_EQ(plain->getMaterialName(), "Bricks");
-    EXPECT_EQ(plain->getTint(), 0xFFFFFFu);
-    EXPECT_EQ(plain->getState(), 0);
-}
-
-TEST_F(ChunkBlobCodecTest, MicrocubeTintStateRoundTrip) {
-    auto src = makeChunk();
-    ASSERT_TRUE(src->addMicrocube(glm::ivec3(10, 11, 12), glm::ivec3(0, 1, 2),
-                                  glm::ivec3(2, 0, 1), "Stone", 0x336699u, 4));
-
-    auto dst = roundTrip(*src);
-    ASSERT_EQ(dst->getStaticMicrocubeCount(), 1u);
-    const auto& micro = dst->getStaticMicrocubes()[0];
-    EXPECT_EQ(micro->getMaterialName(), "Stone");
-    EXPECT_EQ(micro->getSubcubeLocalPosition(), glm::ivec3(0, 1, 2));
-    EXPECT_EQ(micro->getMicrocubeLocalPosition(), glm::ivec3(2, 0, 1));
-    EXPECT_EQ(micro->getTint(), 0x336699u);
-    EXPECT_EQ(micro->getState(), 4);
 }
 
 // --- Negative world origin (parent-local math must not break) ---
@@ -142,14 +143,13 @@ TEST_F(ChunkBlobCodecTest, MicrocubeTintStateRoundTrip) {
 TEST_F(ChunkBlobCodecTest, NegativeOriginChunkRoundTrips) {
     auto src = makeChunk(glm::ivec3(-64, -32, -96));
     src->addCube(glm::ivec3(15, 15, 15), "Sand");
-    ASSERT_TRUE(src->addSubcube(glm::ivec3(3, 3, 3), glm::ivec3(2, 2, 2), "Ice"));
+    src->addCube(glm::ivec3(3, 3, 3), "Ice");
 
     auto dst = roundTrip(*src);
     ASSERT_NE(dst->getCubeAt(glm::ivec3(15, 15, 15)), nullptr);
     EXPECT_EQ(dst->getCubeAt(glm::ivec3(15, 15, 15))->getMaterialName(), "Sand");
-    auto subs = dst->getStaticSubcubesAt(glm::ivec3(3, 3, 3));
-    ASSERT_EQ(subs.size(), 1u);
-    EXPECT_EQ(subs[0]->getMaterialName(), "Ice");
+    ASSERT_NE(dst->getCubeAt(glm::ivec3(3, 3, 3)), nullptr);
+    EXPECT_EQ(dst->getCubeAt(glm::ivec3(3, 3, 3))->getMaterialName(), "Ice");
 }
 
 // --- Determinism: same content → identical bytes ---
@@ -159,7 +159,7 @@ TEST_F(ChunkBlobCodecTest, EncodeIsDeterministic) {
         auto chunk = makeChunk();
         chunk->addCube(glm::ivec3(1, 2, 3), "Stone");
         chunk->addCube(glm::ivec3(4, 5, 6), "Wood");
-        chunk->addSubcube(glm::ivec3(7, 8, 9), glm::ivec3(1, 1, 1), "Glass", 0x102030u, 2);
+        chunk->addCube(glm::ivec3(7, 8, 9), "Glass");
         return chunk;
     };
     auto a = ChunkBlobCodec::encode(*build());
@@ -183,7 +183,7 @@ TEST_F(ChunkBlobCodecTest, DecodeRejectsGarbageAndTruncation) {
     // Valid blob truncated at every prefix length must fail, not crash.
     auto src = makeChunk();
     src->addCube(glm::ivec3(1, 1, 1), "Stone");
-    src->addSubcube(glm::ivec3(2, 2, 2), glm::ivec3(1, 0, 0), "Wood", 0x123456u, 1);
+    src->addCube(glm::ivec3(2, 2, 2), "Wood");
     auto blob = ChunkBlobCodec::encode(*src);
     for (size_t len = 0; len < blob.size(); ++len) {
         auto fresh = makeChunk();

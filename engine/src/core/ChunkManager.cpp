@@ -7,8 +7,6 @@
 #include <chrono>
 #include "core/WorldStorage.h"
 #include "core/GpuParticlePhysics.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
@@ -433,7 +431,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     // m_managedRemeshRequested: a null-lookup rebuild asked for this re-mesh (GlassTransparency.md §6); an
     // intervening buffer upload may already have cleared needsUpdate.
     if (chunk->getNeedsUpdate() || chunk->m_managedRemeshRequested) {
-        LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
+        LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex);
 
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);
@@ -557,11 +555,9 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     // site (Chunk::unsealForEdit) and the next managed rebuild lands back here.
     {
         const ChunkVoxelStore& store = chunk.getVoxelStore();
-        const bool noSubMicro = chunk.getStaticSubcubeCount() == 0 &&
-                                chunk.getStaticMicrocubeCount() == 0;
         // materializedCubeCount(): O(1) for never-touched chunks (empty overlay vector); the
         // guard keeps a mutated overlay Cube from hiding inside a "uniform" classification.
-        if (store.isUniform() && noSubMicro && chunk.materializedCubeCount() == 0) {
+        if (store.isUniform() && chunk.materializedCubeCount() == 0) {
             if (store.solidCount() == 0) {
                 chunk.applyAirRenderState();
                 deliverBorderRipple(chunk);
@@ -603,24 +599,6 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         // glass in the NEXT chunk is drawn exactly as it would be inside one chunk.
         return ncChunk ? ncChunk->renderOccupancyAt(worldToLocalCoord(worldPos)) : Occ::Empty;
     };
-    // GlassTransparency.md §5: the same lookup at sub-voxel resolution, for sub/micro faces on the border.
-    // World micro coordinates can be negative, so the chunk split uses FLOOR division.
-    bool nfValid = false;
-    glm::ivec3 nfCoord(0);
-    Chunk* nfChunk = nullptr;
-    auto getNeighborFine = [this, nfValid, nfCoord, nfChunk](const glm::ivec3& worldMicro,
-                                                             int level) mutable -> Occ {
-        auto floorDiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
-        const glm::ivec3 cc(floorDiv(worldMicro.x, 288), floorDiv(worldMicro.y, 288),
-                            floorDiv(worldMicro.z, 288));
-        if (!nfValid || cc != nfCoord) {
-            nfValid = true;
-            nfCoord = cc;
-            nfChunk = getChunkAtCoord(cc);
-        }
-        return nfChunk ? nfChunk->renderOccupancyAtFine(worldMicro - cc * 288, level) : Occ::Empty;
-    };
-
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
     // sky/block light so light bleeds across chunk boundaries (no seams).
     auto getNeighborLight = [this, &chunk](const glm::ivec3& worldPos, Chunk::BakedLight& out) -> bool {
@@ -669,7 +647,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     }
 
     // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
-    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen, getNeighborFine);
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen);
     deliverBorderRipple(chunk);
 
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
@@ -788,10 +766,6 @@ VoxelLocation ChunkManager::resolveGlobalPosition(const glm::ivec3& worldPos) co
     return m_voxelQuerySystem.resolveGlobalPosition(worldPos);
 }
 
-VoxelLocation ChunkManager::resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const {
-    return m_voxelQuerySystem.resolveGlobalPositionWithSubcube(worldPos, subcubePos);
-}
-
 bool ChunkManager::hasVoxelAt(const glm::ivec3& worldPos) const {
     if (m_voxFoundReads) return m_voxFoundReads->hasVoxelAt(worldPos);   // F7.1
     return m_voxelQuerySystem.hasVoxelAt(worldPos);
@@ -835,10 +809,6 @@ bool ChunkManager::addCube(const glm::ivec3& worldPos) {
 bool ChunkManager::addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material) {
     ensureChunkAt(worldPos);
     return m_voxelModificationSystem.addCubeWithMaterial(worldPos, material);
-}
-
-Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    return m_voxelQuerySystem.getSubcubeAt(worldPos, subcubePos);
 }
 
 uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -1065,14 +1035,6 @@ void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
             }
         }
     }
-}
-
-void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {
-    m_faceUpdateCoordinator.updateAfterCubeSubdivision(worldPos);
-}
-
-void ChunkManager::updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos) {
-    m_faceUpdateCoordinator.updateAfterSubcubeBreak(parentWorldPos, subcubeLocalPos);
 }
 
 void ChunkManager::updateFacesForPositionChange(const glm::ivec3& worldPos, bool cubeAdded) {

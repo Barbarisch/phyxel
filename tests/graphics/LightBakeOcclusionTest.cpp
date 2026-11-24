@@ -43,8 +43,6 @@
 #include "graphics/ChunkRenderManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 
 #include <filesystem>
 #include <memory>
@@ -101,8 +99,6 @@ enum class Roof {
 
 struct Room {
     std::vector<std::unique_ptr<Cube>>       cubes;
-    std::vector<std::unique_ptr<Subcube>>    subs;
-    std::vector<std::unique_ptr<Microcube>>  micros;
 };
 
 Room buildRoom(Roof roof) {
@@ -119,35 +115,6 @@ Room buildRoom(Roof roof) {
                 case Roof::Glass:
                     r.cubes.push_back(std::make_unique<Cube>(glm::ivec3(x, y, z), "Glass"));
                     continue;
-                case Roof::Subcubes:
-                    for (int sx = 0; sx < 3; ++sx)
-                    for (int sy = 0; sy < 3; ++sy)
-                    for (int sz = 0; sz < 3; ++sz)
-                        r.subs.push_back(std::make_unique<Subcube>(
-                            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), "Stone"));
-                    continue;
-                case Roof::SubcubeSlab:
-                    // The bottom 3x3 subcube layer only: a roof one subcube thick, which is what a
-                    // sub-voxel-detailed structure actually builds. 9/27 of the cell volume.
-                    for (int sx = 0; sx < 3; ++sx)
-                    for (int sz = 0; sz < 3; ++sz)
-                        r.subs.push_back(std::make_unique<Subcube>(
-                            glm::ivec3(x, y, z), glm::ivec3(sx, 0, sz), "Stone"));
-                    continue;
-                case Roof::SubcubeSpeck:
-                    // A lone decorative subcube — a hook, a knot, a nail head. 1/27 of the cell.
-                    r.subs.push_back(std::make_unique<Subcube>(
-                        glm::ivec3(x, y, z), glm::ivec3(1, 1, 1), "Stone"));
-                    continue;
-                case Roof::Microcubes:
-                    for (int mx = 0; mx < 9; ++mx)
-                    for (int my = 0; my < 9; ++my)
-                    for (int mz = 0; mz < 9; ++mz)
-                        r.micros.push_back(std::make_unique<Microcube>(
-                            glm::ivec3(x, y, z),
-                            glm::ivec3(mx / 3, my / 3, mz / 3),
-                            glm::ivec3(mx % 3, my % 3, mz % 3), "Stone"));
-                    continue;
                 case Roof::Cubes:
                     break;                                       // fall through to a Stone cube
             }
@@ -163,7 +130,7 @@ Room buildRoom(Roof roof) {
 // That is the single variable under test.
 uint8_t bakeAndProbeCentre(Roof roof, ChunkRenderManager& crm) {
     Room r = buildRoom(roof);
-    crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(r.cubes, glm::ivec3(0, 0, 0));
     ChunkRenderManager::BakedLight out{};
     if (!crm.bakedLightAt(kCentre, kCentre, kCentre, out)) return 255;   // not baked at all
     return out.sky;
@@ -212,49 +179,11 @@ TEST_F(LightBakeOcclusion, DISABLED_Control_CubeRoofedRoomInteriorIsDark) {
 
 // ── D5: sub-voxel geometry must occlude skylight ─────────────────────────────────────────────────
 
-// RED until P2. A roof of fully-packed subcubes occupies exactly the same volume as a cube roof,
-// so the interior must be equally dark. Today `solidVis` never sees the subcubes and the interior
-// bakes to 15 — a subcube-roofed room is lit as if it had no roof at all.
-TEST_F(LightBakeOcclusion, DISABLED_SubcubeRoofOccludesSkylight) {
-    ASSERT_TRUE(loaded_);
-    ChunkRenderManager crm;
-    EXPECT_EQ(bakeAndProbeCentre(Roof::Subcubes, crm), 0u)
-        << "A fully-packed subcube roof fills the same volume as a cube roof; it must block "
-           "skylight identically. See D5 in the lighting revamp plan.";
-}
-
-// RED until P2. Same argument one resolution finer (9x9x9 microcubes per cell).
-TEST_F(LightBakeOcclusion, DISABLED_MicrocubeRoofOccludesSkylight) {
-    ASSERT_TRUE(loaded_);
-    ChunkRenderManager crm;
-    EXPECT_EQ(bakeAndProbeCentre(Roof::Microcubes, crm), 0u)
-        << "A fully-packed microcube roof fills the same volume as a cube roof; it must block "
-           "skylight identically. See D5 in the lighting revamp plan.";
-}
-
 // ── The occlusion threshold: what counts as "enough sub-voxel fill to block light" ──────────────
 // Light opacity is decided by sub-voxel fill in micro-equivalents against kLightOpaqueFill = 243
 // (729/3, the volume of one full subcube-thick slab). These two tests pin BOTH ends of that rule so
 // it cannot drift into "any subcube seals a cell" (which would black out decorated interiors) or
 // back into "sub-voxels never occlude".
-
-// A roof exactly one subcube thick is 9/27 of the cell = 243 micro-equivalents = the threshold.
-// This is the shape structure generation actually builds, so it must block.
-TEST_F(LightBakeOcclusion, DISABLED_OneSubcubeThickRoofBlocksSkylight) {
-    ASSERT_TRUE(loaded_);
-    ChunkRenderManager crm;
-    EXPECT_EQ(bakeAndProbeCentre(Roof::SubcubeSlab, crm), 0u)
-        << "A roof one subcube thick occupies a full slab of each cell and must block skylight.";
-}
-
-// A single decorative subcube is 1/27 of the cell = 27 micro-equivalents, far below the threshold.
-// It must leave the cell transparent, or every hook, knot and nail head would cast a hole of night.
-TEST_F(LightBakeOcclusion, LoneDecorativeSubcubeDoesNotBlockSkylight) {
-    ASSERT_TRUE(loaded_);
-    ChunkRenderManager crm;
-    EXPECT_EQ(bakeAndProbeCentre(Roof::SubcubeSpeck, crm), 15u)
-        << "A lone decorative subcube must not seal its cell against light.";
-}
 
 // ── Transparency: glass is a window, not a wall ──────────────────────────────────────────────────
 
@@ -300,10 +229,8 @@ TEST_F(LightBakeOcclusion, DISABLED_ChunkEdgeInteriorFacesDoNotReadFullSky) {
             cubes.push_back(std::make_unique<Cube>(glm::ivec3(x, y, kEdgeMax), "Stone"));
     }
 
-    std::vector<std::unique_ptr<Subcube>> subs;
-    std::vector<std::unique_ptr<Microcube>> micros;
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(cubes, glm::ivec3(0, 0, 0));
 
     // Premise: the BAKE itself is dark. If this fails the test is measuring the wrong thing.
     ChunkRenderManager::BakedLight probe{};

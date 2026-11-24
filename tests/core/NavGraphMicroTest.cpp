@@ -112,11 +112,9 @@ bool passesDoorCell(const NavGraph::PathResult& r) {
 }
 
 // --- B. real chunk voxels ------------------------------------------------------
-// A 32x32 chunk: ground cubes at y=15 (stand at 16). A wall of subcubes at cube
-// x=10 (subcube x 1..2 -> 6 micro thick, offsets 3..8), y 16..18, full depth.
-// `door` carves cubes y 16..17 at z=15 down to two microcube jambs (z offsets 0
-// and 8) — the realizer's frame; the y=18 subcubes stay as the lintel. Clear
-// reveal: 7 micro wide x 18 micro tall.
+// A 32x32 chunk: ground cubes at y=15 (stand at 16). A wall of cubes at x=10, y 16..18,
+// full depth; `door` leaves a 1 x 2 cube opening at z=15 (was a subcube wall with microcube
+// jambs before the Chunk 1/9 m store was deleted in D3c-5).
 struct ChunkDoorWorld {
     ChunkManager cm;
     explicit ChunkDoorWorld(bool door) {
@@ -125,28 +123,12 @@ struct ChunkDoorWorld {
         owned->initializeForLoading();
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z) owned->addCube(glm::ivec3(x, 15, z));
+        // Since D3c-5 (the Chunk 1/9 m store was deleted) the wall is whole CUBES at x=10 and the
+        // door is a 1-cube-wide, 2-cube-tall opening at z=15 (9 x 18 micro reveal); y=18 is the lintel.
         for (int z = 0; z < 32; ++z) {
             for (int y = 16; y <= 18; ++y) {
                 const bool reveal = door && z == 15 && y <= 17;
-                for (int sx = 1; sx <= 2; ++sx)
-                    for (int sy = 0; sy < 3; ++sy)
-                        for (int sz = 0; sz < 3; ++sz) {
-                            if (!reveal) {
-                                owned->addSubcube(glm::ivec3(10, y, z), glm::ivec3(sx, sy, sz), "StoneBricks");
-                                continue;
-                            }
-                            // Jambs: a single micro column at z offset 0 (sz=0,mz=0) and 8 (sz=2,mz=2).
-                            if (sz == 0)
-                                for (int mx = 0; mx < 3; ++mx)
-                                    for (int my = 0; my < 3; ++my)
-                                        owned->addMicrocube(glm::ivec3(10, y, z), glm::ivec3(sx, sy, 0),
-                                                            glm::ivec3(mx, my, 0), "Stone");
-                            if (sz == 2)
-                                for (int mx = 0; mx < 3; ++mx)
-                                    for (int my = 0; my < 3; ++my)
-                                        owned->addMicrocube(glm::ivec3(10, y, z), glm::ivec3(sx, sy, 2),
-                                                            glm::ivec3(mx, my, 2), "Stone");
-                        }
+                if (!reveal) owned->addCube(glm::ivec3(10, y, z), "StoneBricks");
             }
         }
         cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
@@ -433,20 +415,6 @@ TEST(NavGraphMicroTest, RebuildColumnReSweepsNeighbourEdges) {
 // ============================================================================
 // B. real chunk voxels through the runtime composite (NPCManager::buildNavGrid)
 // ============================================================================
-
-TEST(NavGraphMicroTest, ChunkManagerMicroSamplerSeesJambsAndReveal) {
-    ChunkDoorWorld w(/*door=*/true);
-    // Jamb micro column at cube (10,16,15), subcube x=1, z offset 0 -> micro (90+3, 144, 135+0)
-    EXPECT_TRUE(w.cm.occupiedMicro(glm::ivec3(93, 144, 135)));
-    // Reveal centre: micro x 93, z offset 4 -> clear
-    EXPECT_FALSE(w.cm.occupiedMicro(glm::ivec3(93, 144, 139)));
-    // A full ground cube is solid at every micro; the air above is not.
-    EXPECT_TRUE(w.cm.occupiedMicro(glm::ivec3(45, 15 * 9 + 8, 45)));
-    EXPECT_FALSE(w.cm.occupiedMicro(glm::ivec3(45, 16 * 9, 45)));
-    // A wall subcube (no door) covers its 27 micro cells.
-    EXPECT_TRUE(w.cm.occupiedMicro(glm::ivec3(10 * 9 + 5, 16 * 9 + 4, 3 * 9 + 4)));
-    EXPECT_EQ(w.cm.getVoxelTypeAt(glm::ivec3(10, 16, 3)), VoxelLocation::SUBDIVIDED);
-}
 
 TEST(NavGraphMicroTest, RuntimeCompositePathsThroughAFramedDoorOfRealVoxels) {
     NavAgentProfile agent;

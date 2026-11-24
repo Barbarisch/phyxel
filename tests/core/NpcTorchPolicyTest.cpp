@@ -96,19 +96,13 @@ struct World {
         for (int x = x0; x <= x1; ++x) for (int z = z0; z <= z1; ++z) cube(glm::ivec3(x, 15, z));
     }
     // A 7x7 room centred on (cx, cz): walls y 16..18 with a door gap on the -Z side, roof at 19.
-    void room(int cx, int cz, bool microRoof = false) {
+    void room(int cx, int cz) {
         for (int x = cx - 3; x <= cx + 3; ++x)
             for (int z = cz - 3; z <= cz + 3; ++z) {
                 const bool edge = (x == cx - 3 || x == cx + 3 || z == cz - 3 || z == cz + 3);
                 const bool door = (z == cz - 3 && x == cx);
                 if (edge && !door) for (int y = 16; y <= 18; ++y) cube(glm::ivec3(x, y, z));
-                if (!microRoof) { cube(glm::ivec3(x, 19, z)); continue; }
-                // one MICRO layer of planks: 1/9 of a cube thick
-                const glm::ivec3 w(x, 19, z);
-                Phyxel::Chunk* ch = chunkFor(w);
-                for (int sx = 0; sx < 3; ++sx) for (int sz = 0; sz < 3; ++sz)
-                    for (int mx = 0; mx < 3; ++mx) for (int mz = 0; mz < 3; ++mz)
-                        ch->addMicrocube(w - (w / 32) * 32, glm::ivec3(sx, 0, sz), glm::ivec3(mx, 0, mz));
+                cube(glm::ivec3(x, 19, z));   // (the 1-micro plank roof variant went with D3c-5)
             }
     }
     NpcTorchPolicy::Shelter scan(float x, float z) {
@@ -134,12 +128,6 @@ TEST(NpcTorchPolicyTest, ShelterScanTellsARoomFromAnAwningFromTheOpen) {
     const auto awning = w.scan(22.5f, 6.5f);
     EXPECT_TRUE(awning.roof);
     EXPECT_FALSE(awning.indoors());
-    // Resolution-complete: a roof one MICRO thick still reads as a roof.
-    World m;
-    m.ground(0, 31, 0, 31);
-    m.room(8, 8, /*microRoof=*/true);
-    EXPECT_TRUE(m.scan(8.5f, 8.5f).roof) << "a 1/9-cube plank roof must count";
-    EXPECT_TRUE(m.scan(8.5f, 8.5f).indoors());
 }
 
 // Chunks must not be visible: a room straddling the chunk-0/chunk-1 border (x = 29..35) gives

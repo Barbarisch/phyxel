@@ -63,14 +63,6 @@ Cube* ChunkVoxelQuerySystem::getCubeAt(const glm::ivec3& worldPos) {
 // SUBCUBE QUERY METHODS
 // ========================================================================
 
-Subcube* ChunkVoxelQuerySystem::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) return nullptr;
-    
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    return chunk->getSubcubeAt(localPos, subcubePos);
-}
-
 // ========================================================================
 // VOXEL LOCATION RESOLUTION (for hover detection)
 // ========================================================================
@@ -88,23 +80,6 @@ VoxelLocation ChunkVoxelQuerySystem::resolveGlobalPosition(const glm::ivec3& wor
     return chunk->resolveLocalPosition(localPos);
 }
 
-VoxelLocation ChunkVoxelQuerySystem::resolveGlobalPositionWithSubcube(
-    const glm::ivec3& worldPos,
-    const glm::ivec3& subcubePos
-) const {
-    VoxelLocation location = resolveGlobalPosition(worldPos);
-    
-    if (location.isValid() && location.type == VoxelLocation::SUBDIVIDED) {
-        // Verify the specific subcube exists
-        if (location.chunk->hasSubcubeAt(location.localPos, subcubePos)) {
-            location.subcubePos = subcubePos;
-            return location;
-        }
-    }
-    
-    return VoxelLocation(); // Subcube doesn't exist
-}
-
 bool ChunkVoxelQuerySystem::hasVoxelAt(const glm::ivec3& worldPos) const {
     glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
     const Chunk* chunk = getChunkAtCoord(chunkCoord);
@@ -118,7 +93,8 @@ float ChunkVoxelQuerySystem::subVoxelFloor(const glm::ivec3& worldPos) const {
     glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
     const Chunk* chunk = getChunkAtCoord(chunkCoord);
     if (!chunk) return 0.0f;
-    return chunk->subVoxelFloor(worldToLocalCoord(worldPos));
+    // Cube-only since D3c-5 (no 1/9 m sub-voxel content): a cube is fully solid, else no floor.
+    return chunk->hasVoxelAt(worldToLocalCoord(worldPos)) ? -1.0f : 0.0f;
 }
 
 VoxelLocation::Type ChunkVoxelQuerySystem::getVoxelTypeAt(const glm::ivec3& worldPos) const {
@@ -136,16 +112,7 @@ bool ChunkVoxelQuerySystem::occupiedMicro(const glm::ivec3& micro) const {
     const Chunk* chunk = getChunkAtCoord(worldToChunkCoord(cube));
     if (!chunk) return false;
     const glm::ivec3 local = worldToLocalCoord(cube);
-    switch (chunk->getVoxelType(local)) {
-        case VoxelLocation::EMPTY: return false;
-        case VoxelLocation::CUBE:  return true;
-        default: break;
-    }
-    const glm::ivec3 off = micro - cube * 9;          // 0..8 on every axis
-    const glm::ivec3 sp  = off / 3;                   // subcube 0..2
-    const glm::ivec3 mp  = off - sp * 3;              // microcube within it, 0..2
-    if (chunk->hasSubcubeAt(local, sp)) return true;  // a subcube covers all 27 of its micro cells
-    return chunk->getMicrocubeAt(local, sp, mp) != nullptr;
+    return chunk->getVoxelType(local) == VoxelLocation::CUBE;   // cube-only since D3c-5
 }
 
 } // namespace Phyxel

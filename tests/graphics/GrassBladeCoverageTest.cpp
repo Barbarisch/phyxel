@@ -14,8 +14,6 @@
 
 #include "graphics/ChunkRenderManager.h"
 #include "core/Cube.h"
-#include "core/Microcube.h"
-#include "core/Subcube.h"
 
 #include <memory>
 #include <set>
@@ -25,9 +23,6 @@ using namespace Phyxel;
 using namespace Phyxel::Graphics;
 
 namespace {
-
-std::vector<std::unique_ptr<Subcube>> noSubs() { return {}; }
-std::vector<std::unique_ptr<Microcube>> noMicros() { return {}; }
 
 // Decode the blade's cell from GrassInstanceData.packed (x | y<<5 | z<<10, 5 bits each).
 glm::ivec3 bladeCell(const GrassInstanceData& g) {
@@ -48,7 +43,7 @@ TEST(GrassBladeCoverageTest, EveryGrassTopOnATerracedFloorSproutsABlade) {
                 cubes.push_back(std::make_unique<Cube>(glm::ivec3(x, y, z), "Grass"));
 
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(cubes, noSubs(), noMicros(), glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(cubes, glm::ivec3(0, 0, 0));
 
     std::set<std::pair<int, int>> bladed;
     for (const auto& g : crm.getGrassInstances()) {
@@ -81,6 +76,6 @@ TEST(GrassBladeCoverageTest, FlatFloorControlIsFullyBladed) {
             cubes.push_back(std::make_unique<Cube>(glm::ivec3(x, 10, z), "Grass"));
 
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(cubes, noSubs(), noMicros(), glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(cubes, glm::ivec3(0, 0, 0));
     EXPECT_EQ(crm.getGrassInstances().size(), 1024u);
 }

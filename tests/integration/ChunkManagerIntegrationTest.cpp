@@ -1,7 +1,6 @@
 #include "IntegrationTestFixture.h"
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
-#include "core/Subcube.h"
 #include "core/DamageSystem.h"
 #include "scene/VoxelManipulationSystem.h"
 #include "utils/CoordinateUtils.h"
@@ -274,24 +273,25 @@ TEST_F(ChunkManagerIntegrationTest, PhysicsWorldSet) {
     EXPECT_NE(chunkManager->physicsWorld, nullptr) << "ChunkManager should have physics world set";
 }
 
-// DebrisInteractionPlan 1d: a broken subcube leaves the chunk and becomes GPU debris through
+// DebrisInteractionPlan 1d: a broken cube leaves the chunk and becomes GPU debris through
 // DamageSystem::spawnBreakDebris (the CPU global-dynamic list it used to join is deleted). With no
-// GPU solver wired the piece is REFUSED and counted - never silently dropped.
-TEST_F(ChunkManagerIntegrationTest, BreakingASubcubeRemovesItAndHandsThePieceToGpuDebris) {
+// GPU solver wired the piece is REFUSED and counted - never silently dropped. (Was the subcube
+// break; ported to the cube break when the Chunk 1/9 m store was deleted in D3c-5.)
+TEST_F(ChunkManagerIntegrationTest, BreakingACubeRemovesItAndHandsThePieceToGpuDebris) {
     chunkManager->createChunk(glm::ivec3(0, 0, 0));
     Chunk* chunk = chunkManager->getChunkAtCoord(glm::ivec3(0, 0, 0));
     ASSERT_NE(chunk, nullptr);
-    const glm::ivec3 cell(16, 20, 16), sub(1, 1, 1);
-    chunk->removeCube(cell);   // createChunk fills the chunk: make the cell a lone subcube
-    ASSERT_TRUE(chunk->addSubcube(cell, sub, "Stone"));
+    const glm::ivec3 cell(16, 20, 16);
+    chunk->removeCube(cell);
+    ASSERT_TRUE(chunk->addCube(cell, "Stone"));
 
     VoxelManipulationSystem m;
     m.setCallbacks([this]() { return chunkManager.get(); }, [this]() { return physicsWorld.get(); });
     // no setGpuDebrisProvider: the no-GPU path
     const uint64_t refusedBefore = DamageSystem::refusedDebrisTotal();
-    ASSERT_TRUE(m.breakSubcube(CubeLocation(chunk, cell, cell, sub), false));
+    ASSERT_TRUE(m.breakCube(CubeLocation(chunk, cell, cell), glm::vec3(0.0f), false));
 
-    EXPECT_EQ(chunk->getSubcubeAt(cell, sub), nullptr) << "the subcube must leave the chunk";
+    EXPECT_FALSE(chunk->hasVoxelAt(cell)) << "the cube must leave the chunk";
     EXPECT_EQ(DamageSystem::refusedDebrisTotal() - refusedBefore, 1u)
         << "with no GPU solver the piece is refused and counted, not dropped";
 }

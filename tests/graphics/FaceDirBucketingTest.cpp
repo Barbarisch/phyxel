@@ -9,8 +9,6 @@
 
 #include "graphics/ChunkRenderManager.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 
 #include <array>
 #include <memory>
@@ -25,28 +23,16 @@ uint32_t faceIdOf(const InstanceData& inst) {
     return (inst.packedData >> 15) & 0x7u;
 }
 
-// A mixed scene guaranteeing faces in all 6 directions across all scale levels:
-// a 2x2 slab of subcube-packed cubes plus one microcube-packed cube alongside.
+// A cube scene guaranteeing faces in all 6 directions: a 2x2 slab of cubes plus one cube alongside.
+// (Was a sub/microcube scene; the Chunk 1/9 m store was deleted in D3c-5.)
 struct MixedScene {
-    std::vector<std::unique_ptr<Cube>> cubes;  // stays empty (dense vector not required by the mesher)
-    std::vector<std::unique_ptr<Subcube>> subs;
-    std::vector<std::unique_ptr<Microcube>> micros;
+    std::vector<std::unique_ptr<Cube>> cubes;
 
     MixedScene() {
         for (int cx = 0; cx < 2; ++cx)
             for (int cz = 0; cz < 2; ++cz)
-                for (int sx = 0; sx < 3; ++sx)
-                    for (int sy = 0; sy < 3; ++sy)
-                        for (int sz = 0; sz < 3; ++sz)
-                            subs.push_back(std::make_unique<Subcube>(
-                                glm::ivec3(cx, 0, cz), glm::ivec3(sx, sy, sz), "Stone"));
-        glm::ivec3 microParent(5, 0, 5);
-        for (int x = 0; x < 9; ++x)
-            for (int y = 0; y < 9; ++y)
-                for (int z = 0; z < 9; ++z)
-                    micros.push_back(std::make_unique<Microcube>(
-                        microParent, glm::ivec3(x / 3, y / 3, z / 3),
-                        glm::ivec3(x % 3, y % 3, z % 3), "Wood"));
+                cubes.push_back(std::make_unique<Cube>(glm::ivec3(cx, 0, cz), "Stone"));
+        cubes.push_back(std::make_unique<Cube>(glm::ivec3(5, 0, 5), "Wood"));
     }
 };
 
@@ -55,7 +41,7 @@ struct MixedScene {
 TEST(FaceDirBucketing, RangesPartitionFacesDirectionMajor) {
     MixedScene scene;
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(scene.cubes, scene.subs, scene.micros, glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(scene.cubes, glm::ivec3(0, 0, 0));
 
     const auto& faces = crm.getFaces();
     const auto& ranges = crm.getFaceDirRanges();
@@ -83,7 +69,7 @@ TEST(FaceDirBucketing, RangesPartitionFacesDirectionMajor) {
 TEST(FaceDirBucketing, ReorderPreservesPerDirectionCounts) {
     MixedScene scene;
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(scene.cubes, scene.subs, scene.micros, glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(scene.cubes, glm::ivec3(0, 0, 0));
 
     const auto& faces = crm.getFaces();
     const auto& ranges = crm.getFaceDirRanges();
@@ -99,10 +85,8 @@ TEST(FaceDirBucketing, ReorderPreservesPerDirectionCounts) {
 
 TEST(FaceDirBucketing, EmptyChunkYieldsZeroRanges) {
     std::vector<std::unique_ptr<Cube>> cubes;
-    std::vector<std::unique_ptr<Subcube>> subs;
-    std::vector<std::unique_ptr<Microcube>> micros;
     ChunkRenderManager crm;
-    crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+    crm.rebuildAllFaces(cubes, glm::ivec3(0, 0, 0));
 
     const auto& ranges = crm.getFaceDirRanges();
     for (int d = 0; d <= 6; ++d) EXPECT_EQ(ranges[d], 0u);

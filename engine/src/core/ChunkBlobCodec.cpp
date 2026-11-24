@@ -1,8 +1,6 @@
 #include "core/ChunkBlobCodec.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 
 #include <cstring>
 #include <string>
@@ -194,32 +192,10 @@ std::vector<uint8_t> ChunkBlobCodec::encode(const Chunk& chunk, Counts* outCount
         runs.push_back({static_cast<uint16_t>(runLen), runIdx});
     }
 
-    // --- subcube / microcube sections (sparse; only visible, in-bounds) ---
+    // --- subcube / microcube sections: always EMPTY since D3c-5 (the 1/9 m store was deleted). The
+    // format is unchanged -- the counts are written as 0 so every reader still parses the blob. ---
     std::vector<SubEntry> subs;
-    for (const auto& subcube : chunk.getStaticSubcubes()) {
-        if (!subcube || !subcube->isVisible()) continue;
-        glm::ivec3 parentLocal = subcube->getPosition() - worldOrigin;
-        if (!inChunkBounds(parentLocal)) continue;
-        const glm::ivec3& sp = subcube->getLocalPosition();
-        subs.push_back({localToIndex(parentLocal),
-                        static_cast<uint8_t>(sp.x + sp.y * 3 + sp.z * 9), 0,
-                        palette.indexOf(subcube->getMaterialName()),
-                        subcube->getState(), subcube->getTint()});
-    }
-
     std::vector<SubEntry> micros;
-    for (const auto& micro : chunk.getStaticMicrocubes()) {
-        if (!micro || !micro->isVisible()) continue;
-        glm::ivec3 parentLocal = micro->getParentCubePosition() - worldOrigin;
-        if (!inChunkBounds(parentLocal)) continue;
-        const glm::ivec3& sp = micro->getSubcubeLocalPosition();
-        const glm::ivec3& mp = micro->getMicrocubeLocalPosition();
-        micros.push_back({localToIndex(parentLocal),
-                          static_cast<uint8_t>(sp.x + sp.y * 3 + sp.z * 9),
-                          static_cast<uint8_t>(mp.x + mp.y * 3 + mp.z * 9),
-                          palette.indexOf(micro->getMaterialName()),
-                          micro->getState(), micro->getTint()});
-    }
 
     // --- serialize ---
     const bool wide = palette.names.size() > 256;
@@ -338,8 +314,8 @@ bool ChunkBlobCodec::decode(const uint8_t* data, size_t size, Chunk& chunk,
         readStateAndTint(r, state, tint);
         if (!r.ok || cubeIdx >= kCubesPerChunk || subIdx >= 27 || idx >= paletteCount)
             return false;
-        glm::ivec3 subPos(subIdx % 3, (subIdx / 3) % 3, subIdx / 9);
-        chunk.addSubcube(indexToLocal(cubeIdx), subPos, palette[idx], tint, state);
+        // Parsed and DISCARDED: a Chunk no longer holds 1/9 m content (D3c-5). The data stays
+        // readable by StorageLab's convertPxb2, which reads the blob format itself.
     }
 
     // --- microcube section ---
@@ -354,9 +330,7 @@ bool ChunkBlobCodec::decode(const uint8_t* data, size_t size, Chunk& chunk,
         if (!r.ok || cubeIdx >= kCubesPerChunk || subIdx >= 27 || microIdx >= 27 ||
             idx >= paletteCount)
             return false;
-        glm::ivec3 subPos(subIdx % 3, (subIdx / 3) % 3, subIdx / 9);
-        glm::ivec3 microPos(microIdx % 3, (microIdx / 3) % 3, microIdx / 9);
-        chunk.addMicrocube(indexToLocal(cubeIdx), subPos, microPos, palette[idx], tint, state);
+        // Parsed and DISCARDED (see the subcube section).
     }
 
     // --- water span section (v2 only; a v1 blob simply has none) ---

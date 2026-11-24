@@ -551,7 +551,6 @@ PlacedObjectManager::SeatPlan PlacedObjectManager::seatStructure(
             Chunk* c2 = m_chunkManager->getChunkAtCoord(cc);
             if (!c2) continue;
             c2->removeCube(lp, /*deferRebuild=*/true);
-            c2->clearSubdivisionAt(lp);
             dirty.insert(c2);
             ++plan.excavated;
         }
@@ -643,9 +642,6 @@ void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& m
         if (!chunk) continue;
 
         chunk->removeCubesBatch(positions);
-        for (const auto& p : positions) {
-            chunk->clearSubdivisionAt(p);
-        }
         // Mark dirty so updateDirtyChunks() rebuilds with proper cross-chunk culling
         m_chunkManager->markChunkDirty(chunk);
         anyModified = true;

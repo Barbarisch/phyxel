@@ -3302,6 +3302,11 @@ world (editor projects and launcher, packaged games, scenes, asset / anim editor
 caller of the 1/9 m writers, so they cannot be deleted while it stands. New order: **D3b** the opt-out goes (switched
 is the only world; `enabled:false` / `today_world` are ignored with a warning), **D3c** the 1/9 m writers go (now
 unreachable), **D4** the store and its readers go.
+**D3c DONE (2026-11-24, 5 parts: a06ff098 .. D3c-5).** Nothing creates a Chunk while switched; game.json structures
+defer to the switched world; the v1 migration encodes PXB2 from rows; the editor's legacy 1/9 m handlers and today's
+generation paths deleted; D3c-5 deleted Subcube / Microcube and every sub / micro path in the Chunk store, mesher,
+physics, breaks, raycaster and codec (84 files, -8,896). Battery, six projects and D3-scenes hold with every number;
+unit 4,665 / 3, integration 223 / 5 (retired tests listed in voxfound_f7_prediction.txt D3c-5). **NEXT D4.**
 
 
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks

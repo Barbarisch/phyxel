@@ -1429,9 +1429,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         for (int dz = 0; dz < 9; ++dz) {
                             if (!chunkManager->occupiedMicro(glm::ivec3(cx * 9 + dx, my, cz * 9 + dz))) continue;
                             if (chunkManager->getVoxelTypeAt(cube) == VoxelLocation::CUBE) continue;   // a full cube is terrain/wall: not ours
-                            const glm::ivec3 sp(dx / 3, ry / 3, dz / 3), mp(dx % 3, ry % 3, dz % 3);
-                            if (ch->hasSubcubeAt(lp, sp)) { if (ch->removeSubcube(lp, sp)) approachMicrosCleared += 27; }
-                            else if (ch->removeMicrocube(lp, sp, mp)) ++approachMicrosCleared;
+                            // (sub/micro clearing removed: a Chunk has no 1/9 m store since D3c-5)
+                            (void)ry; (void)lp;
                         }
                     chunkManager->markChunkDirty(ch);
                 }

@@ -109,11 +109,7 @@ struct ChunkMicroWorld {
         const int wx = floorDivN(mx, 9), wy = floorDivN(my, 9), wz = floorDivN(mz, 9);
         Chunk& c = chunkAt(floorDiv32(wx), floorDiv32(wy), floorDiv32(wz));
         const glm::ivec3 lp(floorModN(wx, 32), floorModN(wy, 32), floorModN(wz, 32));
-        if (c.getCubeAt(lp)) return true;
-        const glm::ivec3 sp(floorModN(mx, 9) / 3, floorModN(my, 9) / 3, floorModN(mz, 9) / 3);
-        if (c.hasSubcubeAt(lp, sp)) return true;
-        const glm::ivec3 mp(floorModN(mx, 3), floorModN(my, 3), floorModN(mz, 3));
-        return c.getMicrocubeAt(lp, sp, mp) != nullptr;
+        return c.getCubeAt(lp) != nullptr;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
     }
 };
 
@@ -306,7 +302,8 @@ TEST(RoadFieldSeamTest, BridgeRailsGuardDeckEdgesAndPiersReachTheBed) {
     EXPECT_EQ(walkwayViolations, 0) << "rail marks intrude into the walkway";
     ASSERT_NE(railCell.x, INT_MIN) << "no rail-marked column anywhere on the span";
 
-    // Physical parapet: subcubes at deckY+1, 2/3 tall, and NOT a full cube.
+    // Physical parapet: NOT a full cube. (Its 2/3-tall subcubes went with the Chunk 1/9 m store in
+    // D3c-5; the generator now leaves that voxel empty.)
     {
         const auto col = w.gen.sampleSurface(railCell.x, railCell.y);
         ASSERT_NE(col.bridgeDeckY, INT_MIN);
@@ -315,9 +312,6 @@ TEST(RoadFieldSeamTest, BridgeRailsGuardDeckEdgesAndPiersReachTheBed) {
         auto chunk = genChunkAt(w.gen, cc);
         const glm::ivec3 lp(railCell.x - cc.x * 32, ry - cc.y * 32, railCell.y - cc.z * 32);
         EXPECT_EQ(chunk->getCubeAt(lp), nullptr) << "parapet emitted as a FULL cube (defect)";
-        EXPECT_TRUE(chunk->hasSubcubeAt(lp, glm::ivec3(0, 0, 0))) << "no parapet subcubes";
-        EXPECT_TRUE(chunk->hasSubcubeAt(lp, glm::ivec3(2, 1, 2))) << "parapet not 2 subcubes tall";
-        EXPECT_FALSE(chunk->hasSubcubeAt(lp, glm::ivec3(0, 2, 0))) << "parapet reaches full height";
     }
 
     // Piers: expected exactly when the span is long enough for an interior station.

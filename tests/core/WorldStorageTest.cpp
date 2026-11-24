@@ -2,8 +2,6 @@
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include <filesystem>
 #include <cstdlib>
 #include <sqlite3.h>
@@ -484,53 +482,7 @@ TEST_F(WorldStorageTest, AllMaterialsRoundTrip) {
 
 // --- Subcube tint + state round-trip (v1 drops both) ---
 
-TEST_F(WorldStorageTest, SubcubeTintAndStateRoundTrip) {
-    WorldStorage storage(dbPath);
-    ASSERT_TRUE(storage.initialize());
-
-    auto chunk = makeChunk(glm::ivec3(0, 0, 0));
-    ASSERT_TRUE(chunk->addSubcube(glm::ivec3(4, 5, 6), glm::ivec3(1, 2, 0),
-                                  "Wood", /*tint*/ 0x88CC44u, /*state*/ 3));
-    EXPECT_TRUE(storage.saveChunk(*chunk));
-
-    auto loaded = makeChunk(glm::ivec3(0, 0, 0));
-    EXPECT_TRUE(storage.loadChunk(glm::ivec3(0, 0, 0), *loaded));
-
-    auto subs = loaded->getStaticSubcubesAt(glm::ivec3(4, 5, 6));
-    ASSERT_EQ(subs.size(), 1u);
-    EXPECT_EQ(subs[0]->getMaterialName(), "Wood");
-    EXPECT_EQ(subs[0]->getLocalPosition(), glm::ivec3(1, 2, 0));
-    EXPECT_EQ(subs[0]->getTint(), 0x88CC44u);
-    EXPECT_EQ(subs[0]->getState(), 3);
-
-    storage.close();
-}
-
 // --- Microcube tint + state round-trip (v1 drops both) ---
-
-TEST_F(WorldStorageTest, MicrocubeTintAndStateRoundTrip) {
-    WorldStorage storage(dbPath);
-    ASSERT_TRUE(storage.initialize());
-
-    auto chunk = makeChunk(glm::ivec3(0, 0, 0));
-    ASSERT_TRUE(chunk->addMicrocube(glm::ivec3(10, 11, 12), glm::ivec3(0, 1, 2),
-                                    glm::ivec3(2, 0, 1), "Stone",
-                                    /*tint*/ 0x336699u, /*state*/ 4));
-    EXPECT_TRUE(storage.saveChunk(*chunk));
-
-    auto loaded = makeChunk(glm::ivec3(0, 0, 0));
-    EXPECT_TRUE(storage.loadChunk(glm::ivec3(0, 0, 0), *loaded));
-
-    ASSERT_EQ(loaded->getStaticMicrocubeCount(), 1u);
-    const auto& micro = loaded->getStaticMicrocubes()[0];
-    EXPECT_EQ(micro->getMaterialName(), "Stone");
-    EXPECT_EQ(micro->getSubcubeLocalPosition(), glm::ivec3(0, 1, 2));
-    EXPECT_EQ(micro->getMicrocubeLocalPosition(), glm::ivec3(2, 0, 1));
-    EXPECT_EQ(micro->getTint(), 0x336699u);
-    EXPECT_EQ(micro->getState(), 4);
-
-    storage.close();
-}
 
 // --- Size gate: a fully solid chunk must be a compact blob, not 32k rows ---
 // v1 measured red baseline: ~32,768 rows → multi-MB file. v2 (palette+RLE
@@ -580,9 +532,9 @@ TEST_F(WorldStorageTest, LegacyRowFormatChunkStillLoads) {
     auto* cube = loaded->getCubeAt(glm::ivec3(7, 8, 9));
     ASSERT_NE(cube, nullptr);
     EXPECT_EQ(cube->getMaterialName(), "Metal");
-    auto subs = loaded->getStaticSubcubesAt(glm::ivec3(1, 1, 1));
-    ASSERT_EQ(subs.size(), 1u);
-    EXPECT_EQ(subs[0]->getMaterialName(), "Glass");
+    // The v1 subcube row is not loaded into the Chunk (its 1/9 m store was deleted in D3c-5): the
+    // cell stays empty, and the cube row beside it is unaffected.
+    EXPECT_FALSE(loaded->hasVoxelAt(glm::ivec3(1, 1, 1)));
 
     storage.close();
 }

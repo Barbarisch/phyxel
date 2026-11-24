@@ -13,8 +13,6 @@ public:
     ~PlacementTool() = default;
 
     bool placeVoxel(const InteractionContext& context);
-    bool placeSubcube(const InteractionContext& context);
-    bool placeMicrocube(const InteractionContext& context);
 
     // Helper to calculate subcube position from hit point
     static glm::ivec3 calculateSubcubePositionFromHitPoint(const glm::vec3& hitPoint, const glm::ivec3& cubeWorldPos, int hitFace);

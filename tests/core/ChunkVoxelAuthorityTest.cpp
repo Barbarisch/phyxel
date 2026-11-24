@@ -147,22 +147,6 @@ TEST_F(ChunkVoxelAuthority,RemoveCubeClearsStoreAndOverlay) {
     EXPECT_EQ(chunk.materializedCubeCount(), 0u);
 }
 
-// subdivideAt replaces a solid cube with 27 subcubes. The store entry must go away with it —
-// RED even against 4.2a: ChunkVoxelManager::subdivideAt resets the cube slot without erasing
-// the store entry (latent mirror gap found during the 4.2b survey).
-TEST_F(ChunkVoxelAuthority,SubdivideAtErasesStoreEntry) {
-    chunk.addCube(glm::ivec3(6, 6, 6), "Stone");
-    ASSERT_TRUE(chunk.getVoxelStore().solid(idxOf(6, 6, 6)));
-
-    ASSERT_TRUE(chunk.subdivideAt(glm::ivec3(6, 6, 6)));
-    EXPECT_FALSE(chunk.getVoxelStore().solid(idxOf(6, 6, 6)))
-        << "subdivided cell must not linger in the store as a solid cube";
-    EXPECT_EQ(chunk.getVoxelType(glm::ivec3(6, 6, 6)), VoxelLocation::SUBDIVIDED);
-    // The 27 subcubes must have inherited the parent's material.
-    EXPECT_EQ(chunk.getSubcubeAt(glm::ivec3(6, 6, 6), glm::ivec3(1, 1, 1))->getMaterialName(),
-              "Stone");
-}
-
 // Save/load: the blob codec round-trips a store-only chunk without materializing anything on
 // either side.
 TEST_F(ChunkVoxelAuthority,BlobRoundTripStaysCubeFree) {

@@ -19,7 +19,6 @@ namespace Phyxel {
 // Forward declarations
 class Chunk;
 class Cube;
-class Subcube;
 
 /**
  * @brief World storage interface using SQLite for efficient chunk persistence
@@ -159,12 +158,10 @@ private:
     /// copied to "<db>.v1.bak" for binary-rollback safety.
     bool migrateLegacyChunks();
 public:
-    /// docs/VoxelFoundationPlan.md D3c-2: one v1 chunk's rows (no Chunk object) and the two encodings of it --
-    /// encodePxb2FromRows (the migration's) and the legacy Chunk + ChunkBlobCodec::encode (kept until D4 for the A/B).
+    /// docs/VoxelFoundationPlan.md D3c-2: one v1 chunk's rows (no Chunk object), encoded by encodePxb2FromRows
+    /// (the migration's encoder; the legacy Chunk + ChunkBlobCodec::encode A/B went with D3c-5).
     bool readLegacyRows(const glm::ivec3& chunkCoord, Core::VoxFound::V1ChunkRows& out);
     std::vector<glm::ivec3> legacyChunkCoords();
-    std::vector<uint8_t> encodeLegacyViaChunk(const glm::ivec3& chunkCoord);
-    static inline bool s_migrateViaChunk = false;   // tests: the old (Chunk-based) migration encoder
     static inline bool s_skipMigration = false;     // tests: open a v1 DB without migrating it (the A/B reads rows)
 private:
     
@@ -175,12 +172,8 @@ private:
     
     // Conversion helpers
     void saveCube(const Cube& cube, const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
-    void saveSubcube(const Subcube& subcube, const glm::ivec3& chunkCoord, 
-                     const glm::ivec3& localPos, const glm::ivec3& subPos);
     
     bool loadCubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
-    bool loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
-    bool loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
 };
 
 } // namespace Phyxel

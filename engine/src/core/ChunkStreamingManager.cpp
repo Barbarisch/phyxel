@@ -7,8 +7,6 @@
 #include "core/WorldStorage.h"
 #include "core/WorldGenerator.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 #include <cmath>

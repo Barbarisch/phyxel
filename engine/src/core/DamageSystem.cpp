@@ -9,8 +9,6 @@
 #include "core/KinematicVoxelManager.h"
 #include "core/Cube.h"
 #include "core/Chunk.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -202,7 +200,6 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         float       speed;
         std::string mat;
         MatResponse mr;
-        bool        subdivided = false;  // cell holds subcubes/microcubes, not a full cube
     };
     std::vector<BreakRec> breaks;
 
@@ -222,24 +219,8 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     for (int z = lo.z; z <= hi.z; ++z) {
         glm::ivec3 wp(x, y, z);
         Cube* cube = m_cm->getCubeAt(wp);
-        bool subdivided = false;
-        std::string mat;
-        if (cube) {
-            mat = cube->getMaterialName();
-        } else if (m_cm->hasVoxelAt(wp)) {
-            // Sub-voxel cell (subcubes/microcubes, e.g. a tree). Break the whole
-            // cell as a unit so the blast can sever sub-voxel structures and feed
-            // the collapse pass; use a representative material for toughness.
-            // U0/F1: use cellMaterial (cube -> subcube -> MICROCUBE) rather than a
-            // subcube-only scan. Fine trees are micro-resolution, so a micro-only
-            // leaf cell used to fall through to "Wood" here and then emit wood voxel
-            // debris for foliage — the "fireballed leaves explode into blocks" bug.
-            subdivided = true;
-            mat = cellMaterial(m_cm, wp);
-            if (mat.empty()) mat = "Wood";
-        } else {
-            continue;
-        }
+        if (!cube) continue;   // cube-only since D3c-5 (no 1/9 m sub-voxel cells)
+        std::string mat = cube->getMaterialName();
 
         glm::vec3 vc(x + 0.5f, y + 0.5f, z + 0.5f);
         // Ellipsoid-normalized distance: d<=1 inside the (possibly anisotropic) shape.
@@ -301,7 +282,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         outDir = glm::normalize(outDir + dirBias * 0.5f);
         float speed = BASE_SPEED * std::sqrt(ratio);
 
-        breaks.push_back({ wp, vc, outDir, ratio, speed, std::move(mat), mr, subdivided });
+        breaks.push_back({ wp, vc, outDir, ratio, speed, std::move(mat), mr });
     }
 
     // ---- Phase B: apply removals + spawn debris ----
@@ -318,27 +299,6 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         // LEAF cells are foliage: broken leaves are removed with NO voxel debris (F1 —
         // leaves must never appear as voxels, standing or breaking).
         const bool isLeafMat = (mat.rfind("Leaf", 0) == 0);
-
-        // Sub-voxel cell: clear the whole subdivision and scatter subcube debris.
-        if (b.subdivided) {
-            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-            if (ch && ch->clearSubdivisionAt(ChunkManager::worldToLocalCoord(wp))) {
-                m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
-                m_cm->markChunkDirty(ch);
-                removed.push_back(wp);
-                res.voxelsBroken++;
-                for (int i = 0; !isLeafMat && i < SUBCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
-                    const int S = 3, TOTAL = S * S * S;
-                    int cell = i * TOTAL / SUBCUBE_PIECES;
-                    int cx = cell % S, cy = (cell / S) % S, cz = (cell / (S * S)) % S;
-                    glm::vec3 cellOff((cx + 0.5f) / S - 0.5f, (cy + 0.5f) / S - 0.5f, (cz + 0.5f) / S - 0.5f);
-                    glm::vec3 vjit(frand(-0.3f, 0.3f), frand(-0.3f, 0.3f), frand(-0.3f, 0.3f));
-                    spawnDebris(vc + cellOff, outDir * speed * frand(0.7f, 1.3f) + vjit * speed, 1.0f / 3.0f, mat);
-                    res.debrisSpawned++;
-                }
-            }
-            continue;
-        }
 
         // Remove the static voxel (fast: marks chunk dirty, defers face rebuild)
         // and clear its collision occupancy cell.
@@ -467,112 +427,34 @@ int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
         return 1;
     }
 
-    // Sub-voxel cell (subcubes/microcubes — e.g. a tree). Clear the whole cell
-    // via its owning chunk and scatter a few subcube-scale debris pieces.
-    Chunk* chunk = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-    if (!chunk) return 0;
-    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-    std::string mat = "Wood";
-    auto subs = chunk->getStaticSubcubesAt(lp);
-    if (!subs.empty() && subs[0]) mat = subs[0]->getMaterialName();
-    if (!chunk->clearSubdivisionAt(lp)) return 0;
-    m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
-    m_cm->markChunkDirty(chunk);
-    if (mat.rfind("Leaf", 0) != 0) {   // leaf cells: no voxel debris (foliage)
-        for (int i = 0; i < 4 && res.debrisSpawned < MAX_DEBRIS; ++i) {
-            glm::vec3 off(frand(-0.33f, 0.33f), frand(-0.33f, 0.33f), frand(-0.33f, 0.33f));
-            glm::vec3 vel(frand(-0.6f, 0.6f), frand(-1.0f, -0.2f), frand(-0.6f, 0.6f));
-            spawnDebris(vc + off, vel, 1.0f / 3.0f, mat);
-            res.debrisSpawned++;
-        }
-    }
-    return 1;
+    return 0;   // cube-only since D3c-5
 }
 
 
-// Batched gather for a whole coherent component (perf — the topple-start hitch). gatherCellVoxels
-// per cell called Chunk::getStaticSubcubesAt, which SCANS the chunk's entire static-subcube list
-// each call — so gathering N cells from a chunk of S subcubes was O(N×S) (a big tree: 850 cells ×
-// ~9k subcubes ≈ 8M scans ≈ 250 ms). Here each touched chunk's subcubes are indexed by parent cell
-// ONCE, then every cell gathers its subcubes in O(1). Micros are already map-indexed; cubes are O(1).
-// Same KinematicVoxel output as gatherCellVoxels. Returns false if a COMPONENT cell yielded nothing
-// (the caller bails to scatter); leaf-cargo cells are best-effort.
+// Gather a whole coherent component as kinematic voxels (one unit box per cube; the 1/9 m
+// subcube/microcube store was deleted in D3c-5). Returns false if a COMPONENT cell yielded
+// nothing (the caller bails to scatter); leaf-cargo cells are best-effort.
 static bool gatherCellsBatched(ChunkManager* cm,
                                const std::vector<glm::ivec3>& component,
                                const std::vector<glm::ivec3>& leafCargo,
                                std::vector<Core::KinematicVoxel>& out) {
-    // Per-chunk indexes (parent cell -> subcubes / micros), each built with ONE scan of the
-    // chunk's static list — vs the old per-cell getStaticSubcubesAt (full scan) and 27
-    // vector-allocating getMicrocubesAt calls. getPosition()/getParentCubePosition() are WORLD.
-    struct ChunkIdx {
-        std::unordered_map<int64_t, std::vector<Subcube*>>  sub;
-        std::unordered_map<int64_t, std::vector<Microcube*>> mic;
-    };
-    std::unordered_map<Chunk*, ChunkIdx> byChunk;
-    auto indexFor = [&](Chunk* ch) -> ChunkIdx& {
-        auto it = byChunk.find(ch);
-        if (it != byChunk.end()) return it->second;
-        ChunkIdx& idx = byChunk[ch];
-        for (const auto& sptr : ch->getStaticSubcubes()) {
-            if (!sptr) continue;
-            const glm::ivec3 p = sptr->getPosition();
-            idx.sub[packVoxel(p.x, p.y, p.z)].push_back(sptr.get());
-        }
-        for (const auto& mptr : ch->getStaticMicrocubes()) {
-            if (!mptr) continue;
-            const glm::ivec3 p = mptr->getParentCubePosition();
-            idx.mic[packVoxel(p.x, p.y, p.z)].push_back(mptr.get());
-        }
-        return idx;
-    };
     auto gatherOne = [&](const glm::ivec3& wp) -> bool {
-        if (Cube* c = cm->getCubeAt(wp)) {
-            Core::KinematicVoxel v;
-            v.localPos = glm::vec3(wp) + glm::vec3(0.5f);
-            v.scale = glm::vec3(1.0f);
-            v.materialName = c->getMaterialName();
-            v.gridCell = wp; v.gridSlot = glm::ivec3(1);
-            out.push_back(std::move(v));
-            return true;
-        }
-        Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-        if (!ch) return false;
-        bool any = false;
-        ChunkIdx& idx = indexFor(ch);
-        const int64_t key = packVoxel(wp.x, wp.y, wp.z);
-        auto sit = idx.sub.find(key);
-        if (sit != idx.sub.end())
-            for (Subcube* s : sit->second) {
-                float sc = s->getScale();
-                Core::KinematicVoxel v;
-                v.localPos = glm::vec3(wp) + (glm::vec3(s->getLocalPosition()) + 0.5f) * sc;
-                v.scale = glm::vec3(sc);
-                v.materialName = s->getMaterialName();
-                v.gridCell = wp; v.gridSlot = s->getLocalPosition();
-                out.push_back(std::move(v));
-                any = true;
-            }
-        auto mit = idx.mic.find(key);
-        if (mit != idx.mic.end())
-            for (Microcube* m : mit->second) {
-                const glm::ivec3 sub = m->getSubcubeLocalPosition();
-                Core::KinematicVoxel v;
-                glm::vec3 fine = glm::vec3(sub) * 3.0f + glm::vec3(m->getMicrocubeLocalPosition());
-                v.localPos = glm::vec3(wp) + (fine + 0.5f) / 9.0f;
-                v.scale = glm::vec3(1.0f / 9.0f);
-                v.materialName = m->getMaterialName();
-                v.gridCell = wp; v.gridSlot = sub;
-                out.push_back(std::move(v));
-                any = true;
-            }
-        return any;
+        Cube* c = cm->getCubeAt(wp);
+        if (!c) return false;
+        Core::KinematicVoxel v;
+        v.localPos = glm::vec3(wp) + glm::vec3(0.5f);
+        v.scale = glm::vec3(1.0f);
+        v.materialName = c->getMaterialName();
+        v.gridCell = wp; v.gridSlot = glm::ivec3(1);
+        out.push_back(std::move(v));
+        return true;
     };
     for (const glm::ivec3& v : component) if (!gatherOne(v)) return false;
     for (const glm::ivec3& v : leafCargo)  gatherOne(v);
     return true;
 }
 
-// Remove one cell's content (cube or subdivision) WITHOUT spawning debris, keeping both
+// Remove one cell's cube WITHOUT spawning debris, keeping both
 // occupancy grids + the chunk mesh in sync (mirrors dropDetachedCell's removal half).
 static void removeCellContent(ChunkManager* cm, const glm::ivec3& wp) {
     if (cm->getCubeAt(wp)) {
@@ -580,30 +462,11 @@ static void removeCellContent(ChunkManager* cm, const glm::ivec3& wp) {
         cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
         return;
     }
-    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-    if (!ch) return;
-    if (ch->clearSubdivisionAt(ChunkManager::worldToLocalCoord(wp))) {
-        cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
-        cm->markChunkDirty(ch);
-    }
 }
 
-// Material of a world cell's content (cube, first subcube, or first MICROCUBE — fine
-// trees are micro-resolution, P2.1), "" if empty.
+// Material of a world cell's cube, "" if empty.
 static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp) {
     if (Cube* c = cm->getCubeAt(wp)) return c->getMaterialName();
-    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
-        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-        auto subs = ch->getStaticSubcubesAt(lp);
-        if (!subs.empty() && subs[0]) return subs[0]->getMaterialName();
-        // Micro-only cell: scan the 27 subcube slots for the first microcube.
-        for (int sx = 0; sx < 3; ++sx)
-            for (int sy = 0; sy < 3; ++sy)
-                for (int sz = 0; sz < 3; ++sz) {
-                    auto mics = ch->getMicrocubesAt(lp, {sx, sy, sz});
-                    if (!mics.empty() && mics[0]) return mics[0]->getMaterialName();
-                }
-    }
     return {};
 }
 // Content scan of a cell for tree materials (F5). Fine trees MIX micro-Log branch wood
@@ -647,21 +510,7 @@ static CellTreeScan scanCellTree(ChunkManager* cm, const glm::ivec3& wp) {
             s.leaf = true;
         }
     };
-    if (Cube* c = cm->getCubeAt(wp)) { classify(c->getMaterialName(), true); return s; }
-    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-    if (!ch) return s;
-    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-    for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-        if (sc) classify(sc->getMaterialName(), true);
-        if (s.structLog && s.leaf) return s;   // nothing more to learn
-    }
-    for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-            for (int sz = 0; sz < 3; ++sz)
-                for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
-                    if (mc) classify(mc->getMaterialName(), false);
-                    if (s.log && s.leaf) return s;   // structLog is final past subcubes
-                }
+    if (Cube* c = cm->getCubeAt(wp)) classify(c->getMaterialName(), true);
     return s;
 }
 // TREE cell = contains trunk (Log*) or canopy (Leaf*) material (Phase 2 tree-object flood).
@@ -703,12 +552,9 @@ static bool cellLayerHasStructuralLog(ChunkManager* cm, const glm::ivec3& wp, in
     Chunk* ch = cm ? cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp)) : nullptr;
     if (!ch) return false;
     const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    (void)sy;   // a full Log cube spans every layer (cube-only since D3c-5)
     if (Cube* c = ch->getCubeAtFast(lp))
         return c->getMaterialName().rfind("Log", 0) == 0;
-    for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-        if (sc && sc->getLocalPosition().y == sy &&
-            sc->getMaterialName().rfind("Log", 0) == 0)
-            return true;
     return false;
 }
 static bool verticalStructuralContact(ChunkManager* cm, const glm::ivec3& lower,
@@ -731,12 +577,7 @@ static bool trunkRootContact(ChunkManager* cm, const glm::ivec3& wp) {
     const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
     if (Cube* c = ch->getCubeAtFast(lp))
         return c->getMaterialName().rfind("Log", 0) == 0;
-    int n = 0;
-    for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-        if (sc && sc->getLocalPosition().y == 0 &&
-            sc->getMaterialName().rfind("Log", 0) == 0)
-            ++n;
-    return n >= 4;
+    return false;
 }
 
 bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
@@ -751,29 +592,12 @@ bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
         return true;
     };
     if (Cube* c = cm->getCubeAt(wp)) return structuralWood(c->getMaterialName());
-    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
-        for (Subcube* sc : ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp)))
-            if (sc && structuralWood(sc->getMaterialName())) return true;
-    }
     return false;
 }
 
 bool DamageSystem::isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
                                  std::string* logMaterial) {
-    if (isStructuralWoodCell(cm, wp, logMaterial)) return true;
-    if (!cm) return false;
-    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
-        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz)
-            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz}))
-                if (mc && mc->getMaterialName().rfind("Log", 0) == 0) {
-                    if (logMaterial) *logMaterial = mc->getMaterialName();
-                    return true;
-                }
-    }
-    return false;
+    return isStructuralWoodCell(cm, wp, logMaterial);   // cube-only since D3c-5
 }
 
 bool DamageSystem::closestWoodPointInCell(ChunkManager* cm, const glm::ivec3& wp,
@@ -799,20 +623,6 @@ bool DamageSystem::closestWoodPointInCell(ChunkManager* cm, const glm::ivec3& wp
         if (c->getMaterialName().rfind("Log", 0) == 0)
             consider(glm::vec3(wp), glm::vec3(wp) + 1.0f, c->getMaterialName());
     }
-    for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-        if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
-        const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sc->getLocalPosition()) / 3.0f;
-        consider(lo, lo + glm::vec3(1.0f / 3.0f), sc->getMaterialName());
-    }
-    for (int sx = 0; sx < 3; ++sx)
-    for (int sy = 0; sy < 3; ++sy)
-    for (int sz = 0; sz < 3; ++sz)
-        for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
-            if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
-            const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sx, sy, sz) / 3.0f
-                               + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f;
-            consider(lo, lo + glm::vec3(1.0f / 9.0f), mc->getMaterialName());
-        }
     if (!any) return false;
     if (logMaterial) *logMaterial = bestMat;
     return true;
@@ -836,9 +646,6 @@ DamageSystem::PlaneCrossSection DamageSystem::scorePlaneY(
         float cellStrength = 0.0f;
         if (Cube* cube = ch->getCubeAtFast(lp))
             cellStrength += 9.0f * materialWeight(cube->getMaterialName());   // full cube = 3x3 area
-        for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-            if (sc) cellStrength += materialWeight(sc->getMaterialName());
-        // microcubes contribute 0 — cargo-thin, cannot bear structural load (F6).
         if (cellStrength > 0.0f) {
             out.strength += cellStrength;
             out.cells.push_back(c);
@@ -1008,23 +815,6 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
                 nearD = std::min(nearD, glm::dot(cc, dir2) - 0.5f);
             continue;
         }
-        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-            if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
-            const glm::vec3 sctr = glm::vec3(c) + glm::vec3(sc->getLocalPosition()) / 3.0f
-                                 + glm::vec3(1.0f / 6.0f);
-            if (!inCore(sctr)) continue;
-            nearD = std::min(nearD, glm::dot(glm::vec2(sctr.x, sctr.z), dir2) - 1.0f / 6.0f);
-        }
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz)
-            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
-                if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
-                const glm::vec3 mctr = glm::vec3(c) + glm::vec3(sx, sy, sz) / 3.0f
-                    + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f + glm::vec3(1.0f / 18.0f);
-                if (!inCore(mctr)) continue;
-                nearD = std::min(nearD, glm::dot(glm::vec2(mctr.x, mctr.z), dir2) - 1.0f / 18.0f);
-            }
     }
     // Core channel already cut through on this line: don't bail — clamp the
     // frontier so the frame math stays sane, let the slot carve nothing, and the
@@ -1086,12 +876,6 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     };
 
     auto isWoodMat = [](const std::string& m) { return m.rfind("Log", 0) == 0; };
-    auto subCenter = [](const glm::ivec3& wp, const glm::ivec3& s) {
-        return glm::vec3(wp) + glm::vec3(s) / 3.0f + glm::vec3(1.0f / 6.0f);
-    };
-    auto microCenter = [](const glm::ivec3& wp, const glm::ivec3& s, const glm::ivec3& mm) {
-        return glm::vec3(wp) + glm::vec3(s) / 3.0f + glm::vec3(mm) / 9.0f + glm::vec3(1.0f / 18.0f);
-    };
 
     // ---- carve ----
     std::vector<glm::ivec3> seedCells;              // carved cells → collapse seeds
@@ -1109,79 +893,20 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
             cellTouched = insideWedge(glm::vec3(wp) + glm::vec3(cx, cy, cz) * 0.5f);
         if (!cellTouched) continue;
 
-        // a full cube in the wedge's path becomes 27 subcubes first
-        if (ch->getCubeAtFast(lp)) {
-            ch->subdivideAt(lp);
-            m_cm->updateAfterCubeSubdivision(wp);
-        }
-
+        // Cube-only since D3c-5 (no 1/9 m refinement): a Log cube in the wedge's path goes whole.
         bool carvedHere = false;
-
-        // carve one micro slot: remove micros inside the wedge, then repaint
-        // survivors whose face touches the cut as raw heartwood
-        auto carveMicroSlot = [&](const glm::ivec3& s) {
-            std::vector<glm::ivec3> toRemove;
-            for (Microcube* mc : ch->getMicrocubesAt(lp, s)) {
-                if (!mc || !isWoodMat(mc->getMaterialName())) continue;
-                const glm::ivec3 mm = mc->getMicrocubeLocalPosition();
-                if (insideWedge(microCenter(wp, s, mm))) toRemove.push_back(mm);
+        if (Cube* c = ch->getCubeAtFast(lp)) {
+            if (isWoodMat(c->getMaterialName()) && ch->removeCube(lp, /*deferRebuild=*/true)) {
+                out.microsRemoved += 729;
+                carvedHere = true;
+                m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+                ++out.cellsEmptied;
             }
-            for (const auto& mm : toRemove) {
-                if (ch->removeMicrocube(lp, s, mm)) { ++out.microsRemoved; carvedHere = true; }
-            }
-            if (toRemove.empty()) return;
-            static const glm::vec3 A[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
-            for (Microcube* mc : ch->getMicrocubesAt(lp, s)) {
-                if (!mc || !isWoodMat(mc->getMaterialName())) continue;
-                const glm::vec3 c = microCenter(wp, s, mc->getMicrocubeLocalPosition());
-                for (const auto& a : A)
-                    if (insideWedge(c + a * (1.0f / 9.0f))) { mc->setMaterialName(kHeartwood); break; }
-            }
-        };
-
-        // subcube pass (pointer list copied by value; removing the current one is safe)
-        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-            if (!sc || !isWoodMat(sc->getMaterialName())) continue;
-            const glm::ivec3 s = sc->getLocalPosition();
-            int in = 0, samples = 0;
-            for (int cx = 0; cx <= 1; ++cx)
-            for (int cy = 0; cy <= 1; ++cy)
-            for (int cz = 0; cz <= 1; ++cz) {
-                const glm::vec3 p = glm::vec3(wp) +
-                    (glm::vec3(s) + glm::vec3(cx, cy, cz) * 0.94f + glm::vec3(0.03f)) / 3.0f;
-                ++samples; if (insideWedge(p)) ++in;
-            }
-            ++samples; if (insideWedge(subCenter(wp, s))) ++in;
-            if (in == 0) continue;
-            if (in == samples) {                       // fully inside → whole subcube goes
-                if (ch->removeSubcube(lp, s)) { out.microsRemoved += 27; carvedHere = true; }
-                continue;
-            }
-            ch->subdivideSubcubeAt(lp, s);             // partial → refine and carve micros
-            carveMicroSlot(s);
         }
-        // slots that were already micro-resolution before this call
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz)
-            carveMicroSlot({sx, sy, sz});
-
         if (!carvedHere) continue;
         out.carved = true;
         seedCells.push_back(wp);
         touched.insert(ch);
-
-        // fully emptied? clear the subdivision placeholder + occupancy
-        bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
-        for (int sx = 0; sx < 3 && !any; ++sx)
-        for (int sy = 0; sy < 3 && !any; ++sy)
-        for (int sz = 0; sz < 3 && !any; ++sz)
-            any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
-        if (!any) {
-            ch->clearSubdivisionAt(lp);
-            m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
-            ++out.cellsEmptied;
-        }
     }
     // Remove ALL wood content from one cell (the axe shatters it outright).
     // Returns micro-equivalents removed. Used for rim slivers and neck shear.
@@ -1190,34 +915,11 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         if (!ch) return 0;
         const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
         int removed = 0;
-        if (ch->getCubeAtFast(lp)) {
-            ch->subdivideAt(lp);
-            m_cm->updateAfterCubeSubdivision(wp);
-        }
-        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-            if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
-            if (ch->removeSubcube(lp, sc->getLocalPosition())) removed += 27;
-        }
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz) {
-            std::vector<glm::ivec3> rm;
-            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz}))
-                if (mc && mc->getMaterialName().rfind("Log", 0) == 0)
-                    rm.push_back(mc->getMicrocubeLocalPosition());
-            for (const auto& mm : rm)
-                if (ch->removeMicrocube(lp, {sx, sy, sz}, mm)) ++removed;
-        }
-        if (removed > 0) {
-            seedCells.push_back(wp);
-            touched.insert(ch);
-            bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
-            for (int sx = 0; sx < 3 && !any; ++sx)
-            for (int sy = 0; sy < 3 && !any; ++sy)
-            for (int sz = 0; sz < 3 && !any; ++sz)
-                any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
-            if (!any) {
-                ch->clearSubdivisionAt(lp);
+        if (Cube* c = ch->getCubeAtFast(lp)) {
+            if (c->getMaterialName().rfind("Log", 0) == 0 && ch->removeCube(lp, /*deferRebuild=*/true)) {
+                removed = 729;
+                seedCells.push_back(wp);
+                touched.insert(ch);
                 m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
                 ++out.cellsEmptied;
             }
@@ -1225,89 +927,11 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         return removed;
     };
 
-    // Chip a POCKET of micros around a point (fracture ladder §5.H: fractures
-    // start at micro scale — a hit never vaporizes a whole cell below the full
-    // break threshold). Refines wood near the point, removes the nearest micros
-    // (biased slightly along the strike direction), up to maxMicros.
-    auto chipPocket = [&](const glm::vec3& at, int maxMicros) -> int {
-        constexpr float kR = 0.75f;
-        struct MicroRef { glm::ivec3 cell, slot, mm; float score; };
-        std::vector<MicroRef> found;
-        const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
-        const glm::ivec3 base(static_cast<int>(std::floor(at.x)),
-                              static_cast<int>(std::floor(at.y)),
-                              static_cast<int>(std::floor(at.z)));
-        for (int dx = -1; dx <= 1; ++dx)
-        for (int dy = -1; dy <= 1; ++dy)
-        for (int dz = -1; dz <= 1; ++dz) {
-            const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
-            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-            if (!ch) continue;
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-            // refine anything the pocket sphere touches down to micros
-            if (ch->getCubeAtFast(lp) &&
-                ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0 &&
-                glm::distance(glm::clamp(at, glm::vec3(wp), glm::vec3(wp) + 1.0f), at) <= kR) {
-                ch->subdivideAt(lp);
-                m_cm->updateAfterCubeSubdivision(wp);
-            }
-            for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-                if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
-                const glm::vec3 c = glm::vec3(wp) + glm::vec3(sc->getLocalPosition()) / 3.0f
-                                  + glm::vec3(1.0f / 6.0f);
-                if (glm::distance(c, at) <= kR + 0.2f)
-                    ch->subdivideSubcubeAt(lp, sc->getLocalPosition());
-            }
-            for (int sx = 0; sx < 3; ++sx)
-            for (int sy = 0; sy < 3; ++sy)
-            for (int sz = 0; sz < 3; ++sz)
-                for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
-                    if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
-                    const glm::vec3 c = glm::vec3(wp) + glm::vec3(sx, sy, sz) / 3.0f
-                        + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f + glm::vec3(1.0f / 18.0f);
-                    const float d = glm::distance(c, at);
-                    if (d > kR) continue;
-                    found.push_back({wp, {sx, sy, sz}, mc->getMicrocubeLocalPosition(),
-                                     d - 0.25f * glm::dot(c - at, dir3)});
-                }
-        }
-        std::sort(found.begin(), found.end(),
-                  [](const MicroRef& a, const MicroRef& b) { return a.score < b.score; });
-        out.pocketFound = static_cast<int>(found.size());
-        int removed = 0;
-        std::unordered_set<Chunk*> pocketChunks;
-        for (const MicroRef& r : found) {
-            if (removed >= maxMicros) break;
-            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(r.cell));
-            if (!ch) continue;
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(r.cell);
-            if (ch->removeMicrocube(lp, r.slot, r.mm)) {
-                ++removed;
-                pocketChunks.insert(ch);
-            }
-        }
-        for (Chunk* ch : pocketChunks) touched.insert(ch);
-        // emptiness finalize per distinct touched cell
-        std::unordered_set<int64_t> doneCells;
-        for (const MicroRef& r : found) {
-            const int64_t k = packVoxel(r.cell.x, r.cell.y, r.cell.z);
-            if (!doneCells.insert(k).second) continue;
-            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(r.cell));
-            if (!ch) continue;
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(r.cell);
-            seedCells.push_back(r.cell);
-            bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
-            for (int sx = 0; sx < 3 && !any; ++sx)
-            for (int sy = 0; sy < 3 && !any; ++sy)
-            for (int sz = 0; sz < 3 && !any; ++sz)
-                any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
-            if (!any) {
-                ch->clearSubdivisionAt(lp);
-                m_cm->updateOccupancyVoxel(r.cell.x, r.cell.y, r.cell.z, false);
-                ++out.cellsEmptied;
-            }
-        }
-        return removed;
+    // Chip a POCKET of micros around a point: nothing to chip since D3c-5 (the 1/9 m
+    // subcube/microcube store was deleted; a cube is removed whole or not at all).
+    auto chipPocket = [&](const glm::vec3& /*at*/, int /*maxMicros*/) -> int {
+        out.pocketFound = 0;
+        return 0;
     };
 
     // Rim-sliver fallback: the blade stops at its FIRST contact — often a
@@ -1534,24 +1158,6 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
             v.materialName = mat;
             collision.push_back(std::move(v));
             continue;
-        }
-        bool occupied[3][3][3] = {};
-        for (Subcube* sc : cch->getStaticSubcubesAt(clp)) {
-            if (!sc) continue;
-            const glm::ivec3 s = sc->getLocalPosition();
-            occupied[s.x][s.y][s.z] = true;
-        }
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz) {
-            if (!occupied[sx][sy][sz] &&
-                cch->getMicrocubesAt(clp, {sx, sy, sz}).size() < 4)
-                continue;
-            Core::KinematicVoxel v;
-            v.localPos     = glm::vec3(c) + (glm::vec3(sx, sy, sz) + 0.5f) / 3.0f;
-            v.scale        = glm::vec3(1.0f / 3.0f);
-            v.materialName = mat;
-            collision.push_back(std::move(v));
         }
     }
     // Fragment render = wood + canopy cargo (leaves ride; F3 renders them as cards).

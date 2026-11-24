@@ -11,9 +11,7 @@ namespace Phyxel {
 
 // Forward declarations
 class Chunk;
-class Subcube;
 class Cube;
-class Microcube;
 
 /**
  * FaceUpdateCoordinator - selective face updates when cubes are added, removed, subdivided or
@@ -41,8 +39,6 @@ public:
     // Selective update methods for different cube state changes
     void updateAfterCubeBreak(const glm::ivec3& worldPos);
     void updateAfterCubePlace(const glm::ivec3& worldPos);
-    void updateAfterCubeSubdivision(const glm::ivec3& worldPos);
-    void updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos);
 
     // Face update coordination
     void updateFacesForPositionChange(const glm::ivec3& worldPos, bool cubeAdded);

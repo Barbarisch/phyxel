@@ -389,21 +389,8 @@ void InputController::setupMouseBindings() {
                 m_inputManager->getCameraFront());
         }
     });
-    
-    // Ctrl + Left click - Subdivide cube
-    m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_CONTROL, "Subdivide Cube", [this]() {
-        m_interactionSystem->subdivideHoveredCube();
-    });
-    
-    // Alt + Left click - Subdivide subcube into microcubes
-    m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_ALT, "Subdivide Subcube", [this]() {
-        m_interactionSystem->subdivideHoveredSubcube();
-    });
-    
-    // Middle click - Subdivide cube
-    m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_MIDDLE, 0, "Subdivide Cube (Middle)", [this]() {
-        m_interactionSystem->subdivideHoveredCube();
-    });
+    // (Ctrl/Alt + Left click and Middle click subdivided a Chunk cube into subcubes/microcubes;
+    //  the Chunk 1/9 m store was deleted in D3c-5, so those bindings are gone.)
 }
 
 }

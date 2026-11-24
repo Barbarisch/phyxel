@@ -816,13 +816,7 @@ void PropertiesPanel::renderVoxelSection() {
         }
 
         if (loc.chunk) {
-            if (loc.isMicrocube) {
-                const Microcube* micro = loc.chunk->getMicrocubeAt(loc.localPos, loc.subcubePos, loc.microcubePos);
-                if (micro) ImGui::Text("Material: %s", micro->getMaterialName().c_str());
-            } else if (loc.isSubcube) {
-                const Subcube* sub = loc.chunk->getSubcubeAt(loc.localPos, loc.subcubePos);
-                if (sub) ImGui::Text("Material: %s", sub->getMaterialName().c_str());
-            } else {
+            if (!loc.isMicrocube && !loc.isSubcube) {   // a Chunk holds cubes only since D3c-5
                 const Cube* cube = loc.chunk->getCubeAt(loc.localPos);
                 if (cube) ImGui::Text("Material: %s", cube->getMaterialName().c_str());
             }

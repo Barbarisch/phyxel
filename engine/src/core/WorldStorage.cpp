@@ -4,7 +4,6 @@
 #include "core/Chunk.h"
 #include "core/ChunkBlobCodec.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <filesystem>
@@ -68,8 +67,6 @@ void WorldStorage::finalizeStatements() {}
 bool WorldStorage::beginTransaction() { return false; }
 bool WorldStorage::commitTransaction() { return false; }
 bool WorldStorage::rollbackTransaction() { return false; }
-bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
-bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::applyPragmas() { return false; }
 bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) { found = false; return false; }
 bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
@@ -77,7 +74,6 @@ bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) { return false
 bool WorldStorage::migrateLegacyChunks() { return false; }
 bool WorldStorage::readLegacyRows(const glm::ivec3&, Core::VoxFound::V1ChunkRows&) { return false; }
 std::vector<glm::ivec3> WorldStorage::legacyChunkCoords() { return {}; }
-std::vector<uint8_t> WorldStorage::encodeLegacyViaChunk(const glm::ivec3&) { return {}; }
 bool WorldStorage::setMeta(const std::string& key, const std::string& value) { return false; }
 std::string WorldStorage::getMeta(const std::string& key) const { return ""; }
 bool WorldStorage::hasMeta(const std::string& key) const { return false; }
@@ -663,16 +659,13 @@ bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& 
     
     sqlite3_reset(selectCubesStmt);
     
-    // Load subcubes for this chunk
-    loadSubcubesForChunk(chunkCoord, chunk);
-    
-    // Load microcubes for this chunk
-    loadMicrocubesForChunk(chunkCoord, chunk);
-    
+    // (v1 subcube/microcube rows are not loaded into a Chunk: its 1/9 m store was deleted in D3c-5;
+    // the migration reads them via readLegacyRows + encodePxb2FromRows instead.)
+
     LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     
-    return loadedCubes > 0 || chunk.getStaticSubcubeCount() > 0 || chunk.getStaticMicrocubeCount() > 0;
+    return loadedCubes > 0;
 }
 
 bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) {
@@ -744,13 +737,6 @@ std::vector<glm::ivec3> WorldStorage::legacyChunkCoords() {
     return out;
 }
 
-std::vector<uint8_t> WorldStorage::encodeLegacyViaChunk(const glm::ivec3& cc) {
-    Chunk temp(cc * 32);
-    temp.initializeForLoading();
-    loadChunkFromLegacyRows(cc, temp);
-    return ChunkBlobCodec::encode(temp);
-}
-
 bool WorldStorage::migrateLegacyChunks() {
     if (s_skipMigration) return true;   // D3c-2 tests: a v1 DB opened without migrating
     if (!db) return false;
@@ -802,17 +788,10 @@ bool WorldStorage::migrateLegacyChunks() {
             continue;
         }
 
-        // D3c-2: the rows encoded without a Chunk object (the legacy Chunk path only behind the A/B knob)
+        // D3c-2: the rows encoded without a Chunk object
         ChunkBlobCodec::Counts counts;
         std::vector<uint8_t> blob;
-        if (s_migrateViaChunk) {
-            ChunkBlobCodec::Counts c2;
-            Chunk temp(coord * 32);
-            temp.initializeForLoading();
-            loadChunkFromLegacyRows(coord, temp);
-            blob = ChunkBlobCodec::encode(temp, &c2);
-            counts = c2;
-        } else {
+        {
             Core::VoxFound::V1ChunkRows rows;
             readLegacyRows(coord, rows);
             Core::VoxFound::Pxb2Counts c;
@@ -1296,86 +1275,6 @@ bool WorldStorage::commitTransaction() {
 bool WorldStorage::rollbackTransaction() {
     if (!db) return false;
     return sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr) == SQLITE_OK;
-}
-
-bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
-    if (!db) return false;
-    
-    // Bind chunk coordinates
-    sqlite3_bind_int(selectSubcubesStmt, 1, chunkCoord.x);
-    sqlite3_bind_int(selectSubcubesStmt, 2, chunkCoord.y);
-    sqlite3_bind_int(selectSubcubesStmt, 3, chunkCoord.z);
-    
-    int loadedSubcubes = 0;
-    
-    // Load subcubes
-    while (sqlite3_step(selectSubcubesStmt) == SQLITE_ROW) {
-        int x = sqlite3_column_int(selectSubcubesStmt, 0);
-        int y = sqlite3_column_int(selectSubcubesStmt, 1);
-        int z = sqlite3_column_int(selectSubcubesStmt, 2);
-        int subX = sqlite3_column_int(selectSubcubesStmt, 3);
-        int subY = sqlite3_column_int(selectSubcubesStmt, 4);
-        int subZ = sqlite3_column_int(selectSubcubesStmt, 5);
-        
-        bool isDynamic = sqlite3_column_int(selectSubcubesStmt, 6) != 0;
-        const char* matText = reinterpret_cast<const char*>(sqlite3_column_text(selectSubcubesStmt, 7));
-        std::string material = matText ? matText : "Default";
-        
-        // Add subcube to chunk
-        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), material)) {
-            loadedSubcubes++;
-        }
-    }
-    
-    sqlite3_reset(selectSubcubesStmt);
-    
-    if (loadedSubcubes > 0) {
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedSubcubes << " subcubes for chunk (" 
-                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-    }
-    
-    return true;
-}
-
-bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
-    if (!db) return false;
-    
-    // Bind chunk coordinates
-    sqlite3_bind_int(selectMicrocubesStmt, 1, chunkCoord.x);
-    sqlite3_bind_int(selectMicrocubesStmt, 2, chunkCoord.y);
-    sqlite3_bind_int(selectMicrocubesStmt, 3, chunkCoord.z);
-    
-    int loadedMicrocubes = 0;
-    
-    // Load microcubes
-    while (sqlite3_step(selectMicrocubesStmt) == SQLITE_ROW) {
-        int x = sqlite3_column_int(selectMicrocubesStmt, 0);
-        int y = sqlite3_column_int(selectMicrocubesStmt, 1);
-        int z = sqlite3_column_int(selectMicrocubesStmt, 2);
-        int subX = sqlite3_column_int(selectMicrocubesStmt, 3);
-        int subY = sqlite3_column_int(selectMicrocubesStmt, 4);
-        int subZ = sqlite3_column_int(selectMicrocubesStmt, 5);
-        int microX = sqlite3_column_int(selectMicrocubesStmt, 6);
-        int microY = sqlite3_column_int(selectMicrocubesStmt, 7);
-        int microZ = sqlite3_column_int(selectMicrocubesStmt, 8);
-        const char* matText = reinterpret_cast<const char*>(sqlite3_column_text(selectMicrocubesStmt, 9));
-        std::string material = matText ? matText : "Default";
-        
-        // Add microcube to chunk
-        if (chunk.addMicrocube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), 
-                               glm::ivec3(microX, microY, microZ), material)) {
-            loadedMicrocubes++;
-        }
-    }
-    
-    sqlite3_reset(selectMicrocubesStmt);
-    
-    if (loadedMicrocubes > 0) {
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedMicrocubes << " microcubes for chunk ("
-                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-    }
-
-    return true;
 }
 
 // ---- Per-world metadata / recipe key-value store ----

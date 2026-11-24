@@ -1143,53 +1143,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
         glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
         auto* cube = chunk->getCubeAt(localPos);
-        auto subcubes = chunk->getSubcubesAt(localPos);
+        // A Chunk holds no 1/9 m subcubes/microcubes since D3c-5: the lists are always empty.
         nlohmann::json subArr = nlohmann::json::array();
         nlohmann::json microArr = nlohmann::json::array();
-        for (auto* sub : subcubes) {
-            if (!sub) continue;
-            auto lp = sub->getLocalPosition();
-            float scale = sub->getScale();
-            float worldMinX = static_cast<float>(x) + lp.x * scale;
-            float worldMinY = static_cast<float>(y) + lp.y * scale;
-            float worldMinZ = static_cast<float>(z) + lp.z * scale;
-            subArr.push_back({
-                {"local", {{"sx", lp.x}, {"sy", lp.y}, {"sz", lp.z}}},
-                {"world_min", {{"x", worldMinX}, {"y", worldMinY}, {"z", worldMinZ}}},
-                {"world_max", {{"x", worldMinX + scale}, {"y", worldMinY + scale}, {"z", worldMinZ + scale}}},
-                {"scale", scale},
-                {"material", sub->getMaterialName()},
-                {"type", "subcube"},
-                {"visible", sub->isVisible()}
-            });
-        }
-        // Enumerate microcubes: iterate all 27 subcube slots
-        for (int sx = 0; sx < 3; ++sx) {
-            for (int sy = 0; sy < 3; ++sy) {
-                for (int sz = 0; sz < 3; ++sz) {
-                    auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(sx, sy, sz));
-                    for (auto* mic : micros) {
-                        if (!mic) continue;
-                        auto mp = mic->getMicrocubeLocalPosition();
-                        float microScale = mic->getScale(); // 1/9
-                        float subScale = 1.0f / 3.0f;
-                        float wmx = static_cast<float>(x) + sx * subScale + mp.x * microScale;
-                        float wmy = static_cast<float>(y) + sy * subScale + mp.y * microScale;
-                        float wmz = static_cast<float>(z) + sz * subScale + mp.z * microScale;
-                        microArr.push_back({
-                            {"subcube_local", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
-                            {"micro_local", {{"mx", mp.x}, {"my", mp.y}, {"mz", mp.z}}},
-                            {"world_min", {{"x", wmx}, {"y", wmy}, {"z", wmz}}},
-                            {"world_max", {{"x", wmx + microScale}, {"y", wmy + microScale}, {"z", wmz + microScale}}},
-                            {"scale", microScale},
-                            {"material", mic->getMaterialName()},
-                            {"type", "microcube"},
-                            {"visible", mic->isVisible()}
-                        });
-                    }
-                }
-            }
-        }
         return nlohmann::json{
             {"position", {{"x", x}, {"y", y}, {"z", z}}},
             {"has_full_cube", cube != nullptr},
@@ -1236,53 +1192,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                         ++cubeCount;
                     }
 
-                    auto subs = chunk->getSubcubesAt(localPos);
-                    for (auto* sub : subs) {
-                        if (!sub) continue;
-                        auto lp = sub->getLocalPosition();
-                        float scale = sub->getScale();
-                        float wmx = static_cast<float>(ix) + lp.x * scale;
-                        float wmy = static_cast<float>(iy) + lp.y * scale;
-                        float wmz = static_cast<float>(iz) + lp.z * scale;
-                        subcubesList.push_back({
-                            {"parent", {{"x", ix}, {"y", iy}, {"z", iz}}},
-                            {"local", {{"sx", lp.x}, {"sy", lp.y}, {"sz", lp.z}}},
-                            {"world_min", {{"x", wmx}, {"y", wmy}, {"z", wmz}}},
-                            {"world_max", {{"x", wmx + scale}, {"y", wmy + scale}, {"z", wmz + scale}}},
-                            {"scale", scale},
-                            {"material", sub->getMaterialName()},
-                            {"type", "subcube"}
-                        });
-                        ++subcubeCount;
-                    }
-                    // Enumerate microcubes at all 27 subcube slots
-                    for (int msx = 0; msx < 3; ++msx) {
-                        for (int msy = 0; msy < 3; ++msy) {
-                            for (int msz = 0; msz < 3; ++msz) {
-                                auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(msx, msy, msz));
-                                for (auto* mic : micros) {
-                                    if (!mic) continue;
-                                    auto mp = mic->getMicrocubeLocalPosition();
-                                    float microScale = mic->getScale();
-                                    float subScale = 1.0f / 3.0f;
-                                    float mwx = static_cast<float>(ix) + msx * subScale + mp.x * microScale;
-                                    float mwy = static_cast<float>(iy) + msy * subScale + mp.y * microScale;
-                                    float mwz = static_cast<float>(iz) + msz * subScale + mp.z * microScale;
-                                    microcubesList.push_back({
-                                        {"parent", {{"x", ix}, {"y", iy}, {"z", iz}}},
-                                        {"subcube_local", {{"sx", msx}, {"sy", msy}, {"sz", msz}}},
-                                        {"micro_local", {{"mx", mp.x}, {"my", mp.y}, {"mz", mp.z}}},
-                                        {"world_min", {{"x", mwx}, {"y", mwy}, {"z", mwz}}},
-                                        {"world_max", {{"x", mwx + microScale}, {"y", mwy + microScale}, {"z", mwz + microScale}}},
-                                        {"scale", microScale},
-                                        {"material", mic->getMaterialName()},
-                                        {"type", "microcube"}
-                                    });
-                                    ++microcubeCount;
-                                }
-                            }
-                        }
-                    }
+                    // (no subcubes/microcubes in a Chunk since D3c-5)
                 }
             }
         }
@@ -8027,36 +7937,7 @@ static std::vector<Core::VoxelEntry> captureRegionAllLevels(
                     voxels.push_back(entry);
                 }
 
-                // Subcubes
-                auto subs = chunk->getSubcubesAt(localPos);
-                for (auto* sub : subs) {
-                    if (!sub) continue;
-                    Core::VoxelEntry entry;
-                    entry.offset = relOffset;
-                    entry.material = sub->getMaterialName();
-                    entry.level = Core::SnapshotVoxelLevel::Subcube;
-                    entry.subcubePos = glm::ivec3(sub->getLocalPosition());
-                    voxels.push_back(entry);
-                }
-
-                // Microcubes (iterate all 27 subcube slots)
-                for (int msx = 0; msx < 3; ++msx) {
-                    for (int msy = 0; msy < 3; ++msy) {
-                        for (int msz = 0; msz < 3; ++msz) {
-                            auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(msx, msy, msz));
-                            for (auto* mic : micros) {
-                                if (!mic) continue;
-                                Core::VoxelEntry entry;
-                                entry.offset = relOffset;
-                                entry.material = mic->getMaterialName();
-                                entry.level = Core::SnapshotVoxelLevel::Microcube;
-                                entry.subcubePos = glm::ivec3(msx, msy, msz);
-                                entry.microcubePos = glm::ivec3(mic->getMicrocubeLocalPosition());
-                                voxels.push_back(entry);
-                            }
-                        }
-                    }
-                }
+                // (no subcubes/microcubes in a Chunk since D3c-5)
             }
         }
     }
@@ -8079,10 +7960,8 @@ static std::pair<int, int> placeVoxelEntries(
                 ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(worldPos, v.material);
                 break;
             case Core::SnapshotVoxelLevel::Subcube:
-                ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(worldPos, v.subcubePos, v.material);
-                break;
             case Core::SnapshotVoxelLevel::Microcube:
-                ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(worldPos, v.subcubePos, v.microcubePos, v.material);
+                ok = false;   // a Chunk has no 1/9 m store since D3c-5
                 break;
         }
         if (ok) ++placed; else ++failed;
@@ -8526,18 +8405,7 @@ static bool handlePlacedObjectCommand(
                 if (!cm) return false;
                 glm::ivec3 wc(x, y, z);
                 if (auto* c = cm->getCubeAt(wc)) if (c->getMaterialName() == mat) return true;
-                Chunk* chunk = cm->getChunkAt(wc);
-                if (!chunk) return false;
-                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
-                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
-                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
-                    glm::ivec3 sp(sx, sy, sz);
-                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) if (sc->getMaterialName() == mat) return true;
-                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
-                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
-                            if (mc->getMaterialName() == mat) return true;
-                }
-                return false;
+                return false;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
             };
             std::vector<Core::PlacedBox> fireplaces;
             for (const auto& b : boxes)
@@ -8563,19 +8431,7 @@ static bool handlePlacedObjectCommand(
                 if (!cm) return 0;
                 if (auto* c = cm->getCubeAt(glm::ivec3(x, y, z)))
                     if (c->getMaterialName() == "Log") return 27;
-                Chunk* chunk = cm->getChunkAt(glm::ivec3(x, y, z));
-                if (!chunk) return 0;
-                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
-                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
-                int n = 0;
-                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
-                    glm::ivec3 sp(sx, sy, sz);
-                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) if (sc->getMaterialName() == "Log") ++n;
-                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
-                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
-                            if (mc->getMaterialName() == "Log") ++n;
-                }
-                return n;
+                return 0;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
             };
             std::vector<Core::FencePost> fencePosts;
             const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
@@ -8686,15 +8542,8 @@ static bool handlePlacedObjectCommand(
                 nlohmann::json cell = {{"x", mx}, {"y", my}, {"z", mz}, {"material", nullptr}, {"level", "air"}};
                 if (auto* cube = chunkManager->getCubeAt(wc)) {
                     cell["material"] = cube->getMaterialName(); cell["level"] = "cube";
-                } else if (Chunk* chunk = chunkManager->getChunkAt(wc)) {
-                    const glm::ivec3 lc(wc.x - fdiv(wc.x, 32) * 32, wc.y - fdiv(wc.y, 32) * 32,
-                                        wc.z - fdiv(wc.z, 32) * 32);
-                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) {
-                        cell["material"] = sc->getMaterialName(); cell["level"] = "subcube";
-                    } else if (auto* mc = chunk->getMicrocubeAt(lc, sp, mp)) {
-                        cell["material"] = mc->getMaterialName(); cell["level"] = "microcube";
-                    }
                 }
+                (void)sp; (void)mp;   // a Chunk has no subcubes/microcubes since D3c-5
                 out.push_back(cell);
             }
             response = {{"cells", out}, {"count", out.size()}};
@@ -8726,13 +8575,7 @@ static bool handlePlacedObjectCommand(
                 const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
                 std::map<std::string, int> matc;   // material -> occupied sub/microcube count
                 if (auto* c = chunkManager->getCubeAt(wc)) matc[c->getMaterialName()] += 27;  // a full cube
-                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
-                    glm::ivec3 sp(sx, sy, sz);
-                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) matc[sc->getMaterialName()] += 1;
-                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
-                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
-                            matc[mc->getMaterialName()] += 1;
-                }
+                (void)lc;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
                 if (!matc.empty()) {
                     std::vector<std::string> keys;
                     for (const auto& kv : matc) keys.push_back(kv.first);
@@ -9269,16 +9112,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         } else {
             c["cube"] = false;
         }
-        json cs = json::array(), cm = json::array();
-        for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-            if (sc) cs.push_back({sc->getLocalPosition().x, sc->getLocalPosition().y,
-                                  sc->getLocalPosition().z});
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz) {
-            const size_t n = ch->getMicrocubesAt(lp, {sx, sy, sz}).size();
-            if (n) cm.push_back({{"slot", {sx, sy, sz}}, {"count", n}});
-        }
+        json cs = json::array(), cm = json::array();   // always empty since D3c-5
         c["subcubes"] = cs;
         c["micro_slots"] = cm;
 
@@ -16382,8 +16216,6 @@ void Application::registerSnapshotCommands() {
             Chunk* chunk = chunkManager->getChunkAtCoord(cc);
             if (!chunk) continue;
             cleared += chunk->removeCubesBatch(positions);
-            for (const auto& p : positions)
-                if (chunk->clearSubdivisionAt(p)) ++cleared;
             for (const auto& p : positions) applyWaterSpanEdit(cc.x * 32 + p.x, cc.y * 32 + p.y, cc.z * 32 + p.z, false);   // Phase D2: a bulk clear is an edit per cell
         }
         return cleared;
@@ -18344,8 +18176,8 @@ void Application::processAPICommands() {
                         chunkArr.push_back({
                             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
                             {"cubeCount", cubeCount},
-                            {"subcubeCount", chunk->getStaticSubcubeCount()},
-                            {"microcubeCount", chunk->getStaticMicrocubeCount()}
+                            {"subcubeCount", 0},     // a Chunk has no 1/9 m store since D3c-5
+                            {"microcubeCount", 0}
                         });
                     }
 
@@ -19230,8 +19062,6 @@ void Application::processAPICommands() {
                                 Chunk* chunk = chunkManager->getChunkAtCoord(cc);
                                 if (!chunk) continue;
                                 cleared += chunk->removeCubesBatch(positions);
-                                for (const auto& p : positions)
-                                    if (chunk->clearSubdivisionAt(p)) ++cleared;
                             }
                         }
 
@@ -20429,12 +20259,6 @@ void Application::processAPICommands() {
                                         }
                                         glm::ivec3 worldPos(ix, iy, iz);
                                         if (cmClear->removeCubeFast(worldPos)) ++removed;
-                                        // Also clear subcubes/microcubes at this position
-                                        Chunk* chunk = cmClear->getChunkAtFast(worldPos);
-                                        if (chunk) {
-                                            glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
-                                            if (chunk->clearSubdivisionAt(lp)) ++removed;
-                                        }
                                         ++count;
                                         if (count % 1000 == 0) {
                                             ctx.setProgress(static_cast<float>(count) / volume, "Removing voxels...");

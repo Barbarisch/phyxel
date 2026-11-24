@@ -231,22 +231,6 @@ InteractionContext VoxelInteractionSystem::createContext() const {
     return context;
 }
 
-void VoxelInteractionSystem::subdivideHoveredCube() {
-    if (m_destructionTool->subdivideCube(createContext())) {
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1;
-    }
-}
-
-void VoxelInteractionSystem::subdivideHoveredSubcube() {
-    if (m_destructionTool->subdivideSubcube(createContext())) {
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1;
-    }
-}
-
 void VoxelInteractionSystem::updateHoverFromRay(const glm::vec3& origin, const glm::vec3& dir) {
     if (!m_worldEditor) return;
     m_editHover = m_worldEditor->pick(origin, dir, 64.0f);
@@ -282,25 +266,11 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
 }
 
 void VoxelInteractionSystem::breakHoveredSubcube() {
-    if (editorAction(2, false)) return;   // F7.4
-    glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
-    if (m_destructionTool->breakSubcube(createContext())) {
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1;
-        if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
-    }
+    editorAction(2, false);   // F7.4; no Chunk fallback (the 1/9 m store was deleted in D3c-5)
 }
 
 void VoxelInteractionSystem::breakHoveredMicrocube() {
-    if (editorAction(1, false)) return;   // F7.4
-    glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
-    if (m_destructionTool->breakMicrocube(createContext())) {
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1;
-        if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
-    }
+    editorAction(1, false);   // F7.4; no Chunk fallback (the 1/9 m store was deleted in D3c-5)
 }
 
 void VoxelInteractionSystem::playPlaceSound(bool hadHover, const glm::ivec3& placedPos) {
@@ -325,23 +295,11 @@ void VoxelInteractionSystem::placeVoxelAtHover() {
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
-    if (editorAction(2, true)) return;   // F7.4
-    bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
-    glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
-    if (m_placementTool->placeSubcube(createContext())) {
-        playPlaceSound(hadHover, placedPos);
-        if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
-    }
+    editorAction(2, true);   // F7.4; no Chunk fallback (the 1/9 m store was deleted in D3c-5)
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
-    if (editorAction(1, true)) return;   // F7.4
-    bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
-    glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
-    if (m_placementTool->placeMicrocube(createContext())) {
-        playPlaceSound(hadHover, placedPos);
-        if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
-    }
+    editorAction(1, true);   // F7.4; no Chunk fallback (the 1/9 m store was deleted in D3c-5)
 }
 
 VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
@@ -350,13 +308,6 @@ VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOri
         rayOrigin, rayDirection,
         [this]() -> ChunkManager* { return m_chunkManager; }
     );
-}
-
-VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, 
-                                                           const VoxelLocation& voxelHit) const {
-    // Delegate to VoxelRaycaster (note: this is actually a private method in VoxelRaycaster, called internally by pickVoxel)
-    // This wrapper exists for backward compatibility but is not typically called directly
-    return VoxelLocation(); // Empty - functionality integrated into pickVoxel
 }
 
 CubeLocation VoxelInteractionSystem::voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const {
@@ -395,56 +346,6 @@ CubeLocation VoxelInteractionSystem::voxelLocationToCubeLocation(const VoxelLoca
     return cubeLocation;
 }
 
-CubeLocation VoxelInteractionSystem::findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, 
-                                                           const glm::ivec3& cubeWorldPos, 
-                                                           const glm::vec3& rayOrigin, 
-                                                           const glm::vec3& rayDirection) const {
-    // Get all existing subcubes at this cube position
-    std::vector<Subcube*> existingSubcubes = chunk->getSubcubesAt(localPos);
-    if (existingSubcubes.empty()) {
-        return CubeLocation(); // No subcubes exist
-    }
-    
-    // Test ray intersection against each existing subcube's bounding box
-    float closestDistance = std::numeric_limits<float>::max();
-    Subcube* closestSubcube = nullptr;
-    
-    for (Subcube* subcube : existingSubcubes) {
-        if (!subcube || !subcube->isVisible()) continue;
-        
-        glm::ivec3 subcubeLocalPos = subcube->getLocalPosition();
-        
-        // Calculate subcube's world bounding box (each subcube is 1/3 scale within the parent cube)
-        float subcubeSize = 1.0f / 3.0f;
-        glm::vec3 subcubeMin = glm::vec3(cubeWorldPos) + glm::vec3(subcubeLocalPos) * subcubeSize;
-        glm::vec3 subcubeMax = subcubeMin + glm::vec3(subcubeSize);
-        
-        // Ray-AABB intersection test
-        glm::vec3 invDir = 1.0f / rayDirection;
-        glm::vec3 t1 = (subcubeMin - rayOrigin) * invDir;
-        glm::vec3 t2 = (subcubeMax - rayOrigin) * invDir;
-        
-        glm::vec3 tMin = glm::min(t1, t2);
-        glm::vec3 tMax = glm::max(t1, t2);
-        
-        float tNear = glm::max(glm::max(tMin.x, tMin.y), tMin.z);
-        float tFar = glm::min(glm::min(tMax.x, tMax.y), tMax.z);
-        
-        // Check if ray intersects this subcube and if it's the closest so far
-        if (tNear <= tFar && tFar >= 0.0f && tNear < closestDistance) {
-            closestDistance = tNear;
-            closestSubcube = subcube;
-        }
-    }
-    
-    // Return the closest subcube hit, if any
-    if (closestSubcube) {
-        return CubeLocation(chunk, localPos, cubeWorldPos, closestSubcube->getLocalPosition());
-    }
-    
-    return CubeLocation(); // No subcube intersected
-}
-
 void VoxelInteractionSystem::setHoveredCubeInChunksOptimized(const CubeLocation& location) {
     if (!location.isValid()) return;
     
@@ -468,23 +369,8 @@ void VoxelInteractionSystem::setHoveredCubeInChunksOptimized(const CubeLocation&
         return;
     }
     
-    // Handle subcube vs regular cube hover differently
-    if (location.isSubcube) {
-        // Hovering over a specific subcube
-        Chunk* chunk = location.chunk;
-        std::vector<Subcube*> subcubes = chunk->getSubcubesAt(location.localPos);
-        if (subcubes.empty()) return;
-        
-        Subcube* subcube = chunk->getSubcubeAt(location.localPos, location.subcubePos);
-        if (!subcube) return;
-        
-        m_currentHoveredLocation = location;
-        m_hasHoveredCube = true;
-        
-        LOG_DEBUG_FMT("HoverDetection", "Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")");
-        
-    } else {
+    if (location.isSubcube) return;   // no subcube hits: the Chunk 1/9 m store was deleted (D3c-5)
+    {
         // Hovering over a regular cube (not subdivided)
         Cube* cube = location.chunk->getCubeAt(location.localPos);
         if (!cube) return;

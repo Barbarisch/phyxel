@@ -16,14 +16,11 @@ Chunk::Chunk(const glm::ivec3& origin)
     : worldOrigin(origin) {
     // 4.2b: no eager cubes.reserve — the overlay slot array (32768 pointers, 256 KB) is only
     // allocated if a Cube is ever materialized (ChunkVoxelManager::materializeAt).
-    staticSubcubes.reserve(1000);             // Reserve reasonable space for static subcubes
 }
 
 Chunk::~Chunk() {
     // unique_ptr vectors auto-delete all owned voxels
     cubes.clear();
-    staticSubcubes.clear();
-    staticMicrocubes.clear();
     
     cleanupVulkanResources();
     cleanupPhysicsResources();
@@ -31,8 +28,6 @@ Chunk::~Chunk() {
 
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
-    , staticSubcubes(std::move(other.staticSubcubes))
-    , staticMicrocubes(std::move(other.staticMicrocubes))
     , waterSpans(std::move(other.waterSpans))
     , worldOrigin(other.worldOrigin)
     , renderManager(std::move(other.renderManager))
@@ -60,8 +55,6 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
 
         // Move data
         cubes = std::move(other.cubes);
-        staticSubcubes = std::move(other.staticSubcubes);
-        staticMicrocubes = std::move(other.staticMicrocubes);
         waterSpans = std::move(other.waterSpans);
         worldOrigin = other.worldOrigin;
         renderManager = std::move(other.renderManager);
@@ -87,8 +80,6 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
 void Chunk::wireVoxelManagerCallbacks() {
     voxelManager.setCallbacks(
         [this]() -> std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
-        [this]() -> std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this]() -> const glm::ivec3& { return worldOrigin; },
         [this](bool value) { setDirty(value); },
         [this](bool value) { renderManager.setNeedsUpdate(value); },
@@ -187,10 +178,8 @@ void Chunk::clearAll() {
     for (auto& cube : cubes) {
         cube.reset();
     }
-    staticSubcubes.clear();
-    staticMicrocubes.clear();
 
-    // Clear all hash maps in one pass
+    // Clear the store in one pass
     voxelManager.clearAllVoxels();
 
     physicsManager.getCollisionNeedsUpdateRef() = false;
@@ -284,19 +273,11 @@ void Chunk::initializeForLoading() {
     physicsManager.initialize(nullptr, worldOrigin);
     physicsManager.setVoxelStore(&voxelManager.getVoxelStore());   // 4.2b: occupancy reads the store
     
-    // Clear any existing subcubes (unique_ptr auto-deletes)
-    staticSubcubes.clear();
-    
-    // Clear any existing microcubes (unique_ptr auto-deletes)
-    staticMicrocubes.clear();
-    
     // Set up minimal no-op callbacks if initialize() hasn't been called
     // (e.g. in unit tests where Vulkan/physics aren't available)
     if (!voxelManager.hasCallbacks()) {
         voxelManager.setCallbacks(
             [this]() -> std::vector<std::unique_ptr<Cube>>& { return cubes; },
-            [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
-            [this]() -> std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
             [this]() -> const glm::ivec3& { return worldOrigin; },
             [this](bool value) { setDirty(value); },
             [](bool) {},              // setNeedsUpdate - no-op without renderer
@@ -331,31 +312,6 @@ Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAt(const g
                ? Occ::Transparent : Occ::Opaque;
 }
 
-Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAtFine(const glm::ivec3& localMicro,
-                                                                             int level) const {
-    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
-    if (localMicro.x < 0 || localMicro.x >= 288 || localMicro.y < 0 || localMicro.y >= 288 ||
-        localMicro.z < 0 || localMicro.z >= 288) return Occ::Empty;
-    const glm::ivec3 cube  = localMicro / 9;
-    const glm::ivec3 sub   = (localMicro % 9) / 3;
-    const glm::ivec3 micro = localMicro % 3;
-    auto classOf = [](const std::string& name) {
-        return Core::isTransparentMaterial(Core::MaterialRegistry::instance().getMaterial(name))
-                   ? Occ::Transparent : Occ::Opaque;
-    };
-    // Precedence mirrors ChunkRenderManager::subCellSolid / microCellSolid exactly.
-    const Occ c = renderOccupancyAt(cube);
-    if (c != Occ::Empty) return c;
-    if (const Subcube* s = getSubcubeAt(cube, sub)) {
-        if (!s->isBroken() && s->isVisible()) return classOf(s->getMaterialName());
-    }
-    if (level == 1) return Occ::Empty;   // microcubes do not fill a SUBCUBE cell
-    if (const Microcube* m = getMicrocubeAt(cube, sub, micro)) {
-        if (!m->isBroken() && m->isVisible()) return classOf(m->getMaterialName());
-    }
-    return Occ::Empty;
-}
-
 namespace {
 // splitmix64 finalizer: a strong 64-bit mix, so summing mixed keys is collision-safe in practice.
 inline uint64_t borderMix(uint64_t x) {
@@ -367,10 +323,7 @@ inline uint64_t borderMix(uint64_t x) {
 }  // namespace
 
 // GlassTransparency.md §6. Signature of face f = SUM of mixed (cell, class) keys over the non-empty render cells
-// on that face's border layer: cubes on the layer, plus every subcube/microcube whose PARENT cube
-// is on the layer (the whole cell, not only the part touching the face: that over-triggers a
-// little, never under-triggers). A sum is order-independent, so the sub/micro vector order cannot
-// change it. Classes, not materials: a stone -> brick swap does not ripple.
+// on that face's border layer (cubes on the layer). A sum is order-independent. Classes, not materials: a stone -> brick swap does not ripple.
 void Chunk::computeBorderSignature(uint64_t out[6]) const {
     using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
     for (int f = 0; f < 6; ++f) out[f] = 0;
@@ -385,14 +338,7 @@ void Chunk::computeBorderSignature(uint64_t out[6]) const {
         }
         return lastClass;
     };
-    // Face order +X,-X,+Y,-Y,+Z,-Z; `onFace` tells whether a local cube cell lies on face f's layer.
-    auto onFace = [](const glm::ivec3& p, int f) {
-        switch (f) {
-            case 0: return p.x == 31; case 1: return p.x == 0;
-            case 2: return p.y == 31; case 3: return p.y == 0;
-            case 4: return p.z == 31; default: return p.z == 0;
-        }
-    };
+    // Face order +X,-X,+Y,-Y,+Z,-Z.
     const ChunkVoxelStore& store = voxelManager.getVoxelStore();
     for (int f = 0; f < 6; ++f) {
         for (int a = 0; a < 32; ++a) {
@@ -408,31 +354,6 @@ void Chunk::computeBorderSignature(uint64_t out[6]) const {
                 out[f] += borderMix((static_cast<uint64_t>(idx) << 4) | classOfName(name));
             }
         }
-    }
-    auto inChunk = [](const glm::ivec3& p) {
-        return p.x >= 0 && p.x < 32 && p.y >= 0 && p.y < 32 && p.z >= 0 && p.z < 32;
-    };
-    for (const auto& sc : staticSubcubes) {
-        if (!sc || sc->isBroken() || !sc->isVisible()) continue;
-        const glm::ivec3 p = sc->getPosition() - worldOrigin;
-        if (!inChunk(p)) continue;   // the mesher skips these too
-        const glm::ivec3 s = sc->getLocalPosition();
-        const uint64_t key = ((static_cast<uint64_t>(localToIndex(p)) * 27u +
-                               static_cast<uint64_t>(s.z + s.y * 3 + s.x * 9)) << 8) |
-                             (1u << 4) | classOfName(sc->getMaterialName());
-        for (int f = 0; f < 6; ++f) if (onFace(p, f)) out[f] += borderMix(key);
-    }
-    for (const auto& mc : staticMicrocubes) {
-        if (!mc || mc->isBroken() || !mc->isVisible()) continue;
-        const glm::ivec3 p = mc->getParentCubePosition() - worldOrigin;
-        if (!inChunk(p)) continue;
-        const glm::ivec3 s = mc->getSubcubeLocalPosition();
-        const glm::ivec3 m = mc->getMicrocubeLocalPosition();
-        const uint64_t cell = (static_cast<uint64_t>(localToIndex(p)) * 27u +
-                               static_cast<uint64_t>(s.z + s.y * 3 + s.x * 9)) * 27u +
-                              static_cast<uint64_t>(m.z + m.y * 3 + m.x * 9);
-        const uint64_t key = (cell << 8) | (2u << 4) | classOfName(mc->getMaterialName());
-        for (int f = 0; f < 6; ++f) if (onFace(p, f)) out[f] += borderMix(key);
     }
 }
 
@@ -456,12 +377,11 @@ void Chunk::rebuildFaces() {
 
 void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                          const NeighborLightFunc& getNeighborLight,
-                         const std::vector<uint8_t>* columnOpenMask,
-                         const NeighborFineLookupFunc& getNeighborFine) {
+                         const std::vector<uint8_t>* columnOpenMask) {
     // Delegate to render manager (4.2b: the palette store carries the static voxels; `cubes` is
     // the materialized overlay that wins where present)
-    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask,
-                                  &voxelManager.getVoxelStore(), getNeighborFine);
+    renderManager.rebuildAllFaces(cubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask,
+                                  &voxelManager.getVoxelStore());
     ++m_rebuildCount;
     refreshBorderSignature();   // GlassTransparency.md §6: every re-mesh, managed or not, records border changes
     // GlassTransparency.md §6: this rebuild had no neighbour lookup, so the border faces were meshed as if the
@@ -573,45 +493,6 @@ void Chunk::recomputeRenderFlags() {
         }
         if (m_hasMirror && m_hasTransparent) return; // both found, no need to scan further
     }
-
-    // SUB-VOXEL TIERS. The loop above walks the CUBE store only, and for a long time that was the
-    // whole function -- which made both flags UNDER-report: a chunk whose only glass was a subcube
-    // reported hasTransparentVoxel() == false, and the caller
-    // (RenderCoordinator::renderTransparentGeometryOIT) uses that in a frame-global early-out, so
-    // the ENTIRE OIT pass was skipped and that glass rendered opaque. Same omission, same effect,
-    // for sub-voxel mirrors and the reflection pass.
-    //
-    // This was not a corner case: generated walls are subcube/microcube (StructureRealizer stamps
-    // via fillMicroBox), so every window in every generated building took the broken path. Worse,
-    // whether a glass subcube looked transparent depended on whether some UNRELATED full-cube glass
-    // happened to be in view -- appearance coupled to chunk contents, which docs/FeatureDesignKeys.md
-    // forbids outright.
-    //
-    // The direction of the error is what matters. These flags gate whole passes, so they are only
-    // safe while CONSERVATIVE: over-reporting costs a pass that finds nothing (wasted work),
-    // under-reporting drops geometry from the picture. Pinned by ChunkRenderFlagsTest.
-    for (const auto& sc : staticSubcubes) {
-        if (!sc) continue;
-        const auto* mat = registry.getMaterial(sc->getMaterialName());
-        if (!mat) continue;
-        if (mat->isMirror && !m_hasMirror) {
-            m_hasMirror = true;
-            m_firstMirrorLocal = sc->getPosition();
-        }
-        if (mat->alpha < 0.99f) m_hasTransparent = true;
-        if (m_hasMirror && m_hasTransparent) return;
-    }
-    for (const auto& mc : staticMicrocubes) {
-        if (!mc) continue;
-        const auto* mat = registry.getMaterial(mc->getMaterialName());
-        if (!mat) continue;
-        if (mat->isMirror && !m_hasMirror) {
-            m_hasMirror = true;
-            m_firstMirrorLocal = mc->getParentCubePosition();
-        }
-        if (mat->alpha < 0.99f) m_hasTransparent = true;
-        if (m_hasMirror && m_hasTransparent) return;
-    }
 }
 
 void Chunk::updateVulkanBuffer() {
@@ -624,11 +505,6 @@ void Chunk::updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t texture
     // Presence from the store (4.2b): solid cube voxels may have no Cube object.
     if (getVoxelType(localPos) != VoxelLocation::CUBE) return;
     renderManager.updateSingleCubeTexture(localPos, textureIndex, cubes);
-}
-
-void Chunk::updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex) {
-    if (!isValidLocalPosition(parentLocalPos)) return;
-    renderManager.updateSingleSubcubeTexture(parentLocalPos, subcubePos, textureIndex, staticSubcubes, worldOrigin);
 }
 
 void Chunk::createVulkanBuffer() {
@@ -674,75 +550,6 @@ glm::vec3 Chunk::getMaxBounds() const {
 }
 
 // =============================================================================
-// SUBCUBE MANAGEMENT METHODS
-// =============================================================================
-
-Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
-    // Search in static subcubes only
-    for (const auto& subcube : staticSubcubes) {
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + localPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            return subcube.get();
-        }
-    }
-    return nullptr;
-}
-
-const Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
-    // Search in static subcubes only
-    for (const auto& subcube : staticSubcubes) {
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + localPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            return subcube.get();
-        }
-    }
-    return nullptr;
-}
-
-std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
-    std::vector<Subcube*> result;
-    glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    
-    // Collect from static subcubes only
-    for (const auto& subcube : staticSubcubes) {
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube.get());
-        }
-    }
-    return result;
-}
-
-std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
-    std::vector<Subcube*> result;
-    glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    
-    for (const auto& subcube : staticSubcubes) {
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube.get());
-        }
-    }
-    return result;
-}
-
-// =============================================================================
-// Microcube Access Functions
-// =============================================================================
-
-Microcube* Chunk::getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    return const_cast<Microcube*>(voxelManager.getMicrocubeHelper(cubePos, subcubePos, microcubePos));
-}
-
-const Microcube* Chunk::getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) const {
-    return voxelManager.getMicrocubeHelper(cubePos, subcubePos, microcubePos);
-}
-
-std::vector<Microcube*> Chunk::getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    return voxelManager.getMicrocubesHelper(cubePos, subcubePos);
-}
-
-// =============================================================================
 // NEW: O(1) VoxelLocation resolution system for optimized hover detection
 // =============================================================================
 
@@ -763,9 +570,6 @@ VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
         // std::cout << "[Chunk::resolveLocalPosition] localPos=(" << localPos.x << "," << localPos.y << "," << localPos.z 
         //           << ") worldOrigin=(" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z
         //           << ") worldPos=(" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")" << std::endl;
-        if (location.subcubePos == glm::ivec3(0)) {
-            location.subcubePos = glm::ivec3(-1);
-        }
     }
     
     return location;
@@ -774,15 +578,6 @@ VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
 bool Chunk::hasVoxelAt(const glm::ivec3& localPos) const {
     if (!isValidLocalPosition(localPos)) return false;
     return voxelManager.hasVoxelAt(localPos);
-}
-
-bool Chunk::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
-    return voxelManager.hasSubcubeAt(localPos, subcubePos);
-}
-
-float Chunk::subVoxelFloor(const glm::ivec3& localPos) const {
-    if (!isValidLocalPosition(localPos)) return 0.0f;
-    return voxelManager.subVoxelFloor(localPos);
 }
 
 VoxelLocation::Type Chunk::getVoxelType(const glm::ivec3& localPos) const {
@@ -806,58 +601,12 @@ void Chunk::setCubeVisible(const glm::ivec3& localPos, bool visible) {
     voxelManager.setCubeVisible(localPos, visible);
 }
 
-// Internal: Maintain hash map consistency (subdivided voxels only — see ChunkVoxelManager.h.
-// The cube-keyed updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio is gone with the dense
-// maps they maintained: cube presence/type now derive from the `cubes` array on read.)
-void Chunk::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
-    voxelManager.addSubcubeToMaps(localPos, subcubePos, subcube);
-}
-
-void Chunk::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
-    voxelManager.removeSubcubeFromMaps(localPos, subcubePos);
-}
-
-void Chunk::addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube) {
-    voxelManager.addMicrocubeToMaps(cubePos, subcubePos, microcubePos, microcube);
-}
-
-void Chunk::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    voxelManager.removeMicrocubeFromMaps(cubePos, subcubePos, microcubePos);
-}
-
 void Chunk::initializeVoxelMaps() {
     voxelManager.initializeVoxelMaps();
 }
 
-bool Chunk::subdivideAt(const glm::ivec3& localPos) {
-    unsealForEdit();
-    return voxelManager.subdivideAt(localPos);
-}
-
-bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material, uint32_t tint, uint8_t state) {
-    bool ok = voxelManager.addSubcube(parentPos, subcubePos, material);
-    if (ok && (tint != 0xFFFFFFu || state != 0)) {
-        if (Subcube* sc = getSubcubeAt(parentPos, subcubePos)) { sc->setTint(tint); sc->setState(state); }
-    }
-    return ok;
-}
-
-bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    unsealForEdit();
-    return voxelManager.removeSubcube(parentPos, subcubePos);
-}
-
 int Chunk::clearCellsBulk(const std::vector<glm::ivec3>& localCells) {
     return voxelManager.clearCellsBulk(localCells);
-}
-
-bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
-    unsealForEdit();
-    return voxelManager.clearSubdivisionAt(localPos);
-}
-
-size_t Chunk::subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    return ChunkVoxelManager::subcubeToIndex(parentPos, subcubePos);
 }
 
 bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
@@ -898,10 +647,6 @@ size_t Chunk::getCubeEntityCount() const {
     return physicsManager.getCubeEntityCount();
 }
 
-size_t Chunk::getSubcubeEntityCount() const {
-    return physicsManager.getSubcubeEntityCount();
-}
-
 void Chunk::debugPrintSpatialGridStats() const {
     physicsManager.debugPrintSpatialGridStats();
 }
@@ -918,13 +663,6 @@ void Chunk::debugPrintSpatialGridStats() const {
 void Chunk::createChunkPhysicsBody() {
     physicsManager.createChunkPhysicsBody(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
@@ -933,13 +671,6 @@ void Chunk::createChunkPhysicsBody() {
 void Chunk::updateChunkPhysicsBody() {
     physicsManager.updateChunkPhysicsBody(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
@@ -948,13 +679,6 @@ void Chunk::updateChunkPhysicsBody() {
 void Chunk::forcePhysicsRebuild() {
     physicsManager.forcePhysicsRebuild(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
@@ -974,18 +698,6 @@ void Chunk::createCubeCollisionShape(const glm::ivec3& localPos) {
     physicsManager.createCubeCollisionShape(localPos, probe);
 }
 
-void Chunk::createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    auto getSubcube = [this](const glm::ivec3& cPos, const glm::ivec3& sPos) -> Subcube* {
-        return this->getSubcubeAt(cPos, sPos);
-    };
-    physicsManager.createSubcubeCollisionShape(cubePos, subcubePos, getSubcube);
-}
-
-void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos,
-                                          const Microcube* microcube) {
-    physicsManager.createMicrocubeCollisionShape(cubePos, subcubePos, microcube);
-}
-
 // ============================================================================
 // COLLISION ENTITY MANAGEMENT
 // ============================================================================
@@ -997,9 +709,7 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
     // Delegate to physics manager with callbacks for accessing chunk data
     physicsManager.addCollisionEntity(
         localPos,
-        [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); },
-        [this](const glm::ivec3& pos, const glm::ivec3& subPos) { return getMicrocubesAt(pos, subPos); },
-        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); }
+        [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
 }
 
@@ -1011,13 +721,6 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
 void Chunk::batchUpdateCollisions() {
     physicsManager.batchUpdateCollisions(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
@@ -1039,13 +742,6 @@ bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
 void Chunk::buildInitialCollisionShapes() {
     physicsManager.buildInitialCollisionShapes(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
@@ -1054,9 +750,7 @@ void Chunk::buildInitialCollisionShapes() {
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
     physicsManager.updateNeighborCollisionShapes(
         localPos,
-        [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); },
-        [this](const glm::ivec3& pos, const glm::ivec3& subPos) { return getMicrocubesAt(pos, subPos); },
-        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); }
+        [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
 }
 
@@ -1070,41 +764,9 @@ void Chunk::beginBulkOperation() {
 void Chunk::endBulkOperation() {
     physicsManager.endBulkOperation(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3&) -> std::vector<Subcube*> {
-            std::vector<Subcube*> result;
-            result.reserve(staticSubcubes.size());
-            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
-            return result;
-        },
-        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) { return visibleSolidCubeAt(pos); }
     );
-}
-
-// =============================================================================
-// Microcube Manipulation Functions (Phase 3 - Placeholders for now)
-// =============================================================================
-
-bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    unsealForEdit();
-    return voxelManager.subdivideSubcubeAt(cubePos, subcubePos);
-}
-
-bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material, uint32_t tint, uint8_t state) {
-    bool ok = voxelManager.addMicrocube(parentCubePos, subcubePos, microcubePos, material);
-    if (ok && (tint != 0xFFFFFFu || state != 0)) {
-        if (Microcube* mc = getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) { mc->setTint(tint); mc->setState(state); }
-    }
-    return ok;
-}
-
-bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    return voxelManager.removeMicrocube(parentCubePos, subcubePos, microcubePos);
-}
-
-bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    return voxelManager.clearMicrocubesAt(cubePos, subcubePos);
 }
 
 } // namespace Phyxel

@@ -20,7 +20,6 @@ namespace UI {
  * EXTRACTED FROM VOXELINTERACTIONSYSTEM.CPP (November 2025):
  * Successfully extracted ~290 lines of raycasting logic including:
  * - DDA raycasting algorithm for voxel traversal (pickVoxel)
- * - Subcube and microcube intersection testing (resolveSubcubeInVoxel)
  * - Ray-AABB intersection calculations (rayAABBIntersect)
  * - Screen-to-world ray conversion (screenToWorldRay)
  * 
@@ -141,32 +140,6 @@ public:
     }
 
 private:
-    /**
-     * Resolve subcube or microcube intersection within a voxel
-     * Called after pickVoxel finds a cube, to determine if a subcube/microcube was hit
-     * 
-     * @param rayOrigin Ray starting point
-     * @param rayDirection Ray direction
-     * @param voxelHit The voxel that was hit by pickVoxel
-     * @return Updated VoxelLocation with subcube/microcube information
-     */
-    VoxelLocation resolveSubcubeInVoxel(
-        const glm::vec3& rayOrigin,
-        const glm::vec3& rayDirection,
-        const VoxelLocation& voxelHit
-    ) const;
-
-    /**
-     * Find which existing subcube (if any) was hit by the ray
-     * Helper method for resolveSubcubeInVoxel
-     */
-    VoxelLocation findExistingSubcubeHit(
-        Chunk* chunk,
-        const glm::ivec3& localPos,
-        const glm::ivec3& cubeWorldPos,
-        const glm::vec3& rayOrigin,
-        const glm::vec3& rayDirection
-    ) const;
 
     // Debug data capture
     mutable RaycastDebugData m_lastDebugData;

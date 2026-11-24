@@ -65,15 +65,7 @@ TEST(OccupancyCoverage, EditsToAStreamedChunkReachTheGrid) {
     ASSERT_TRUE(c.addCube({5, 4, 5}, "Stone"));
     EXPECT_TRUE(g.isCubeFilled({5, 4, 5})) << "a placed cube does not collide";
 
-    // Place a subcube and a microcube (sub-voxel building).
-    ASSERT_TRUE(c.addSubcube({6, 4, 6}, {1, 0, 1}, "Stone"));
-    EXPECT_TRUE(g.isCubeFilled({6, 4, 6}));
-    EXPECT_TRUE(g.isSubdivided({6, 4, 6}));
-    EXPECT_TRUE(g.isSubcubeFilled({6, 4, 6}, {1, 0, 1})) << "a placed subcube does not collide";
-
-    ASSERT_TRUE(c.addMicrocube({7, 4, 7}, {0, 0, 0}, {2, 0, 2}, "Stone"));
-    EXPECT_TRUE(g.isCubeFilled({7, 4, 7}));
-    EXPECT_TRUE(g.isMicrocubeFilled({7, 4, 7}, {0, 0, 0}, {2, 0, 2})) << "a placed microcube does not collide";
+    // (sub/microcube edits went with the Chunk 1/9 m store, D3c-5)
 }
 
 // The control: a chunk that never went through the loading lifecycle was always fine — this pins
@@ -130,13 +122,6 @@ TEST(OccupancyCoverage, TemplateSpawnsReachTheGrid) {
     ASSERT_TRUE(otm.spawnTemplate("occ_coverage_probe", glm::vec3(4, 4, 4), true, 0));
     const auto& g = c->getOccupancyGrid();
     EXPECT_TRUE(g.isCubeFilled({4, 4, 4})) << "a spawned template's cube does not collide";
-    EXPECT_TRUE(g.isSubcubeFilled({5, 4, 4}, {1, 0, 1})) << "a spawned template's subcube does not collide";
-    EXPECT_TRUE(g.isMicrocubeFilled({6, 4, 4}, {0, 0, 0}, {2, 0, 2}))
-        << "a spawned template's microcube does not collide";
-
-    // Micro-resolution path (placed objects, StructureForge fixtures), another cell.
-    ASSERT_TRUE(otm.spawnTemplateMicro("occ_coverage_probe", glm::ivec3(4, 10, 4) * 9, 0));
-    EXPECT_TRUE(g.isCubeFilled({4, 10, 4})) << "a micro-spawned template's cube does not collide";
-    EXPECT_TRUE(g.isMicrocubeFilled({6, 10, 4}, {0, 0, 0}, {2, 0, 2}))
-        << "a micro-spawned template's microcube does not collide";
+    // (The template's subcube / microcube, and the micro-resolution spawn path, no longer reach a
+    // Chunk: its 1/9 m store was deleted in D3c-5.)
 }

@@ -72,8 +72,7 @@ TEST(LodBlobCodecTest, RoundTripsEveryLevelOfARealChunkPyramid) {
         for (int z = 0; z < 32; ++z)
             for (int y = 0; y < 6; ++y)
                 c->addCube(glm::ivec3(x, y, z), (y == 5) ? "Grass" : "Stone");
-    for (int y = 0; y < 3; ++y)
-        c->addSubcube(glm::ivec3(4, 6, 4), glm::ivec3(1, y, 1), "Wood");
+    c->addCube(glm::ivec3(4, 6, 4), "Wood");   // (was subcube detail; D3c-5)
 
     std::vector<std::string> palette;
     LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);

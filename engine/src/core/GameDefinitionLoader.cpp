@@ -1023,15 +1023,8 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 if (ok) result.structuresPlaced++;
                 continue;
             }
-            if (subcubeType == "sub") {
-                int sx = s.value("sx", 1), sy = s.value("sy", 1), sz = s.value("sz", 1);
-                ok = sub.chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
-                    glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
-            } else if (subcubeType == "micro") {
-                int sx = s.value("sx", 1), sy = s.value("sy", 1), sz = s.value("sz", 1);
-                int mx = s.value("mx", 1), my = s.value("my", 1), mz = s.value("mz", 1);
-                ok = sub.chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                    glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), material);
+            if (subcubeType == "sub" || subcubeType == "micro") {
+                ok = false;   // the Chunk 1/9 m subcube/microcube store was deleted (D3c-5)
             } else {
                 if (!material.empty() && material != "Default") {
                     ok = sub.chunkManager->m_voxelModificationSystem.addCubeWithMaterial(

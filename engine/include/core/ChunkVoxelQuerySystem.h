@@ -3,7 +3,6 @@
 #include "Types.h"
 #include "Chunk.h"
 #include "Cube.h"
-#include "Subcube.h"
 #include "utils/CoordinateUtils.h"
 #include <glm/glm.hpp>
 #include <unordered_map>
@@ -53,26 +52,12 @@ public:
     Cube* getCubeAt(const glm::ivec3& worldPos);  // Legacy compatibility
     
     // ========================================================================
-    // SUBCUBE QUERY METHODS
-    // ========================================================================
-    
-    // Get subcube at world position and subcube local position
-    Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
-    
-    // ========================================================================
-    // VOXEL LOCATION RESOLUTION (for hover detection)
+    // VOXEL QUERY METHODS
     // ========================================================================
     
     // O(1) voxel location resolution - determines if position has cube/subcube
     VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const;
     
-    // Resolve with specific subcube validation
-    VoxelLocation resolveGlobalPositionWithSubcube(
-        const glm::ivec3& worldPos,
-        const glm::ivec3& subcubePos
-    ) const;
-    
-    // Check if voxel exists at position
     bool hasVoxelAt(const glm::ivec3& worldPos) const;
     /// Sub-voxel floor fraction, or negative if the voxel is to be treated as fully solid
     /// (WaterSystemV3 Phase 4B). Unloaded chunk reads 0.
@@ -82,7 +67,7 @@ public:
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;
 
     /// Sub-voxel occupancy at world MICRO coordinates (cube * 9 + 0..8 per axis): true if
-    /// that 1/9-m cell is solid — a full cube, a subcube covering it, or a microcube at it.
+    /// that 1/9-m cell lies in a solid cube (cube-only since D3c-5).
     /// Unloaded chunk reads false. Static chunk content only (dynamic bodies are not voxels).
     /// This is the sampler the sub-cube-aware NavGraph uses for Partial cubes.
     bool occupiedMicro(const glm::ivec3& micro) const;

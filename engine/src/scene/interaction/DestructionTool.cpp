@@ -14,30 +14,4 @@ bool DestructionTool::breakCube(const InteractionContext& context) {
     return m_manipulator->breakCube(context.hoveredLocation, context.cameraPosition);
 }
 
-bool DestructionTool::breakSubcube(const InteractionContext& context) {
-    if (!context.isValid()) return false;
-    
-    // Break subcube with physics
-    return m_manipulator->breakSubcube(context.hoveredLocation);
-}
-
-bool DestructionTool::breakMicrocube(const InteractionContext& context) {
-    if (!context.isValid()) return false;
-    
-    // Break microcube
-    return m_manipulator->breakMicrocube(context.hoveredLocation);
-}
-
-bool DestructionTool::subdivideCube(const InteractionContext& context) {
-    if (!context.isValid()) return false;
-    
-    return m_manipulator->subdivideCube(context.hoveredLocation);
-}
-
-bool DestructionTool::subdivideSubcube(const InteractionContext& context) {
-    if (!context.isValid()) return false;
-    
-    return m_manipulator->subdivideSubcube(context.hoveredLocation);
-}
-
 }

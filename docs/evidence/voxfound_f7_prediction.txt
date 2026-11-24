@@ -1924,3 +1924,57 @@ files.
   Q2: tests -- each failing / non-compiling test is either PORTED (it tests behaviour that stays) or RETIRED with its
       subject (it tests the removed store), listed by name; the unit / integration totals recorded against the quiet
       baseline (unit 4,752 / 3, integration 242 / 5).
+
+D3c-5 RESULTS (2026-11-24; the prediction above untouched). The deletion was done by a delegated agent in this checkout
+(no commits of its own); I reviewed the switched-path diffs, rebuilt Release, and ran every gate myself.
+  Diff: 84 files, +385 / -8,896. Deleted: Subcube.{h,cpp}, Microcube.{h,cpp} + 7 test files. Gone with them: Chunk /
+  ChunkVoxelManager sub / micro storage + API, ChunkVoxelModification / Query sub / micro functions, ChunkManager
+  getSubcubeAt / resolveGlobalPositionWithSubcube / updateAfterCubeSubdivision / updateAfterSubcubeBreak (+ the
+  FaceUpdateCoordinator twins), ChunkRenderManager's sub / micro meshers (per-face + merged), ChunkPhysicsManager sub /
+  micro boxes, DamageSystem / VoxelManipulationSystem / DestructionTool / PlacementTool / VoxelRaycaster sub / micro
+  branches, the editor's Ctrl / Alt / Middle-click subdivide bindings, WorldStorage encodeLegacyViaChunk +
+  s_migrateViaChunk + load{Sub,Micro}cubesForChunk. ChunkBlobCodec: encode writes 0 sub / micro entries (format
+  unchanged), decode validates and discards those sections. KEPT as predicted: VoxelTemplate C/S/M data, MicroCanvas,
+  VoxelOccupancyGrid's sub / micro levels (plain data: lighting, debris, the switched world), convertPxb2,
+  encodePxb2FromRows; the 2- / 1-voxel brush wiring (target modes, Ctrl+C / Alt+C, Python place_subcube_at_hover) --
+  on the switched world these are editorAction's brushes; only their Chunk fallback went.
+  Q1 PASS: phyxel + phyxel_tests + phyxel_integration_tests (and benchmarks / stress / e2e) build, Release.
+     Battery: G1 {} / {}, 0 lost, max apply 0.401 s; G2 12 / 12 (verify_bad 0, clipped 0), T3 0; G3 both ways; G4 20,
+     0 refused; today's chunks 0 and create_refused 0 in all four boots.
+     Six projects (copies): all boot switched (CharacterTestbed world_db, the rest generator + overlay); today's chunks
+     0, create_refused 0 everywhere; stored_check mismatches 0 except VillageChat 1 = the D3c-1 known (its structures
+     land after the overlay). Frames: f727_*_default.png -- forest, tavern + houses, grass field, all drawn.
+     D3-scenes: C1 pond (world_db, 7 chunks, today 0); C2 dry (generator, 32 chunks, today 0, d3s_dry.png forest drawn);
+     C3 Gold 512 placed in dry, 0 in pond, 512 back in dry.
+     (The six-project copy step printed long-path errors deleting VillageChat's stale build/ dir; the project itself
+     copied and booted.)
+  Q2: totals UNIT 4,665 pass / 3 fail / 21 skip (4,689 ran; baseline 4,752 / 3); INTEGRATION 223 / 5 (228 ran; baseline
+     242 / 5). The integration 5 are the standing five. Unit fails: AtlasManager.BuildAtlasFromSourcePNGs and
+     WaterCoupling.BlastBesideThePond (standing) + VoxFoundBodyRest.F55cRegionEditEqualsFullRebuild on its H4 timing
+     guard (per pass max 4.66 ms vs <= 3.0, under the full suite) -- rerun alone on this build: PASS, max 2.848 ms
+     (0 mismatches). The guard is not loosened; recorded as load-sensitive (it passed in the agent's earlier full run).
+     RETIRED files (their subject was the 1/9 m sub / micro store): graphics/FineFaceMergeTest, core/FineOverCoarseTest,
+       graphics/EmissiveLightMergeTest, graphics/EmitterMergeTest, graphics/LightBleedTest (mostly DISABLED),
+       core/RemoveKeepsWallTest, integration/ChopKerfIntegrationTest.
+     RETIRED cases: ChunkBlobCodec Sub/MicrocubeTintStateRoundTrip; WorldStorage Sub/MicrocubeTintAndStateRoundTrip;
+       ChunkRenderFlags SubVoxelGlass / MicrocubeGlass / SubVoxelMirror; ChunkVoxelAuthority SubdivideAtErasesStoreEntry;
+       LodChunkMesh SubcubeOnlyWall / MicrocubeOnlyContent / CoverageReflectsSubCubeFillLevel /
+       SolidSubCellWithUnresolvedMaterial; TerrainRiver CreekBedIsARecessedSubcubeShelf / CreekBedCarvedToAThird;
+       NavGraphMicro ChunkManagerMicroSamplerSeesJambsAndReveal; ChunkTransparentCulling T4a-c, T5a-c, T6, T9f, T15 +
+       T8's Sub/Micro params; LightBakeOcclusion 3 DISABLED roofs + LoneDecorativeSubcube; LightWallMatrix 6 mesher-bake
+       cases (4 DISABLED); TreeCollapseIntegration 7 sub / micro tree cases; EvictedLodCache 6 / 7 and LodPyramidService
+       9 / 12 (their trigger shouldPersist keyed on sub / micro content -- now always false).
+     PORTED: ChunkBlobCodec (cube-only + NEW DecodeSkipsSubcubeAndMicrocubeSections: a rows-encoder blob with both
+       sections decodes, keeps cubes, drops sub / micro, re-encodes with 0, truncation fails clean); WorldStorage
+       LegacyRowFormatChunkStillLoads; VoxFoundV1Migration -> RowsEncoderRoundTripsThroughConvertPxb2 (+ the real-DB
+       variant under PHYXEL_V1_DBS); VoxFoundStorageLab (blobs from encodePxb2FromRows; water spans 0 -- the rows encoder
+       writes none); LightWallMatrix traced M2-M4; FaceDirBucketing, GrassBladeCoverage, ChunkVoxelManagerBulk,
+       ChunkStreamingManager save region, OccupancyCoverage, NpcTorchPolicy, RoadFieldSeam, LodBlobCodec, LodChunkMesh
+       BothOrRules, NavGraphMicro ChunkDoorWorld, CrossSectionAnalyzer, ChunkManagerIntegration (subcube break ->
+       BreakingACubeRemovesItAndHandsThePieceToGpuDebris).
+  Dead legacy paths that now do less (unreachable while switched; listed so D4 deletes rather than rediscovers them):
+     WorldGenerator bridge-rail + creek-shelf voxels air; ObjectTemplateManager writes no template sub / micro into a
+     Chunk; StructureGenerator counts sub / micro as failed; GameDefinitionLoader legacy sub / micro entries false;
+     carveChopKerf removes whole Log cubes, chipPocket 0; LOD pyramid persistence + eviction stash never fire; the debug
+     sub / micro queries answer empty.
+D3c DONE (the 1/9 m writers + the Subcube / Microcube classes). NEXT D4: the store + its readers go.

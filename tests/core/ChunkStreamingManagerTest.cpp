@@ -297,8 +297,8 @@ TEST(ChunkStreamingManagerTest, CreateChunkLoadsASavedChunkInsteadOfShadowingIt)
 // ============================================================================
 #include "core/ChunkBlobCodec.h"
 namespace {
-// Twelve chunks with cubes of several materials, subcubes with tint/state, microcubes, and
-// one chunk of pure air (must NOT count as loaded, as in loadChunk()).
+// Twelve chunks with cubes of several materials (sub/microcubes went with the Chunk 1/9 m store,
+// D3c-5), water spans, and one chunk of pure air (must NOT count as loaded, as in loadChunk()).
 std::vector<glm::ivec3> saveMixedRegion(ChunkStreamingManager& csm) {
     std::vector<glm::ivec3> coords;
     const char* mats[] = {"Stone", "Dirt", "Wood", "Bricks"};
@@ -310,16 +310,6 @@ std::vector<glm::ivec3> saveMixedRegion(ChunkStreamingManager& csm) {
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z)
                 for (int y = 0; y < 4 + (i % 3); ++y) chunk->addCube({x, y, z}, mats[(x + z + i) % 4]);
-        for (int k = 0; k < 40 + i; ++k) {
-            const glm::ivec3 cube((k * 7 + i) % 32, 8 + (k % 5), (k * 11) % 32);
-            chunk->addSubcube(cube, glm::ivec3(k % 3, (k / 3) % 3, (k / 9) % 3), mats[k % 4],
-                              0xFF000000u | static_cast<uint32_t>(k * 977), static_cast<uint8_t>(k % 4));
-        }
-        for (int k = 0; k < 60 + i; ++k) {
-            const glm::ivec3 cube((k * 5 + i) % 32, 16 + (k % 4), (k * 13) % 32);
-            chunk->addMicrocube(cube, glm::ivec3(k % 3, (k / 3) % 3, (k / 9) % 3),
-                                glm::ivec3((k / 2) % 3, (k / 5) % 3, (k / 7) % 3), mats[(k + 1) % 4], 0u, 0);
-        }
         if (i % 3 == 1) {   // water spans (the v2 blob's last section), (x,z)-sorted as producers contract
             std::vector<Chunk::WaterSpanLocal> spans;
             for (int x = 2; x < 30; x += 7)

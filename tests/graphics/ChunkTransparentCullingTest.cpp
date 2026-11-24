@@ -160,65 +160,6 @@ TEST_F(TransparentCullingInChunk, T3_GlassFaceAgainstStoneStaysCulled) {
         << "a glass face lying on stone would tint the stone a second time";
 }
 
-// ---- sub-voxels --------------------------------------------------------------------------------
-TEST_F(TransparentCullingInChunk, T4a_StoneSubcubeBehindGlassSubcubeIsDrawn) {
-    chunk->addSubcube(A, {2, 1, 1}, "Stone"); chunk->addSubcube(B, {0, 1, 1}, "Glass");
-    EXPECT_EQ(countIn(mesh(), subBox(A, {2, 1, 1}), 3, kPX), 9)
-        << "stone subcube face behind a glass subcube is missing";
-}
-TEST_F(TransparentCullingInChunk, T4b_StoneSubcubeBehindGlassCubeIsDrawn) {
-    chunk->addSubcube(A, {2, 1, 1}, "Stone"); chunk->addCube(B, "Glass");
-    EXPECT_EQ(countIn(mesh(), subBox(A, {2, 1, 1}), 3, kPX), 9)
-        << "stone subcube face behind a glass cube is missing";
-}
-TEST_F(TransparentCullingInChunk, T4c_GlassSubcubeAgainstGlassOrStoneStaysCulled) {
-    chunk->addSubcube(A, {2, 1, 1}, "Glass"); chunk->addSubcube(B, {0, 1, 1}, "Glass");
-    chunk->addSubcube(A, {2, 2, 1}, "Glass"); chunk->addSubcube(B, {0, 2, 1}, "Stone");
-    auto s = mesh();
-    EXPECT_EQ(countIn(s, subBox(A, {2, 1, 1}), 3, kPX), 0) << "glass|glass subcube face drawn";
-    EXPECT_EQ(countIn(s, subBox(A, {2, 2, 1}), 3, kPX), 0) << "glass|stone subcube face drawn";
-    EXPECT_EQ(countIn(s, subBox(B, {0, 2, 1}), 3, kNX), 9) << "the stone subcube behind it IS drawn";
-}
-TEST_F(TransparentCullingInChunk, T5a_StoneMicroBehindGlassMicroIsDrawn) {
-    chunk->addMicrocube(A, {2, 1, 1}, {2, 1, 1}, "Stone");
-    chunk->addMicrocube(B, {0, 1, 1}, {0, 1, 1}, "Glass");
-    EXPECT_EQ(countIn(mesh(), microBox(A, {2, 1, 1}, {2, 1, 1}), 1, kPX), 1)
-        << "stone microcube face behind a glass microcube is missing (generated window jambs)";
-}
-TEST_F(TransparentCullingInChunk, T5b_StoneMicroBehindGlassSubcubeAndCubeIsDrawn) {
-    chunk->addMicrocube(A, {2, 1, 1}, {2, 1, 1}, "Stone");
-    chunk->addSubcube(B, {0, 1, 1}, "Glass");
-    EXPECT_EQ(countIn(mesh(), microBox(A, {2, 1, 1}, {2, 1, 1}), 1, kPX), 1)
-        << "stone microcube face behind a glass subcube is missing";
-
-    chunk = std::make_unique<Chunk>(glm::ivec3(0)); chunk->initializeForLoading();
-    chunk->addMicrocube(A, {2, 1, 1}, {2, 1, 1}, "Stone"); chunk->addCube(B, "Glass");
-    EXPECT_EQ(countIn(mesh(), microBox(A, {2, 1, 1}, {2, 1, 1}), 1, kPX), 1)
-        << "stone microcube face behind a glass cube is missing";
-}
-TEST_F(TransparentCullingInChunk, T5c_GlassMicroAgainstGlassMicroStaysCulled) {
-    chunk->addMicrocube(A, {2, 1, 1}, {2, 1, 1}, "Glass");
-    chunk->addMicrocube(B, {0, 1, 1}, {0, 1, 1}, "Glass");
-    EXPECT_EQ(countIn(mesh(), microBox(A, {2, 1, 1}, {2, 1, 1}), 1, kPX), 0)
-        << "glass|glass microcube face drawn: a 1-micro pane would double up";
-}
-
-// ---- merged and per-face paths agree -----------------------------------------------------------
-TEST_F(TransparentCullingInChunk, T6_MergedAndPerFacePathsCoverTheSameFaces) {
-    auto build = [&] {
-        chunk = std::make_unique<Chunk>(glm::ivec3(0)); chunk->initializeForLoading();
-        chunk->addCube(A, "Stone"); chunk->addCube(B, "Glass");
-        chunk->addSubcube({10, 12, 10}, {2, 1, 1}, "Stone"); chunk->addSubcube({11, 12, 10}, {0, 1, 1}, "Glass");
-        chunk->addMicrocube({10, 14, 10}, {2, 1, 1}, {2, 1, 1}, "Stone");
-        chunk->addMicrocube({11, 14, 10}, {0, 1, 1}, {0, 1, 1}, "Glass");
-        return mesh();
-    };
-    std::set<WorldFace> on, off;
-    { FineMergeScope s(true);  on  = build(); }
-    { FineMergeScope s(false); off = build(); }
-    EXPECT_EQ(on, off) << "fine greedy merge ON and OFF must cover exactly the same unit faces";
-}
-
 // ---- KEEP: grass, foliage exposure, physics ----------------------------------------------------
 TEST_F(TransparentCullingInChunk, T10_NoGrassUnderGlass) {
     chunk->addCube(A, "Grass");
@@ -315,17 +256,7 @@ protected:
                 glm::ivec3 w(x, 10, 10);
                 Chunk* c = chunk({w.x >= 32 ? 1 : 0, 0, 0});
                 c->addCube(w - c->getWorldOrigin(), kRow[k]);
-            } else if (sz == Size::Sub) {
-                const int cx = x / 3, sx = x % 3;
-                glm::ivec3 w(cx, 10, 10);
-                Chunk* c = chunk({w.x >= 32 ? 1 : 0, 0, 0});
-                c->addSubcube(w - c->getWorldOrigin(), {sx, 1, 1}, kRow[k]);
-            } else {
-                const int cx = x / 9, sx = (x % 9) / 3, mx = x % 3;
-                glm::ivec3 w(cx, 10, 10);
-                Chunk* c = chunk({w.x >= 32 ? 1 : 0, 0, 0});
-                c->addMicrocube(w - c->getWorldOrigin(), {sx, 1, 1}, {mx, 1, 1}, kRow[k]);
-            }
+            }   // (Sub / Micro rows: the Chunk 1/9 m store was deleted in D3c-5)
         }
     }
     std::set<WorldFace> meshAndCollect(int shiftMicroX) {
@@ -362,9 +293,7 @@ TEST_P(TransparentCullingChunkIndependence, T8_StraddlingEqualsWhole) {
 // and 0|1 (stone|glass), for every voxel size.
 INSTANTIATE_TEST_SUITE_P(
     AllSizesAndSeams, TransparentCullingChunkIndependence,
-    ::testing::Values(std::make_tuple(Size::Cube, 30), std::make_tuple(Size::Cube, 29), std::make_tuple(Size::Cube, 31),
-                      std::make_tuple(Size::Sub, 94), std::make_tuple(Size::Sub, 93), std::make_tuple(Size::Sub, 95),
-                      std::make_tuple(Size::Micro, 286), std::make_tuple(Size::Micro, 285), std::make_tuple(Size::Micro, 287)));
+    ::testing::Values(std::make_tuple(Size::Cube, 30), std::make_tuple(Size::Cube, 29), std::make_tuple(Size::Cube, 31)));
 
 // T12 — a glass layer must not SEAL the chunk behind it (a sealed chunk skips meshing its wall).
 TEST_F(TransparentCullingCrossChunk, T12_GlassNeighbourLayerDoesNotSeal) {
@@ -572,12 +501,7 @@ TEST_F(TransparentCullingCrossChunk, T16_BorderSignatureCostsUnderFivePercentOfA
         terrain->addCube({x, top, z}, "Grass");
     }
     measure(terrain, "terrain");
-
-    Chunk* wall = chunk({2, 0, 0});
-    for (int y = 0; y < 8; ++y) for (int z = 0; z < 32; ++z)
-        for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz)
-            wall->addSubcube({31, y, z}, {sx, sy, sz}, (y + z) % 3 ? "Stone" : "Glass");
-    measure(wall, "subcube border wall");
+    // (the subcube border-wall case went with the Chunk 1/9 m store, D3c-5)
 }
 
 // T9g — found at L4: Chunk::addCubesBatch, the /api/world/fill path, re-meshes its chunk at
@@ -604,37 +528,4 @@ TEST_F(TransparentCullingCrossChunk, T9g_BatchFillAcrossABorderEndsCrossChunkCor
     EXPECT_EQ(liveB, worldFaces(*b)) << "chunk B after a batch fill differs from a cross-chunk rebuild";
     EXPECT_EQ(countIn(liveA, cubeBox({31, 10, 10}), 9, kPX), 0) << "glass|glass seam face drawn in A (doubled pane)";
     EXPECT_EQ(countIn(liveA, cubeBox({31, 9, 10}), 9, kPX), 0) << "stone|stone seam face drawn in A";
-}
-
-// T9f — the same ripple for a SUB-VOXEL border change (generated panes are microcubes).
-TEST_F(TransparentCullingCrossChunk, T9f_MicroGlassPlacedAcrossTheBorderRemeshesTheNeighbour) {
-    Chunk* a = chunk({0, 0, 0}); Chunk* b = chunk({1, 0, 0});
-    a->addMicrocube({31, 10, 10}, {2, 1, 1}, {2, 1, 1}, "Glass");
-    b->addCube({20, 20, 20}, "Stone");   // B is not an all-air chunk (see T9 setup)
-    remesh({{0, 0, 0}, {1, 0, 0}});
-    for (int i = 0; i < 32; ++i) cm.updateDirtyChunks();   // settle load-time idle re-meshes (see T9 setup)
-    ASSERT_EQ(countIn(worldFaces(*a), microBox({31, 10, 10}, {2, 1, 1}, {2, 1, 1}), 1, kPX), 1) << "control";
-    b->addMicrocube({0, 10, 10}, {0, 1, 1}, {0, 1, 1}, "Glass");
-    cm.markChunkDirty(b);
-    drain();
-    EXPECT_EQ(countIn(worldFaces(*a), microBox({31, 10, 10}, {2, 1, 1}, {2, 1, 1}), 1, kPX), 0)
-        << "the neighbour was not re-meshed after a microcube edit across the border: doubled pane seam";
-}
-
-// T15 — a 1-micro glass pane straddling a chunk border (generated windows are exactly this).
-TEST_F(TransparentCullingCrossChunk, T15_MicroGlassPaneAcrossABorderHasNoDoubledSeam) {
-    Chunk* a = chunk({0, 0, 0}); Chunk* b = chunk({1, 0, 0});
-    a->addMicrocube({31, 10, 10}, {2, 1, 1}, {2, 1, 1}, "Glass");
-    b->addMicrocube({0, 10, 10},  {0, 1, 1}, {0, 1, 1}, "Glass");
-    a->addMicrocube({31, 10, 10}, {2, 2, 1}, {2, 2, 1}, "Stone");   // a jamb micro beside the pane
-    b->addMicrocube({0, 10, 10},  {0, 2, 1}, {0, 2, 1}, "Glass");
-    remesh({{0, 0, 0}, {1, 0, 0}});
-    auto sa = worldFaces(*a), sb = worldFaces(*b);
-    EXPECT_EQ(countIn(sa, microBox({31, 10, 10}, {2, 1, 1}, {2, 1, 1}), 1, kPX), 0)
-        << "glass micro face drawn against glass in the next chunk: a doubled seam through the pane";
-    EXPECT_EQ(countIn(sb, microBox({32, 10, 10}, {0, 1, 1}, {0, 1, 1}), 1, kNX), 0);
-    EXPECT_EQ(countIn(sa, microBox({31, 10, 10}, {2, 2, 1}, {2, 2, 1}), 1, kPX), 1)
-        << "the stone jamb behind glass in the next chunk must be drawn";
-    EXPECT_EQ(countIn(sb, microBox({32, 10, 10}, {0, 2, 1}, {0, 2, 1}), 1, kNX), 0)
-        << "the glass micro lying on the stone jamb must stay culled";
 }

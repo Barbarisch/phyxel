@@ -743,7 +743,9 @@ TEST(VoxFoundStorageLab, ConverterResamplesByVolume) {
     std::mt19937 rng(3402u);
     auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
     const char* mats[] = {"Stone", "Wood", "Bricks", "Glass"};
-    auto chunk = todayChunk();
+    // The PXB2 blob is written WITHOUT a Chunk (encodePxb2FromRows, the v1 migration encoder, same format as
+    // ChunkBlobCodec::encode): the Chunk 1/9 m subcube/microcube store was deleted in D3c-5.
+    Phyxel::Core::VoxFound::V1ChunkRows rows;
     std::map<int, NinthCell> cells;   // cube index -> what was put below the cube level
     size_t subs = 0, micros = 0, tinted = 0;
     for (int k = 0; k < 120; ++k) {
@@ -760,8 +762,10 @@ TEST(VoxFoundStorageLab, ConverterResamplesByVolume) {
                     const bool mic = !sub && (kind == 2 || kind == 3);
                     if (sub) {
                         const std::string m = kind == 0 ? "Wood" : mats[rnd(0, 3)];
-                        const uint32_t tint = rnd(0, 5) == 0 ? 0x88CC44u : 0xFFFFFFu;
-                        ASSERT_TRUE(chunk->addSubcube(p, sp, m, tint, uint8_t(rnd(0, 6) == 0 ? 2 : 0)));
+                        (void)rnd(0, 5);   // (was the tint draw: v1 rows carry no tint)
+                        const uint32_t tint = 0xFFFFFFu;
+                        rows.subs.push_back({p, sp, m});
+                        (void)rnd(0, 6);   // (was the state draw)
                         tinted += tint != 0xFFFFFFu ? 1 : 0;
                         ++subs;
                         for (int a = 0; a < 3; ++a)
@@ -773,17 +777,14 @@ TEST(VoxFoundStorageLab, ConverterResamplesByVolume) {
                                 for (int d = 0; d < 3; ++d) {
                                     if (rnd(0, 2) == 0) continue;
                                     const std::string m = mats[rnd(0, 3)];
-                                    ASSERT_TRUE(chunk->addMicrocube(p, sp, {a, b, d}, m));
+                                    rows.micros.push_back({p, sp, glm::ivec3(a, b, d), m});
                                     ++micros;
                                     c.ninth[3 * sx + a][3 * sy + b][3 * sz + d] = m;
                                 }
                     }
                 }
     }
-    std::vector<Phyxel::Chunk::WaterSpanLocal> water(3);
-    for (size_t k = 0; k < water.size(); ++k) water[k] = {uint8_t(k), uint8_t(2 * k), 1.0f, 3.5f};
-    chunk->setWaterSpans(water);
-    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    const std::vector<uint8_t> blob = Phyxel::Core::VoxFound::encodePxb2FromRows(rows);
     BlockStore s;
     std::vector<std::string> names;
     Pxb2ConvertStats st;
@@ -792,7 +793,7 @@ TEST(VoxFoundStorageLab, ConverterResamplesByVolume) {
     EXPECT_EQ(st.subcubes, subs);
     EXPECT_EQ(st.microcubes, micros);
     EXPECT_EQ(st.tinted, tinted);
-    EXPECT_EQ(st.waterSpans, water.size());
+    EXPECT_EQ(st.waterSpans, 0u);   // the rows encoder writes an empty water section
     size_t bad = 0, uniformCells = 0, wholeWood = 0;
     double volIn = 0, volOut = 0;
     for (const auto& [ci, c] : cells) {
@@ -832,18 +833,20 @@ TEST(VoxFoundStorageLab, ConverterKeepsEveryMaterialOfACell) {
     std::mt19937 rng(3403u);
     auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
     const char* mats[] = {"Leaf", "Metal", "glow", "LogBirch", "Glass"};
-    auto chunk = todayChunk();
+    // The PXB2 blob is written WITHOUT a Chunk (encodePxb2FromRows, the v1 migration encoder, same format as
+    // ChunkBlobCodec::encode): the Chunk 1/9 m subcube/microcube store was deleted in D3c-5.
+    Phyxel::Core::VoxFound::V1ChunkRows rows;
     std::map<int, std::set<std::string>> want;   // cube index -> materials put in it
     for (int k = 0; k < 300; ++k) {
         const glm::ivec3 p(rnd(0, 31), rnd(0, 31), rnd(0, 31));
         const int ci = p.z + 32 * p.y + 1024 * p.x;
         if (want.count(ci)) continue;
         std::set<std::string>& w = want[ci];
-        std::set<int> usedSub;
+        std::set<int> usedSub, usedMicro;
         if (rnd(0, 1)) {   // half the cells: the lower subcube layer Stone
             for (int sx = 0; sx < 3; ++sx)
                 for (int sz = 0; sz < 3; ++sz) {
-                    ASSERT_TRUE(chunk->addSubcube(p, {sx, 0, sz}, "Stone"));
+                    rows.subs.push_back({p, glm::ivec3(sx, 0, sz), "Stone"});
                     usedSub.insert(sx + 9 * sz);
                 }
             w.insert("Stone");
@@ -852,10 +855,14 @@ TEST(VoxFoundStorageLab, ConverterKeepsEveryMaterialOfACell) {
             const glm::ivec3 sp(rnd(0, 2), rnd(1, 2), rnd(0, 2));
             const glm::ivec3 mp(rnd(0, 2), rnd(0, 2), rnd(0, 2));
             const std::string m = mats[rnd(0, 4)];
-            if (chunk->addMicrocube(p, sp, mp, m)) w.insert(m);
+            // a slot taken twice is skipped, as Chunk::addMicrocube refused it
+            if (usedMicro.insert(((sp.x * 3 + sp.y) * 3 + sp.z) * 27 + (mp.x * 3 + mp.y) * 3 + mp.z).second) {
+                rows.micros.push_back({p, sp, mp, m});
+                w.insert(m);
+            }
         }
     }
-    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    const std::vector<uint8_t> blob = Phyxel::Core::VoxFound::encodePxb2FromRows(rows);
     BlockStore s;
     std::vector<std::string> names;
     std::string err;
@@ -872,11 +879,13 @@ TEST(VoxFoundStorageLab, ConverterKeepsEveryMaterialOfACell) {
 }
 
 TEST(VoxFoundStorageLab, ConverterRejectsMalformedPxb2) {
-    auto chunk = todayChunk();
-    chunk->addCube({1, 2, 3}, "Stone");
-    chunk->addSubcube({4, 5, 6}, {1, 0, 2}, "Wood");
-    chunk->addMicrocube({7, 8, 9}, {0, 1, 2}, {2, 2, 0}, "Glass");
-    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    // The PXB2 blob is written WITHOUT a Chunk (encodePxb2FromRows, the v1 migration encoder, same format as
+    // ChunkBlobCodec::encode): the Chunk 1/9 m subcube/microcube store was deleted in D3c-5.
+    Phyxel::Core::VoxFound::V1ChunkRows rows;
+    rows.cubes.push_back({glm::ivec3(1, 2, 3), "Stone"});
+    rows.subs.push_back({glm::ivec3(4, 5, 6), glm::ivec3(1, 0, 2), "Wood"});
+    rows.micros.push_back({glm::ivec3(7, 8, 9), glm::ivec3(0, 1, 2), glm::ivec3(2, 2, 0), "Glass"});
+    const std::vector<uint8_t> blob = Phyxel::Core::VoxFound::encodePxb2FromRows(rows);
     BlockStore s;
     std::vector<std::string> names;
     std::string err;

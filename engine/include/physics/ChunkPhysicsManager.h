@@ -10,8 +10,6 @@
 namespace Phyxel {
 
 class Cube;
-class Subcube;
-class Microcube;
 class ChunkVoxelStore;
 
 namespace Physics {
@@ -45,27 +43,17 @@ public:
     // (hybrid read) instead of materializing Cubes just to probe presence. Both live consumers
     // (addCollisionEntity, hasExposedFaces) only ever asked exactly that.
     using VisibleSolidFunc           = std::function<bool(const glm::ivec3&)>;
-    using SubcubeAccessFunc          = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
-    using MicrocubesAccessFunc       = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
-    using StaticSubcubesAccessFunc   = std::function<std::vector<Subcube*>(const glm::ivec3&)>;
     using CubesArrayAccessFunc       = std::function<const std::vector<std::unique_ptr<Cube>>&()>;
     using IndexToLocalFunc           = std::function<glm::ivec3(size_t)>;
-    using StaticMicrocubesAccessFunc = std::function<const std::vector<std::unique_ptr<Microcube>>&()>;
 
     // Physics body lifecycle
     void createChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
-                                const StaticSubcubesAccessFunc& getStaticSubcubes,
-                                const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                 const IndexToLocalFunc& indexToLocal,
                                 const VisibleSolidFunc& visibleSolidAt);
     void updateChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
-                                const StaticSubcubesAccessFunc& getStaticSubcubes,
-                                const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                 const IndexToLocalFunc& indexToLocal,
                                 const VisibleSolidFunc& visibleSolidAt);
     void forcePhysicsRebuild(const CubesArrayAccessFunc& getCubes,
-                             const StaticSubcubesAccessFunc& getStaticSubcubes,
-                             const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                              const IndexToLocalFunc& indexToLocal,
                              const VisibleSolidFunc& visibleSolidAt);
     /// Register an ALREADY-BUILT occupancy grid with the dynamics world. The async
@@ -83,24 +71,16 @@ public:
     void removeCollisionEntities(const glm::ivec3& localPos);
 
     void buildInitialCollisionShapes(const CubesArrayAccessFunc& getCubes,
-                                     const StaticSubcubesAccessFunc& getStaticSubcubes,
-                                     const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                      const IndexToLocalFunc& indexToLocal,
                                      const VisibleSolidFunc& visibleSolidAt);
 
     void batchUpdateCollisions(const CubesArrayAccessFunc& getCubes,
-                               const StaticSubcubesAccessFunc& getStaticSubcubes,
-                               const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                const IndexToLocalFunc& indexToLocal,
                                const VisibleSolidFunc& visibleSolidAt);
 
     void updateNeighborCollisionShapes(const glm::ivec3& localPos,
-                                       const VisibleSolidFunc& visibleSolidAt,
-                                       const MicrocubesAccessFunc& getMicrocubes,
-                                       const StaticSubcubesAccessFunc& getStaticSubcubes);
+                                       const VisibleSolidFunc& visibleSolidAt);
     void endBulkOperation(const CubesArrayAccessFunc& getCubes,
-                          const StaticSubcubesAccessFunc& getStaticSubcubes,
-                          const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                           const IndexToLocalFunc& indexToLocal,
                           const VisibleSolidFunc& visibleSolidAt);
 
@@ -126,21 +106,14 @@ public:
     void   debugLogSpatialGrid()        const;
     size_t getCollisionEntityCount()    const { return m_occupancyGrid.cubeCount(); }   // was a 0 stub
     size_t getCubeEntityCount()         const { return 0; }
-    size_t getSubcubeEntityCount()      const { return 0; }
     void   debugPrintSpatialGridStats() const;
 
     // Collision shape helpers (occupancy grid only, no Bullet compound shape)
     void createCubeCollisionShape(const glm::ivec3& localPos,
                                   const VisibleSolidFunc& visibleSolidAt);
-    void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos,
-                                     const SubcubeAccessFunc& getSubcube);
-    void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos,
-                                       const Microcube* microcube);
 
     void addCollisionEntity(const glm::ivec3& localPos,
-                            const VisibleSolidFunc& visibleSolidAt,
-                            const MicrocubesAccessFunc& getMicrocubes,
-                            const StaticSubcubesAccessFunc& getStaticSubcubes);
+                            const VisibleSolidFunc& visibleSolidAt);
 
     bool hasExposedFaces(const glm::ivec3& localPos, const VisibleSolidFunc& visibleSolidAt) const;
 

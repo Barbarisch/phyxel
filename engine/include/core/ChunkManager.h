@@ -441,11 +441,8 @@ public:
     bool addCube(const glm::ivec3& worldPos);
     bool addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material);  // add cube with a specific material
     /// Create the owning chunk for worldPos if it doesn't exist yet (empty, populate=false).
-    /// Lets material/subcube/microcube placement cross vertical chunk seams without pre-gen.
+    /// Lets material placement cross vertical chunk seams without pre-gen.
     void ensureChunkAt(const glm::ivec3& worldPos);
-    
-    // Subcube manipulation helpers
-    Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos); // Get subcube at position
     
     // (The CPU single-box debris path - DynamicObjectManager and the global dynamic cube/
     // subcube/microcube lists - was deleted in DebrisInteractionPlan 1d: every broken piece is
@@ -480,7 +477,6 @@ public:
     
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
     VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const override;
-    VoxelLocation resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const;
     bool hasVoxelAt(const glm::ivec3& worldPos) const;
     /// Sub-voxel floor height at a world voxel, as a fraction of the voxel (0, 1/3, 2/3, ninths),
     /// or NEGATIVE if the voxel must be treated as fully solid. An unloaded chunk reads 0.
@@ -549,8 +545,6 @@ public:
     // Event-specific efficient update methods
     void updateAfterCubeBreak(const glm::ivec3& worldPos);        // Updates only affected faces when cube is broken
     void updateAfterCubePlace(const glm::ivec3& worldPos);        // Updates only affected faces when cube is placed  
-    void updateAfterCubeSubdivision(const glm::ivec3& worldPos);  // Updates when cube is subdivided into subcubes
-    void updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos); // Updates when subcube breaks
     
     // Core selective update methods
     void updateFacesForPositionChange(const glm::ivec3& worldPos, bool cubeAdded); // Central method for position-based updates

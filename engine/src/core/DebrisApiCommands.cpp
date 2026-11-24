@@ -9,8 +9,6 @@
 #include "core/DebrisRuntime.h"
 #include "core/GpuParticlePhysics.h"
 #include "core/KinematicVoxelManager.h"
-#include "core/Microcube.h"
-#include "core/Subcube.h"
 #include "graphics/RenderCoordinator.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelDynamicsWorld.h"
@@ -568,20 +566,7 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
             const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wc);
             // STORE.
             Bits store;
-            if (ch->visibleSolidCubeAt(lp)) store.set();
-            else {
-                for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
-                    if (!sc || sc->isBroken() || !sc->isVisible()) continue;
-                    for (int m = 0; m < 27; ++m)
-                        store.set(microIdx(sc->getLocalPosition(), {m / 9, (m / 3) % 3, m % 3}));
-                }
-                for (int s = 0; s < 27; ++s) {
-                    const glm::ivec3 sp(s / 9, (s / 3) % 3, s % 3);
-                    for (Microcube* mc : ch->getMicrocubesAt(lp, sp))
-                        if (mc && !mc->isBroken() && mc->isVisible())
-                            store.set(microIdx(sp, mc->getMicrocubeLocalPosition()));
-                }
-            }
+            if (ch->visibleSolidCubeAt(lp)) store.set();   // cube-only since D3c-5
             // GRID (the same walk buildLightOccupancy and the cell probe use).
             const auto& grid = ch->getOccupancyGrid();
             Bits gridBits;

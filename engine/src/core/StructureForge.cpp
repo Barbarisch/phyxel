@@ -956,11 +956,7 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
             for (const auto& p : todayClear)
                 if (Chunk* c = chunkManager->getChunkAtFast(p))
                     if (vegTouched.emplace(c, true).second) c->beginBulkOperation();
-            for (const auto& p : todayClear) {
-                chunkManager->removeCube(p);
-                if (Chunk* c = chunkManager->getChunkAtFast(p))
-                    c->clearSubdivisionAt(ChunkManager::worldToLocalCoord(p));
-            }
+            for (const auto& p : todayClear) chunkManager->removeCube(p);
             for (auto& [c, _] : vegTouched) c->endBulkOperation();
             LOG_INFO_FMT("StructureBuild", "vegetation gate: cleared " << toClear.size()
                          << " tree cells from the lot (" << vegSeeds.size()
@@ -1990,12 +1986,7 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                     Chunk* ch = cm->getChunkAtFast(cube);
                     if (!ch) return false;
                     const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
-                    if (ch->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024)) return true;
-                    const glm::ivec3 mi(wm.x - cube.x * 9, wm.y - cube.y * 9, wm.z - cube.z * 9);
-                    const glm::ivec3 sub(mi.x / 3, mi.y / 3, mi.z / 3);
-                    const glm::ivec3 mic(mi.x % 3, mi.y % 3, mi.z % 3);
-                    return ch->getSubcubeAt(lp, sub) != nullptr ||
-                           ch->getMicrocubeAt(lp, sub, mic) != nullptr;
+                    return ch->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);   // cube-only (D3c-5)
                 };
             }
             const int doorWidthMicro = door ? std::max(1, door->width) * 9 : 9;

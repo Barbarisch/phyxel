@@ -57,8 +57,6 @@
 #include "core/StructureRealizer.h"
 #include "core/MaterialRegistry.h"
 #include "core/Cube.h"
-#include "core/Subcube.h"
-#include "core/Microcube.h"
 
 #include <filesystem>
 
@@ -92,10 +90,14 @@ const WallKind kWalls[] = {
     {"thinnest possible          0.111", 0.111},   // -> 1 micro
 };
 
+// Plain voxel records (the Subcube / Microcube classes were deleted in D3c-5; the traced tests
+// below only need the exported geometry, which they turn into an occupancy grid).
+struct SubV   { glm::ivec3 cube, sub; std::string material; };
+struct MicroV { glm::ivec3 cube, sub, micro; std::string material; };
 struct Room {
     std::vector<std::unique_ptr<Cube>>      cubes;
-    std::vector<std::unique_ptr<Subcube>>   subs;
-    std::vector<std::unique_ptr<Microcube>> micros;
+    std::vector<SubV>                       subs;
+    std::vector<MicroV>                     micros;
     int nCube = 0, nSub = 0, nMicro = 0;   ///< what exportVoxels actually chose
 };
 
@@ -123,11 +125,11 @@ Room buildSealedBox(int t) {
                 ++r.nCube;
                 break;
             case CanvasRes::Subcube:
-                r.subs.push_back(std::make_unique<Subcube>(v.cube, v.sub, v.material));
+                r.subs.push_back({v.cube, v.sub, v.material});
                 ++r.nSub;
                 break;
             case CanvasRes::Microcube:
-                r.micros.push_back(std::make_unique<Microcube>(v.cube, v.sub, v.micro, v.material));
+                r.micros.push_back({v.cube, v.sub, v.micro, v.material});
                 ++r.nMicro;
                 break;
         }
@@ -164,9 +166,9 @@ Room buildBoxWithDoorway(int t) {
             case CanvasRes::Cube:
                 r.cubes.push_back(std::make_unique<Cube>(v.cube, v.material)); ++r.nCube; break;
             case CanvasRes::Subcube:
-                r.subs.push_back(std::make_unique<Subcube>(v.cube, v.sub, v.material)); ++r.nSub; break;
+                r.subs.push_back({v.cube, v.sub, v.material}); ++r.nSub; break;
             case CanvasRes::Microcube:
-                r.micros.push_back(std::make_unique<Microcube>(v.cube, v.sub, v.micro, v.material));
+                r.micros.push_back({v.cube, v.sub, v.micro, v.material});
                 ++r.nMicro; break;
         }
     }
@@ -236,178 +238,6 @@ TEST_F(LightWallMatrix, ReportWhatTheEngineActuallyEmitsForEachWallThickness) {
     std::cout << "\n";
 }
 
-// THE MATRIX: wall thickness x light position x probe.
-TEST_F(LightWallMatrix, WallThicknessByLightPositionByProbe) {
-    struct LightPos { const char* name; glm::ivec3 cell; };
-    const LightPos positions[] = {
-        {"centre     ", {kMid,    kMid,    kMid}},
-        {"near wall  ", {kMid,    kMid,    kLo + 1}},
-        {"in corner  ", {kLo + 1, kLo + 1, kLo + 1}},
-        {"OUTSIDE ctl", {kMid,    kMid,    kLo - 2}},   // positive control: not sealed in
-    };
-
-    std::cout << "\n"
-              << "  SEALED BOX (floor + 4 walls + roof, no openings). Source = one `glow` cube.\n"
-              << "  OPAQUE = per-cell opacity mask of the SHELL cell (- none, xyz blocked axes)\n"
-              << "  ESC    = baked block light reaching the air cell OUTSIDE it (0 = sealed)\n\n";
-
-    for (const auto& w : kWalls) {
-        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
-        std::cout << "  " << w.label << "  (" << t << " micro)\n";
-        for (const auto& L : positions) {
-            Room r = buildSealedBox(t);
-            r.cubes.push_back(std::make_unique<Cube>(L.cell, "glow"));
-
-            ChunkRenderManager crm;
-            crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-            ChunkRenderManager::BakedLight src{};
-            crm.bakedLightAt(L.cell.x, L.cell.y, L.cell.z, src);
-            std::cout << "    light " << L.name << " (src=" << std::setw(2) << maxBlock(src) << ")  ";
-
-            for (const auto& p : kProbes) {
-                uint8_t mask = 0;
-                const bool have = crm.lightOpaqueAt(p.shell.x, p.shell.y, p.shell.z, mask);
-                ChunkRenderManager::BakedLight out{};
-                crm.bakedLightAt(p.out.x, p.out.y, p.out.z, out);
-                std::cout << p.name << " OPAQUE=" << std::setw(3) << axesOf(have, mask)
-                          << " ESC=" << std::setw(2) << maxBlock(out) << "   ";
-            }
-            std::cout << "\n";
-        }
-        std::cout << "\n";
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// SKYLIGHT INTO a sealed box. The matrix above asks whether block light gets OUT; this asks
-// whether daylight gets IN, which is the other half and was never tested.
-//
-// Live measurement that prompted it (2026-08-28, debug view 3 = baked skylight, no albedo, inside
-// a generated smithy): upper interior wall 239.6/255, interior floor 253.5/255 — i.e. ~94-99% of
-// full open-sky exposure INSIDE an enclosed building — then a hard drop to 3.6 at the wall/floor
-// junction. A sealed room should be near zero throughout and cannot legitimately jump 240 -> 4
-// across one boundary.
-//
-// PREDICTION, written before the first run: sky is 15 above the roof, and 0 at every interior
-// cell, for every wall thickness. Any interior cell reading > 0 is daylight through solid geometry.
-//
-// getNeighborCube is null, so columnOpenAbove() answers "open" for every column: the sky is
-// available from directly above and the SHELL is the only thing that can block it. One variable.
-// ---------------------------------------------------------------------------------------------
-TEST_F(LightWallMatrix, SkylightProfileDownThroughASealedBox) {
-    std::cout << "\n  Vertical skylight profile at the box centre column (x=" << kMid
-              << ", z=" << kMid << ").\n"
-              << "  Shell spans y " << kLo << ".." << kHi << "; interior is y "
-              << (kLo + 1) << ".." << (kHi - 1) << ". sky is 0..15.\n\n";
-
-    for (const auto& w : kWalls) {
-        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
-        Room r = buildSealedBox(t);
-        ChunkRenderManager crm;
-        crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-        std::cout << "    " << std::setw(34) << std::left << w.label << std::right
-                  << " (" << t << " micro)  ";
-        for (int y = kHi + 2; y >= kLo - 1; --y) {
-            ChunkRenderManager::BakedLight b{};
-            const bool ok = crm.bakedLightAt(kMid, y, kMid, b);
-            const char* tag = (y > kHi) ? "above" : (y == kHi) ? "ROOF"
-                            : (y == kLo) ? "FLOOR" : (y < kLo) ? "below" : "in";
-            std::cout << "y" << y << "(" << tag << ")=" << (ok ? std::to_string(b.sky) : "?") << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
-}
-
-// The assertion form of the same question: no interior cell of a SEALED box may see daylight.
-TEST_F(LightWallMatrix, DISABLED_ASealedBoxAdmitsNoSkylight) {
-    for (const auto& w : kWalls) {
-        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
-        Room r = buildSealedBox(t);
-        ChunkRenderManager crm;
-        crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-        // Control first: directly above the roof must be full daylight, or the rig cannot see
-        // sky at all and every zero below would be meaningless.
-        ChunkRenderManager::BakedLight sky{};
-        ASSERT_TRUE(crm.bakedLightAt(kMid, kHi + 2, kMid, sky));
-        EXPECT_EQ(sky.sky, 15) << w.label << ": no daylight ABOVE the box — the rig sees no sky";
-
-        int worst = 0, worstY = -1;
-        for (int y = kLo + 1; y <= kHi - 1; ++y)
-        for (int x = kLo + 1; x <= kHi - 1; ++x)
-        for (int z = kLo + 1; z <= kHi - 1; ++z) {
-            ChunkRenderManager::BakedLight b{};
-            if (!crm.bakedLightAt(x, y, z, b)) continue;
-            if (b.sky > worst) { worst = b.sky; worstY = y; }
-        }
-        EXPECT_EQ(worst, 0) << w.label << " (" << t << " micro): a SEALED box has interior "
-                            << "skylight up to " << worst << "/15 (worst at y=" << worstY
-                            << ") — daylight is passing through solid geometry";
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// LIGHT MUST NOT TRAVEL ALONG THE INSIDE OF A WALL.
-//
-// Measured live (2026-08-28) on a generated smithy: the -X wall, which contains the doorway,
-// baked sky 12-14 along its ENTIRE length; the identical +X wall baked 0. Both wall lines carry
-// the same opacity mask (blocks X only), so the difference is not the geometry — it is the flood.
-//
-// Cause: the BFS tests only the DESTINATION cell's mask. That was sound when opacity was a single
-// bool (a wall blocked every axis, so light could never enter the wall line). Per-axis opacity
-// broke the invariant: light steps sideways from the doorway INTO a wall cell (which does not
-// block along the wall), runs along inside the wall, and steps back OUT into exterior air (the
-// destination is air, so nothing stops it). The wall is bypassed laterally.
-//
-// A step along axis `a` must be blocked if EITHER endpoint blocks `a` — light leaving a wall cell
-// has to cross that wall's material too.
-//
-// PREDICTION before the fix: wall cells far from the doorway carry sky > 0. After: 0.
-// ---------------------------------------------------------------------------------------------
-TEST_F(LightWallMatrix, DISABLED_LightDoesNotTravelAlongTheInsideOfAWall) {
-    for (const auto& w : kWalls) {
-        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
-        if (t >= 9) continue;   // a full-cube wall blocks every axis; nothing to bypass
-        Room r = buildBoxWithDoorway(t);
-        ChunkRenderManager crm;
-        crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-        // NOTE on what is asserted, because the obvious assertion is WRONG: a 2-micro wall cell
-        // is 2/9 masonry and 7/9 INTERIOR AIR, so light being present in that cell is correct and
-        // expected. The invariant that matters is that light must not cross to the FAR side.
-        // Asserting "wall cells are dark" failed for a legitimate reason and I nearly treated a
-        // correct result as a bug.
-        //
-        // Uses BLOCK light, not skylight: outside a box the sky is 15 everywhere, which would
-        // drown any leak. A glow source inside gives a channel that is zero outdoors by default.
-        Room lit = buildBoxWithDoorway(t);
-        lit.cubes.push_back(std::make_unique<Cube>(glm::ivec3(kMid, kMid, kMid), "glow"));
-        ChunkRenderManager crmLit;
-        crmLit.rebuildAllFaces(lit.cubes, lit.subs, lit.micros, glm::ivec3(0, 0, 0));
-
-        // Control: the room IS lit, or every zero below is meaningless.
-        ChunkRenderManager::BakedLight inside{};
-        ASSERT_TRUE(crmLit.bakedLightAt(kMid, kMid, kMid + 1, inside));
-        EXPECT_GT(maxBlock(inside), 0) << w.label << ": the room is dark — the source is not lit";
-
-        // Only the +X wall can be probed for a THROUGH-WALL leak here. Cells outside the -Z/+Z
-        // walls are reachable by leaving through the doorway and travelling around the outside,
-        // and flood light decays only 1 per cell, so a legitimate path delivers 5-6 there. In a
-        // box this small no exterior probe near the door side can separate "through the wall"
-        // from "around the corner" — asserting on them flagged correct behaviour as a leak.
-        // The through-wall case is covered unambiguously by the SEALED box tests above.
-        ChunkRenderManager::BakedLight far{};
-        ASSERT_TRUE(crmLit.bakedLightAt(kHi + 1, kMid, kMid, far));
-        EXPECT_EQ(maxBlock(far), 0)
-            << w.label << " (" << t << " micro): block light " << maxBlock(far)
-            << " outside the +X wall — the wall opposite the doorway has no opening and is the "
-            << "farthest point from it, so light here crossed solid geometry";
-    }
-}
-
 // ---------------------------------------------------------------------------------------------
 // THE DARK BAND ALONG THE BOTTOM OF INTERIOR WALLS.
 //
@@ -432,54 +262,6 @@ TEST_F(LightWallMatrix, DISABLED_LightDoesNotTravelAlongTheInsideOfAWall) {
 // pinned to 0 from M0 onward, U3.2 made emissive voxels real point lights instead, and U7 deleted
 // the two attributes (InstanceData 24 -> 16 bytes). The band it investigated was a property of the
 // per-cell flood, which is gone. Kept as a note rather than a silently deleted test.
-
-// The rig's own control: a stone_keep-thickness box is a solid cube shell. If light escapes THIS,
-// the harness is broken and every number above is meaningless.
-TEST_F(LightWallMatrix, DISABLED_ControlTheThickestBoxLeaksNothingFromAnyLightPosition) {
-    const int t = StructureRealizer::thicknessMicro(3.0);
-    const glm::ivec3 lights[] = {{kMid, kMid, kMid},
-                                 {kMid, kMid, kLo + 1},
-                                 {kLo + 1, kLo + 1, kLo + 1}};
-    for (const auto& lc : lights) {
-        Room r = buildSealedBox(t);
-        r.cubes.push_back(std::make_unique<Cube>(lc, "glow"));
-        ChunkRenderManager crm;
-        crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-        ChunkRenderManager::BakedLight src{};
-        ASSERT_TRUE(crm.bakedLightAt(lc.x, lc.y, lc.z, src));
-        EXPECT_GT(maxBlock(src), 0) << "the source is not emitting — the rig proves nothing";
-
-        for (const auto& p : kProbes) {
-            ChunkRenderManager::BakedLight out{};
-            crm.bakedLightAt(p.out.x, p.out.y, p.out.z, out);
-            EXPECT_EQ(maxBlock(out), 0)
-                << "light escaped a SOLID box at the " << p.name << " probe, light at ("
-                << lc.x << "," << lc.y << "," << lc.z << ")";
-        }
-    }
-}
-
-// Every shell cell of a sealed box should block something, whatever it is made of. A shell cell
-// with an empty mask is a hole in the DATA, worth knowing separately from whether light happened
-// to reach it.
-TEST_F(LightWallMatrix, DISABLED_EveryShellCellIsMarkedOpaqueInSomeAxis) {
-    for (const auto& w : kWalls) {
-        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
-        Room r = buildSealedBox(t);
-        r.cubes.push_back(std::make_unique<Cube>(glm::ivec3(kMid, kMid, kMid), "glow"));
-        ChunkRenderManager crm;
-        crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-        for (const auto& p : kProbes) {
-            uint8_t mask = 0;
-            ASSERT_TRUE(crm.lightOpaqueAt(p.shell.x, p.shell.y, p.shell.z, mask))
-                << "no opacity data for the " << p.name << " cell";
-            EXPECT_NE(mask, 0u) << w.label << " (" << t << " micro): the " << p.name
-                                << " shell cell is not marked opaque in ANY axis";
-        }
-    }
-}
 
 // =============================================================================================
 // THE GATES, RE-ENABLED AGAINST THE TRACED MODEL (2026-08-30).
@@ -507,18 +289,16 @@ Phyxel::Graphics::PackedOccupancyPool poolFromRoom(const Room& r) {
     g.setChunkOrigin({0, 0, 0});
     for (const auto& c : r.cubes) g.setCube(c->getPosition(), true);
     for (const auto& s : r.subs) {
-        g.setCube(s->getPosition(), true);
-        g.markSubdivided(s->getPosition(), true);
-        g.setSubcube(s->getPosition(), s->getLocalPosition(), true);
+        g.setCube(s.cube, true);
+        g.markSubdivided(s.cube, true);
+        g.setSubcube(s.cube, s.sub, true);
     }
     for (const auto& m : r.micros) {
-        const glm::ivec3 cp = m->getParentCubePosition();
-        const glm::ivec3 sp = m->getSubcubeLocalPosition();
-        g.setCube(cp, true);
-        g.markSubdivided(cp, true);
-        g.setSubcube(cp, sp, true);
-        g.markSubcubeSubdivided(cp, sp, true);
-        g.setMicrocube(cp, sp, m->getMicrocubeLocalPosition(), true);
+        g.setCube(m.cube, true);
+        g.markSubdivided(m.cube, true);
+        g.setSubcube(m.cube, m.sub, true);
+        g.markSubcubeSubdivided(m.cube, m.sub, true);
+        g.setMicrocube(m.cube, m.sub, m.micro, true);
     }
     return Phyxel::Graphics::packOccupancyPool(
         {{glm::ivec3{0, 0, 0}, Phyxel::Graphics::buildLightOccupancy(g)}},
@@ -718,9 +498,9 @@ Room buildSealedBoxWithMountedLight(int t, int gapMicro, glm::vec3& lightWorldOu
             case CanvasRes::Cube:
                 r.cubes.push_back(std::make_unique<Cube>(v.cube, v.material)); ++r.nCube; break;
             case CanvasRes::Subcube:
-                r.subs.push_back(std::make_unique<Subcube>(v.cube, v.sub, v.material)); ++r.nSub; break;
+                r.subs.push_back({v.cube, v.sub, v.material}); ++r.nSub; break;
             default:
-                r.micros.push_back(std::make_unique<Microcube>(v.cube, v.sub, v.micro, v.material));
+                r.micros.push_back({v.cube, v.sub, v.micro, v.material});
                 ++r.nMicro; break;
         }
     }

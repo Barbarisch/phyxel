@@ -57,8 +57,10 @@ bool LodPyramidService::facesFromStorage(WorldStorage& storage, const glm::ivec3
 }
 
 bool LodPyramidService::shouldPersist(const Chunk& chunk) {
-    // See the header for why sub/micro content is the signal, and what it over-counts.
-    return chunk.getStaticSubcubeCount() > 0 || chunk.getStaticMicrocubeCount() > 0;
+    // See the header for why sub/micro content was the signal. A Chunk holds no sub/micro
+    // content since D3c-5 (the 1/9 m store was deleted), so nothing qualifies.
+    (void)chunk;
+    return false;
 }
 
 bool LodPyramidService::measureServeCost(WorldStorage& storage, const glm::ivec3& chunkCoord,

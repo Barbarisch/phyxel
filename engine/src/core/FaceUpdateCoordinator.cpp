@@ -1,9 +1,7 @@
 #include "core/FaceUpdateCoordinator.h"
 #include "core/MaterialRegistry.h"
 #include "core/Chunk.h"
-#include "core/Subcube.h"
 #include "core/Cube.h"
-#include "core/Microcube.h"
 #include "core/Types.h"
 #include "utils/Logger.h"
 #include <set>
@@ -74,53 +72,6 @@ void FaceUpdateCoordinator::updateAfterCubePlace(const glm::ivec3& worldPos) {
     
     // Mark all affected neighbor chunks dirty
     for (Chunk* chunk : affectedChunks) {
-        m_markChunkDirty(chunk);
-    }
-}
-
-void FaceUpdateCoordinator::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {
-    // When a cube is subdivided, we need to:
-    // 1. Hide original cube faces (cube becomes invisible)
-    // 2. Generate subcube faces (8 or 27 subcubes with their own faces)
-    // 3. Update faces of neighboring cubes (original cube is now hidden)
-    
-    LOG_DEBUG_FMT("FaceUpdate", "[SELECTIVE UPDATE] Cube subdivided at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-    
-    // Get the chunk containing the subdivided cube
-    Chunk* primaryChunk = m_getChunkAt(worldPos);
-    if (primaryChunk) {
-        m_markChunkDirty(primaryChunk);
-    }
-    
-    // Check if any neighbors are in different chunks and mark those dirty too
-    std::vector<glm::ivec3> neighborPositions = getAffectedNeighborPositions(worldPos);
-    std::set<Chunk*> affectedChunks;
-    
-    for (const glm::ivec3& neighborPos : neighborPositions) {
-        Chunk* neighborChunk = m_getChunkAt(neighborPos);
-        if (neighborChunk && neighborChunk != primaryChunk) {
-            affectedChunks.insert(neighborChunk);
-        }
-    }
-    
-    // Mark all affected neighbor chunks dirty
-    for (Chunk* chunk : affectedChunks) {
-        m_markChunkDirty(chunk);
-    }
-}
-
-void FaceUpdateCoordinator::updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos) {
-    // When a subcube breaks (moves from static to dynamic), we need to:
-    // 1. Remove the subcube's faces from static rendering
-    // 2. Update faces of neighboring subcubes in the same parent cube
-    // 3. Add the subcube to dynamic rendering system
-    
-    LOG_DEBUG_FMT("FaceUpdate", "[SELECTIVE UPDATE] Subcube broken at parent pos (" << parentWorldPos.x << "," << parentWorldPos.y << "," << parentWorldPos.z 
-              << ") local (" << subcubeLocalPos.x << "," << subcubeLocalPos.y << "," << subcubeLocalPos.z << ")");
-    
-    // For subcube breaking, only update the chunk containing the parent cube
-    Chunk* chunk = m_getChunkAt(parentWorldPos);
-    if (chunk) {
         m_markChunkDirty(chunk);
     }
 }

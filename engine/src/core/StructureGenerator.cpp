@@ -848,12 +848,7 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         // coarser (or by another fine cell)? Writing over it does not fail — it
         // REPLACES — so without this count the damage is invisible to every caller.
         {
-            bool occupied = chunk->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);
-            if (!occupied && voxel.level == VoxelLevel::Microcube)
-                occupied = chunk->getSubcubeAt(lp, voxel.subcubePos) != nullptr ||
-                           chunk->getMicrocubeAt(lp, voxel.subcubePos, voxel.microcubePos) != nullptr;
-            else if (!occupied && voxel.level == VoxelLevel::Subcube)
-                occupied = chunk->getSubcubeAt(lp, voxel.subcubePos) != nullptr;
+            const bool occupied = chunk->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);
             if (occupied) {
                 ++result.displaced;
                 if (result.displacedSample.size() < 32)
@@ -863,11 +858,8 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         bool ok = false;
         switch (voxel.level) {
         case VoxelLevel::Subcube:
-            ok = chunk->addSubcube(lp, voxel.subcubePos, voxel.material.empty() ? "Default" : voxel.material);
-            break;
         case VoxelLevel::Microcube:
-            ok = chunk->addMicrocube(lp, voxel.subcubePos, voxel.microcubePos,
-                                     voxel.material.empty() ? "Default" : voxel.material);
+            ok = false;   // a Chunk has no 1/9 m subcube/microcube store since D3c-5: counted as failed
             break;
         default: // Cube
             ok = voxel.material.empty() ? chunk->addCube(lp) : chunk->addCube(lp, voxel.material);
