@@ -237,16 +237,15 @@ void WaterSurfaceRenderPipeline::writeRipples(uint32_t slot) {
     std::memcpy(base, &m_rippleFade[0], 16);
     auto* geo = reinterpret_cast<float*>(base + 16); auto* meta = reinterpret_cast<int32_t*>(base + 16 + kRippleIndices * 16);
     auto* far = reinterpret_cast<float*>(base + 16 + kRippleIndices * 32);   // 58.8: (the octaves' slopes x gain, on)
-    {   // 58.11: the edge blend's profiles (edgeParams, edgeBox[8], edgeN[8], edgeTops[8][4][96])
+    {   // 58.11: the edge blend's grids (edgeParams (M, count), ivec4 edgeBox[8] (lo x, lo z, nx, nz), edgeTops[8][96 x 96])
         char* e = base + 16 + kRippleIndices * 48;
-        auto* params = reinterpret_cast<float*>(e); auto* box = reinterpret_cast<float*>(e + 16); auto* en = reinterpret_cast<int32_t*>(e + 16 + 128);
-        auto* tops = reinterpret_cast<float*>(e + 16 + 256);
+        auto* params = reinterpret_cast<float*>(e); auto* box = reinterpret_cast<int32_t*>(e + 16); auto* tops = reinterpret_cast<float*>(e + 16 + 128);
         const size_t nb = std::min(m_edgeProfiles.size(), static_cast<size_t>(Core::Water::kEdgeBoxes));
         params[0] = m_edgeM; params[1] = static_cast<float>(nb);
         for (size_t b = 0; b < nb; ++b) {
             const auto& p = m_edgeProfiles[b];
-            box[b * 4 + 0] = p.lo.x; box[b * 4 + 1] = p.lo.y; box[b * 4 + 2] = p.hi.x; box[b * 4 + 3] = p.hi.y;
-            for (int s = 0; s < 4; ++s) { en[b * 4 + s] = p.n[s]; std::memcpy(tops + (b * 4 + s) * Core::Water::kEdgeSamplesMax, p.tops[s], sizeof(float) * Core::Water::kEdgeSamplesMax); }
+            box[b * 4 + 0] = p.lo.x; box[b * 4 + 1] = p.lo.y; box[b * 4 + 2] = p.nx; box[b * 4 + 3] = p.nz;
+            std::memcpy(tops + b * Core::Water::kEdgeGridMax * Core::Water::kEdgeGridMax, p.tops.data(), sizeof(float) * p.tops.size());
         }
     }
     auto* heights = reinterpret_cast<float*>(base + kRippleHeaderBytes);

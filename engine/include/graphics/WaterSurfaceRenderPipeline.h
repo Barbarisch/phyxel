@@ -119,7 +119,7 @@ public:
     static constexpr int    kRippleIndices = 8;                      ///< header entries (field rippleLayer 0..7)
     /// vec4 fade, vec4 geo[8], ivec4 meta[8], vec4 far[8] (58.8); 58.11's edge blend: vec4 edgeParams (M, count), vec4 edgeBox[8],
     /// ivec4 edgeN[8], float edgeTops[8 x 4 x 96]
-    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 48 + 16 + 8 * 16 + 8 * 16 + 8 * 4 * 96 * 4;
+    static constexpr size_t kRippleHeaderBytes = 16 + kRippleIndices * 48 + 16 + 8 * 16 + 8 * 96 * 96 * 4;   // 58.11: params, ivec4 box[8], tops[8][96 x 96]
     void setEdgeProfiles(std::vector<Core::Water::EdgeProfile> p, float m) { m_edgeProfiles = std::move(p); m_edgeM = m; }   ///< 58.11
     /// 58.8 (item 6, a LOOK switch - OFF until the owner has seen it): the far ripple - past a layer's window and its distance fade, a
     /// procedural slope carrying the layer's own roughness (FarRipple.h). gain scales it (1 = equal roughness at the edge)

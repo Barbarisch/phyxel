@@ -3541,6 +3541,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const size_t colsSurf = surfPartial ? liveColumns(vol) : colsAll;
     WcPush mp = push;   // 29 S1: the mesh kernel's push (the field's lattice: origin x / z, every dense column)
     mp.param0 = static_cast<float>(vol.spec.origin.x); mp.param1 = static_cast<float>(vol.spec.origin.z); mp.dt = s_meshNoRingForTest ? 0.0f : 1.0f;
+    mp.setOwnTopAtRecord(s_meshOwnTopAtRecord);   // 58.11
     const size_t denseCols = vol.dColumns;
     bool meshFull = !surfPartial || vol.meshFullNext;
     if (gpuSurf) {   // 29 S1: before the surface pass - the solid tops, the dry template (a full pass), the host's writes

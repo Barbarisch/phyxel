@@ -43,16 +43,12 @@ layout(location = 6) flat out float fragRipple;
 // live volume's box is lifted toward the volume's drawn edge (w = 1 at the box, 0 at M; draw only). The Ripples buffer's prefix up to
 // the edge block (water_surface.frag declares the whole of it).
 layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; vec4 far[8];
-    vec4 edgeParams; vec4 edgeBox[8]; ivec4 edgeN[8]; float edgeTops[3072]; } rip;
+    vec4 edgeParams; ivec4 edgeBox[8]; float edgeTops[73728]; } rip;
 const float kEdgeDry = -1.0e30;
-float edgeTopAt(int b, int s, float a) {
-    const int n = rip.edgeN[b][s];
-    if (n <= 0) return kEdgeDry;
-    const float c = clamp(a - 0.5, 0.0, float(n - 1));
-    const int i = min(int(c), n - 1), j = min(i + 1, n - 1);
-    const float t0 = rip.edgeTops[(b * 4 + s) * 96 + i], t1 = rip.edgeTops[(b * 4 + s) * 96 + j];
-    if (t0 <= kEdgeDry * 0.5 || t1 <= kEdgeDry * 0.5) return t0 > kEdgeDry * 0.5 ? t0 : t1;
-    return t0 + (t1 - t0) * (c - float(i));
+float edgeAt(int b, int x, int z) {
+    const ivec4 bx = rip.edgeBox[b];
+    if (x < 0 || z < 0 || x >= bx.z || z >= bx.w) return kEdgeDry;
+    return rip.edgeTops[b * 9216 + x + bx.z * z];
 }
 float edgeBlendLift(vec3 v) {
     const float M = rip.edgeParams.x;
@@ -60,20 +56,20 @@ float edgeBlendLift(vec3 v) {
     if (M <= 0.0 || nb <= 0) return 0.0;
     float best = M, lift = 0.0;
     for (int b = 0; b < nb && b < 8; ++b) {
-        const vec2 lo = rip.edgeBox[b].xy, hi = rip.edgeBox[b].zw;
-        const bool inX = v.x >= lo.x && v.x <= hi.x, inZ = v.z >= lo.y && v.z <= hi.y;
-        if (inX && inZ) return 0.0;
-        const float cx = clamp(v.x, lo.x, hi.x), cz = clamp(v.z, lo.y, hi.y);
-        const float d = length(vec2(v.x - cx, v.z - cz));
-        if (d >= best) continue;
-        int s; float a;
-        if (inX) { s = v.z < lo.y ? 0 : 1; a = cx - lo.x; }
-        else if (inZ) { s = v.x < lo.x ? 2 : 3; a = cz - lo.y; }
-        else { s = v.z < lo.y ? 0 : 1; a = cx - lo.x; }
-        const float top = edgeTopAt(b, s, a);
-        if (top <= kEdgeDry * 0.5) continue;
-        const float t = clamp(d / M, 0.0, 1.0), w = 1.0 - t * t * (3.0 - 2.0 * t);
-        best = d; lift = w * (top - v.y);
+        const ivec4 bx = rip.edgeBox[b];
+        const float lx = v.x - float(bx.x), lz = v.z - float(bx.y);
+        if (lx < -M || lz < -M || lx > float(bx.z) + M || lz > float(bx.w) + M) continue;
+        const int cx = int(floor(lx)), cz = int(floor(lz));
+        for (int dz = -4; dz <= 4; ++dz) for (int dx = -4; dx <= 4; ++dx) {
+            const float top = edgeAt(b, cx + dx, cz + dz);
+            if (top <= kEdgeDry * 0.5) continue;
+            const float qx = clamp(lx, float(cx + dx), float(cx + dx + 1)), qz = clamp(lz, float(cz + dz), float(cz + dz + 1));
+            const float d = length(vec2(lx - qx, lz - qz));
+            if (d >= best) continue;
+            const float t = clamp(d / M, 0.0, 1.0), w = 1.0 - t * t * (3.0 - 2.0 * t);
+            best = d; lift = w * (top - v.y);
+            if (d <= 0.0) return lift;
+        }
     }
     return lift;
 }

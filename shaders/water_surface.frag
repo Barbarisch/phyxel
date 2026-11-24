@@ -69,7 +69,7 @@ layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 // smooth); heights in metres, row-major per layer. L2 (43.2): fade = (viewer x, viewer z, near, far) - the ripples' weight by the
 // HORIZONTAL distance to the viewer, a pure function of world position (far < 0 = none, weight 1).
 layout(std430, set = 1, binding = 2) readonly buffer Ripples { vec4 fade; vec4 geo[8]; ivec4 meta[8]; vec4 far[8];   // far: 58.8
-    vec4 edgeParams; vec4 edgeBox[8]; ivec4 edgeN[8]; float edgeTops[3072];   // 58.11 (read by the vertex stage)
+    vec4 edgeParams; ivec4 edgeBox[8]; float edgeTops[73728];   // 58.11 (read by the vertex stage)
     float rh[]; } rip;
 // WaterLocality::detail: 1 at or under near, 0 at or over far, a smoothstep between (far <= near: a hard reach at near)
 float rippleWeight(vec2 xz) {

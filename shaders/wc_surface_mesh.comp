@@ -31,6 +31,7 @@
 #define WSP_B_META 2
 #define WSP_MESH_QUAL
 #define WSP_SURF_QUAL
+#define WSP_OWN_TOP_AT_RECORD (PC_OWN_TOP_AT_RECORD != 0)   // 58.11
 #include "water_surface_pull.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 3) buffer List { uint list[]; };

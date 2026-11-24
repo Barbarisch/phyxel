@@ -14702,6 +14702,7 @@ void Application::registerWaterCommands() {
             using M = Core::Water::WaterCoreManager;
             M::s_edgeBlendOn = cmd.params["edge_blend"].value("on", M::s_edgeBlendOn);
             if (cmd.params["edge_blend"].contains("m")) M::s_edgeBlendM = std::clamp(cmd.params["edge_blend"].value("m", 3.0f), 0.0f, 8.0f);
+            Core::Water::WaterCoreGpu::s_meshOwnTopAtRecord = M::s_edgeBlendOn; Core::Water::s_meshOwnTopAtRecord = M::s_edgeBlendOn;   // the meshers' corners follow
         }
         if (cmd.params.contains("river") && cmd.params["river"].is_object()) {
             auto rv = waterCore->riverRipple();

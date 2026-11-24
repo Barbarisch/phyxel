@@ -29,8 +29,14 @@ int wspOverlap(uint c, float lo, float hi) {
     for (int r = 0; r < 4; ++r) if (r < n && surfD[c].top[r] > lo && surfD[c].bottom[r] < hi) return r;
     return -1;
 }
+// 58.11: WSP_OWN_TOP_AT_RECORD (the includer's; false by default) - with the edge blend the record is lifted to meet this surface, so a
+// corner at a recorded neighbour keeps the field's own top (27.15's other-drawer level made a 1 cm facet the blend could not reach)
+#ifndef WSP_OWN_TOP_AT_RECORD
+#define WSP_OWN_TOP_AT_RECORD false
+#endif
 float wspCornerY(WspGeo g, int x, int z, int cx, int cz, float lo, float hi, float ownTop) {
     precise float gSum = 0.0; int gN = 0;
+    if (!(WSP_OWN_TOP_AT_RECORD))
     for (int dz = -1; dz <= 0; ++dz) for (int dx = -1; dx <= 0; ++dx) {
         const int gx = x + cx + dx, gz = z + cz + dz;
         if (!wspIn(g, gx, gz)) continue;

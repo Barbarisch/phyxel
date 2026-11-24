@@ -43,6 +43,7 @@ struct WcPush {
     void setSurfaceGhost(bool on) { flags = (flags & ~1) | (on ? 1 : 0); }
     void setFrozenOn(int v) { flags = (flags & ~6) | ((v & 3) << 1); }
     void setCarryMeasure(bool on) { flags = (flags & ~8) | (on ? 8 : 0); }
+    void setOwnTopAtRecord(bool on) { flags = (flags & ~16) | (on ? 16 : 0); }   // 58.11: the mesher's corners keep the field's own top at a recorded neighbour
     int frozenOn() const { return (flags >> 1) & 3; }
 };
 static_assert(sizeof(WcPush) == 124, "WcPush must match the GLSL push block");
@@ -536,6 +537,7 @@ public:
     /// volume (the A/B control). TEST ONLY: the mesh pass without its one-column ring (the parity test's red control).
     static inline bool s_gpuSurface = true;    // ON since 29 S1 passed (mesh parity, red control, live pixels)
     static inline bool s_meshNoRingForTest = false;
+    static inline bool s_meshOwnTopAtRecord = false;   ///< 58.11: with the edge blend on - the record meets the volume, so its corners keep their own top (27.15's other-drawer level off)
     static inline bool s_tallAggNoFullForTest = false;
     static inline bool s_motionHalfThresholdForTest = false;   ///< 29 S2 TEST ONLY: the device's motion at half moveM (the red control)
     static inline float s_motionMoveM = 0.015f;   ///< 29 S2: the surface move (m) a column must exceed to count as rising (takeMotion's moveM)   ///< 29 S2 TEST ONLY: the brick-column numbers never redone whole (the red control)

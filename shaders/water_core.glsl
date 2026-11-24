@@ -50,6 +50,8 @@ layout(push_constant) uniform WcPush {
 #define PC_FROZEN_ON ((pc.flags >> 1) & 3)
 // 26.32: 1 = count the over-full carry (Bricks[counterOff + 2..5]); 0 = off (the default: the atomics cost)
 #define PC_CARRY_MEASURE ((pc.flags >> 3) & 1)
+// 58.11: the surface mesher's corners keep the field's own top at a recorded neighbour (the edge blend lifts the record to meet it)
+#define PC_OWN_TOP_AT_RECORD ((pc.flags >> 4) & 1)
 
 // 26.31 THE PARTIAL WAKE: bit 30 of a slot-table or column-table entry marks a FROZEN brick column - quiet by the volume's own
 // sleep test, more than the margin from any moving column. With PC_FROZEN_ON its threads return at once (threadSite /

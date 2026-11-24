@@ -108,6 +108,7 @@ void buildWaterSurfaceMeshRect(const WaterSurfaceField& f, int rx0, int rz0, int
         // level, so this surface meets the record's exactly at the seam (averaged, the two edges stood apart by half the difference
         // and a dark crease showed between them, live)
         float gSum = 0.0f; int gN = 0;
+        if (!s_meshOwnTopAtRecord)   // 58.11: with the edge blend the record meets this surface - its own top kept (wspCornerY's twin)
         for (int dz = -1; dz <= 0; ++dz) for (int dx = -1; dx <= 0; ++dx) {
             const int gx = x + cx + dx, gz = z + cz + dz;
             if (gx < 0 || gz < 0 || gx >= f.nx || gz >= f.nz) continue;

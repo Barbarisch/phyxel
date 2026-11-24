@@ -70,6 +70,9 @@ inline void skinInsetDecode(float v, float& a, float& b) {
     a = static_cast<float>(q / 1024) / 1000.0f; b = static_cast<float>(1000 - q % 1024) / 1000.0f;
 }
 
+/// 58.11: the edge blend on - a mesher's corner at a recorded neighbour keeps the field's own top (water_surface_pull.glsl's twin)
+inline bool s_meshOwnTopAtRecord = false;
+
 struct WaterSurfaceField {
     glm::ivec3 origin{0};     ///< grid origin in cells (world = origin * h)
     int   nx = 0, nz = 0;

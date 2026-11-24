@@ -15599,6 +15599,16 @@ but that seam is not at the patch's BOX edge: it is INSIDE the box, between the 
 tiles (90.0), and record vertices inside a live box are left alone by design. So the box-edge blend covers the reach's and the
 band's outer edges, not a patch's internal awake / recorded boundary. Next for it: the profile published per awake region's
 outline (tile by tile), not per box - the same lift, a finer boundary. Not yet measured on the reach and the band live.
+**Second cut (2026-11-24) - BUILT:** (1) the profile is now a 1 m GRID of the box (each cell the volume's drawn top, or dry where it
+draws nothing - its recorded tiles included), and a record vertex anywhere, inside the box or out, is lifted toward the nearest
+drawn cell within M (`edgeBlendLift`, the shader its copy; the header block: params, 8 boxes, 8 x 96 x 96 tops). Test
+`ThePatchsInnerBoundaryBlendsToo`: the record at the patch's awake / recorded boundary 89.99 = the awake water, 3.5 m in 90.00.
+(2) The live line was ALSO the patch's own mesh: 27.15's corner rule gives a corner at a recorded neighbour the RECORD's stored top
+(90.0) - the patch's border quads rose 1 cm across 1/9 m, a facet; the record lift cannot move the patch's corners. With the blend
+on, the meshers' corners keep the field's own top (`WaterCoreGpu::s_meshOwnTopAtRecord` -> push flag bit 4 `PC_OWN_TOP_AT_RECORD`
+-> `WSP_OWN_TOP_AT_RECORD` in `wspCornerY`; the host mesher's twin `s_meshOwnTopAtRecord`). Test
+`TheVolumesCornersKeepTheirOwnTopWithTheBlend`: off 2.0000 (27.15), on 1.9900. **Live: NOT verified** - the second take's capture
+was the machine's screensaver (the session ran unattended); the clip is re-taken with the screen awake.
 
 ### 58.10 Item 1, where the first second goes now (2026-11-23). Status: MEASURED; the gate NOT met
 
