@@ -1904,3 +1904,10 @@ gated by the existing drivers):
   clear_chunk: a Gold cube in the camera's chunk read Gold 512, after clear_chunk 0 (11,237,338 voxels cleared).
   The F7.26 battery: G1 {} / {}, 0 lost, max apply 0.405 s; G2 12 / 12, T3 0; G3 both ways; G4 20, 0 refused;
   today's chunks 0, create_refused 0.
+
+D3c-4 (2026-11-24) -- more of the editor's 1/9 m-only code deleted (-443 lines): the subcube / microcube endpoints
+(remove_subcube, place_microcube, remove_microcube, place_subcubes_batch, place_microcubes_batch -> one refusal
+pointing at 1/8 m "units":"voxel"), the break_voxel test hook (a today-store CubeLocation), generate_world's legacy
+bodies (sync + job: now unconditional refusals), the fill_region job's legacy loop. Held: K2 (the fill job lands
+4,096 Gold voxels), K3 (ApiTestGame's deferred structures: 3 placed), the battery (G1 {} / {}, 0 lost, max apply
+0.381 s; G2 12 / 12, T3 0; G3 both ways; G4 20, 0 refused; create_refused 0).

@@ -8454,85 +8454,15 @@ static bool handleSubcubeMicrocubeCommand(
     ChunkManager* chunkManager,
     Core::NPCManager* npcManager)
 {
-    if (cmd.action == "remove_subcube") {
-        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
-        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
-        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
-        bool ok = chunkManager->m_voxelModificationSystem.removeSubcube(
-            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz));
-        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
-        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-        return true;
-    }
-    if (cmd.action == "place_microcube") {
-        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
-        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
-        int mx = cmd.params.value("mx", 0), my = cmd.params.value("my", 0), mz = cmd.params.value("mz", 0);
-        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
-        std::string material = cmd.params.value("material", "Default");
-        bool ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), material);
-        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
-                    {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
-        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-        return true;
-    }
-    if (cmd.action == "remove_microcube") {
-        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
-        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
-        int mx = cmd.params.value("mx", 0), my = cmd.params.value("my", 0), mz = cmd.params.value("mz", 0);
-        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
-        bool ok = chunkManager->m_voxelModificationSystem.removeMicrocube(
-            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz));
-        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
-                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
-                    {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
-        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
-        return true;
-    }
-    if (cmd.action == "place_subcubes_batch") {
-        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
-        if (!cmd.params.contains("subcubes") || !cmd.params["subcubes"].is_array()) {
-            response = {{"error", "Missing 'subcubes' array"}}; return true;
-        }
-        auto& items = cmd.params["subcubes"];
-        int placed = 0, failed = 0;
-        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
-        for (auto& item : items) {
-            int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
-            int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
-            std::string mat = item.value("material", "Default");
-            bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
-                glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), mat);
-            if (ok) { ++placed; bmin = glm::min(bmin, glm::ivec3(x,y,z)); bmax = glm::max(bmax, glm::ivec3(x,y,z)); }
-            else ++failed;
-        }
-        if (npcManager && placed > 0) npcManager->onRegionChanged(bmin, bmax);
-        response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
-        return true;
-    }
-    if (cmd.action == "place_microcubes_batch") {
-        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
-        if (!cmd.params.contains("microcubes") || !cmd.params["microcubes"].is_array()) {
-            response = {{"error", "Missing 'microcubes' array"}}; return true;
-        }
-        auto& items = cmd.params["microcubes"];
-        int placed = 0, failed = 0;
-        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
-        for (auto& item : items) {
-            int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
-            int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
-            int mx = item.value("mx", 0), my = item.value("my", 0), mz = item.value("mz", 0);
-            std::string mat = item.value("material", "Default");
-            bool ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), mat);
-            if (ok) { ++placed; bmin = glm::min(bmin, glm::ivec3(x,y,z)); bmax = glm::max(bmax, glm::ivec3(x,y,z)); }
-            else ++failed;
-        }
-        if (npcManager && placed > 0) npcManager->onRegionChanged(bmin, bmax);
-        response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
+    // docs/VoxelFoundationPlan.md step 7 D3c-4: today's 1/9 m sub-voxel addressing was removed with its store. The
+    // switched world edits 1/8 m voxels: place_voxel / remove_voxel / fill_region with "units":"voxel".
+    (void)chunkManager;
+    (void)npcManager;
+    if (cmd.action == "remove_subcube" || cmd.action == "place_microcube" || cmd.action == "remove_microcube" ||
+        cmd.action == "place_subcubes_batch" || cmd.action == "place_microcubes_batch") {
+        response = {{"success", false}, {"world", "voxfound"},
+                    {"error", cmd.action + ": the 1/9 m subcube / microcube store was removed (docs/VoxelFoundationPlan.md "
+                                           "step 7) -- edit 1/8 m voxels with place_voxel / fill_region and \"units\":\"voxel\""}};
         return true;
     }
     return false; // not handled
@@ -9356,37 +9286,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         return true;
 
     } else if (action == "break_voxel") {
-        // DebrisInteractionPlan 1d test hook: the B-key break at a given cell, no cursor hover.
-        // {x,y,z, level: cube|subcube|microcube, sub:[sx,sy,sz], micro:[mx,my,mz]}. Echoes what
-        // the break did: removed?, GPU pieces queued, pieces refused (no GPU solver).
-        if (!chunkManager || !voxelInteractionSystem) { response = {{"error", "no world"}}; return true; }
-        const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));
-        const std::string level = cmd.params.value("level", std::string("cube"));
-        auto vec3Param = [&](const char* k) {
-            const auto& a = cmd.params.value(k, json::array({0, 0, 0}));
-            return glm::ivec3(a.at(0).get<int>(), a.at(1).get<int>(), a.at(2).get<int>());
-        };
-        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
-        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-        const auto queuedBefore = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
-        const uint64_t refusedBefore = Phyxel::DamageSystem::refusedDebrisTotal();
-        auto& m = voxelInteractionSystem->manipulator();
-        bool removed = false;
-        if (level == "cube") {
-            removed = m.breakCube(CubeLocation(ch, lp, wp), glm::vec3(0.0f), false);
-        } else if (level == "subcube") {
-            removed = m.breakSubcube(CubeLocation(ch, lp, wp, vec3Param("sub")), false);
-        } else if (level == "microcube") {
-            removed = m.breakMicrocube(CubeLocation(ch, lp, wp, vec3Param("sub"), vec3Param("micro")), false);
-        } else {
-            response = {{"error", "level must be cube, subcube or microcube"}};
-            return true;
-        }
-        const auto queuedAfter = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
-        response = {{"removed", removed}, {"level", level}, {"cell", {wp.x, wp.y, wp.z}},
-                    {"gpu_pieces", queuedAfter - queuedBefore},   // queueSpawn counts immediately
-                    {"refused", Phyxel::DamageSystem::refusedDebrisTotal() - refusedBefore}};
+        // D3c-4: the 1/9 m test-hook break (a today-store CubeLocation) was removed with its store; the switched
+        // world breaks through the destruction override (F7.5 / F8.2: voxfound_preview {"world_break": ...}).
+        response = {{"success", false}, {"world", "voxfound"},
+                    {"error", "break_voxel: the 1/9 m store was removed (docs/VoxelFoundationPlan.md step 7)"}};
         return true;
 
     } else if (action == "debug_body_boxes") {
@@ -19370,107 +19273,10 @@ void Application::processAPICommands() {
             } else if (cmd.action == "generate_world") {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
-                } else if (ChunkStreamingManager::todayWorldDisabled()) {   // D3c-1
+                } else {   // D3c-4: today's world generation was removed (the switched region is built at boot)
                     response = {{"success", false}, {"world", "voxfound"},
                                 {"error", "generate_world does not apply to the switched world: its region is built from the "
                                           "world's recipe at boot (game.json world / voxfound_preview region)"}};
-                } else {
-                    std::string typeStr = cmd.params.value("type", "Perlin");
-                    uint32_t seed = cmd.params.value("seed", 0u);
-
-                    // Map string to GenerationType
-                    WorldGenerator::GenerationType genType = WorldGenerator::GenerationType::Perlin;
-                    if (typeStr == "Random") genType = WorldGenerator::GenerationType::Random;
-                    else if (typeStr == "Perlin") genType = WorldGenerator::GenerationType::Perlin;
-                    else if (typeStr == "Flat") genType = WorldGenerator::GenerationType::Flat;
-                    else if (typeStr == "Mountains") genType = WorldGenerator::GenerationType::Mountains;
-                    else if (typeStr == "Caves") genType = WorldGenerator::GenerationType::Caves;
-                    else if (typeStr == "City") genType = WorldGenerator::GenerationType::City;
-                    else {
-                        response = {{"error", "Unknown generation type: " + typeStr},
-                                    {"valid_types", {"Random", "Perlin", "Flat", "Mountains", "Caves", "City"}}};
-                        goto done_generate;
-                    }
-
-                    {
-                        WorldGenerator generator(genType, seed);
-
-                        // Apply optional terrain params
-                        if (cmd.params.contains("params")) {
-                            auto& tp = generator.getTerrainParams();
-                            auto& p = cmd.params["params"];
-                            if (p.contains("heightScale")) tp.heightScale = p["heightScale"].get<float>();
-                            if (p.contains("frequency")) tp.frequency = p["frequency"].get<float>();
-                            if (p.contains("octaves")) tp.octaves = p["octaves"].get<int>();
-                            if (p.contains("persistence")) tp.persistence = p["persistence"].get<float>();
-                            if (p.contains("lacunarity")) tp.lacunarity = p["lacunarity"].get<float>();
-                            if (p.contains("caveThreshold")) tp.caveThreshold = p["caveThreshold"].get<float>();
-                            if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
-                        }
-
-                        // Collect chunk coords: either explicit list or from/to range
-                        std::vector<glm::ivec3> chunkCoords;
-
-                        if (cmd.params.contains("chunks")) {
-                            for (const auto& c : cmd.params["chunks"]) {
-                                chunkCoords.push_back(glm::ivec3(
-                                    c.value("x", 0), c.value("y", 0), c.value("z", 0)));
-                            }
-                        } else if (cmd.params.contains("from") && cmd.params.contains("to")) {
-                            auto& f = cmd.params["from"];
-                            auto& t = cmd.params["to"];
-                            int fx = f.value("x", 0), fy = f.value("y", 0), fz = f.value("z", 0);
-                            int tx = t.value("x", 0), ty = t.value("y", 0), tz = t.value("z", 0);
-                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
-                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
-                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
-                            for (int cx = minCx; cx <= maxCx; ++cx)
-                                for (int cy = minCy; cy <= maxCy; ++cy)
-                                    for (int cz = minCz; cz <= maxCz; ++cz)
-                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
-                        } else {
-                            // Default: single chunk at origin
-                            chunkCoords.push_back(glm::ivec3(0, 0, 0));
-                        }
-
-                        // Limit to prevent stalling
-                        if (chunkCoords.size() > 64) {
-                            response = {{"error", "Too many chunks"}, {"count", chunkCoords.size()}, {"max", 64}};
-                            goto done_generate;
-                        }
-
-                        int generated = 0;
-                        std::unordered_set<Chunk*> modifiedChunks;
-                        for (const auto& cc : chunkCoords) {
-                            glm::ivec3 origin = cc * 32;
-                            // Create chunk if it doesn't exist
-                            if (!chunkManager->getChunkAtCoord(cc)) {
-                                chunkManager->createChunk(origin, false);
-                            }
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (chunk) {
-                                generator.generateChunk(*chunk, cc);
-                                modifiedChunks.insert(chunk);
-                                ++generated;
-                            }
-                        }
-
-                        // Rebuild faces and GPU buffers for all modified chunks
-                        for (Chunk* chunk : modifiedChunks) {
-                            chunk->rebuildFaces();
-                            chunk->updateVulkanBuffer();
-                        }
-
-                        response = {{"success", true}, {"type", typeStr}, {"seed", seed},
-                                    {"chunks_generated", generated}};
-                        if (gameEventLog) {
-                            gameEventLog->emit("world_generated", {
-                                {"type", typeStr}, {"seed", seed}, {"chunks", generated}});
-                        }
-                        if (generated > 0 && npcManager) {
-                            npcManager->buildNavGrid();
-                        }
-                    }
                 }
                 done_generate:;
 
@@ -20583,95 +20389,11 @@ void Application::processAPICommands() {
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }
-                        
-                        int x1 = jobParams.value("x1", 0), y1 = jobParams.value("y1", 0), z1 = jobParams.value("z1", 0);
-                        int x2 = jobParams.value("x2", 0), y2 = jobParams.value("y2", 0), z2 = jobParams.value("z2", 0);
-                        std::string material = jobParams.value("material", "");
-                        bool hollow = jobParams.value("hollow", false);
-                        bool replace = jobParams.value("replace", false);  // overwrite occupied voxels
-                        
-                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
-                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
-                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
-                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-                        
-                        if (volume > 100000) {
-                            response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
-                            if (cmd.onComplete) cmd.onComplete(response);
-                            continue;
-                        }
-                        
-                        // Pre-create chunks on main thread (modifies chunks vector)
-                        for (int ix = minX; ix <= maxX; ix += 32) {
-                            for (int iy = minY; iy <= maxY; iy += 32) {
-                                for (int iz = minZ; iz <= maxZ; iz += 32) {
-                                    glm::ivec3 cc = Phyxel::ChunkManager::worldToChunkCoord(glm::ivec3(ix, iy, iz));
-                                    if (!chunkManager->getChunkAtCoord(cc)) {
-                                        chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
-                                    }
-                                }
-                            }
-                        }
-                        
-                        ChunkManager* cmFill = chunkManager;
-                        Core::GameEventLog* evFill = gameEventLog.get();
-                        auto* npcFill = npcManager.get();
-                        desc.backgroundWork = [cmFill, minX, maxX, minY, maxY, minZ, maxZ, material, hollow, replace, volume](Core::JobContext& ctx) -> nlohmann::json {
-                            int placed = 0, failed = 0;
-                            int64_t total = volume;
-                            int64_t count = 0;
-
-                            auto lock = cmFill->acquireWriteLock();
-                            for (int ix = minX; ix <= maxX; ++ix) {
-                                for (int iy = minY; iy <= maxY; ++iy) {
-                                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                                        if (ctx.cancelled.load()) {
-                                            return {{"success", false}, {"cancelled", true}, {"placed", placed}};
-                                        }
-                                        if (hollow && ix > minX && ix < maxX && iy > minY && iy < maxY && iz > minZ && iz < maxZ) {
-                                            continue;
-                                        }
-                                        if (replace && cmFill->hasVoxelAt(glm::ivec3(ix, iy, iz))) {
-                                            cmFill->removeCubeFast(glm::ivec3(ix, iy, iz));  // defers re-mesh
-                                        }
-                                        bool ok = false;
-                                        if (!material.empty()) {
-                                            ok = cmFill->m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(ix, iy, iz), material);
-                                        } else {
-                                            ok = cmFill->addCubeFast(glm::ivec3(ix, iy, iz));
-                                        }
-                                        if (ok) ++placed; else ++failed;
-                                        ++count;
-                                        if (count % 1000 == 0) {
-                                            ctx.setProgress(static_cast<float>(count) / total, "Placing voxels...");
-                                        }
-                                    }
-                                }
-                            }
-                            return {{"success", true}, {"placed", placed}, {"failed", failed},
-                                    {"volume", volume}, {"hollow", hollow},
-                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
-                        };
-                        desc.mainThreadFinalize = [cmFill, evFill, npcFill, material, hollow](nlohmann::json& result) {
-                            // Chunks are already marked dirty by the background work; the
-                            // per-frame budgeted updateDirtyChunks() flush spreads the mesh+GPU
-                            // commit over frames (no single multi-second finalize hitch).
-                            int placed = result.value("placed", 0);
-                            if (placed > 0 && evFill) {
-                                evFill->emit("region_filled", {
-                                    {"placed", placed}, {"material", material.empty() ? "Default" : material},
-                                    {"hollow", hollow}, {"async", true}
-                                });
-                            }
-                            if (placed > 0) {
-                                // Only rebuild nav if NPCs exist â€” a full-world NavGrid+NavGraph
-                                // build is ~seconds and is pure waste with zero NPCs. NPC creation
-                                // paths rebuild nav themselves, so a later-spawned NPC still gets it.
-                                if (npcFill && npcFill->getNPCCount() > 0) npcFill->buildNavGrid();
-                            }
-                        };
-                        
+                        // D3c-4: the 1/9 m fill was removed with its store
+                        response = {{"success", false}, {"world", "voxfound"},
+                                    {"error", "fill_region: the switched world is not up (no region)"}};
+                        if (cmd.onComplete) cmd.onComplete(response);
+                        continue;
                     } else if (jobType == "clear_region") {
                         if (!chunkManager) {
                             response = {{"error", "ChunkManager not available"}};
@@ -20739,152 +20461,11 @@ void Application::processAPICommands() {
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }
-                        if (ChunkStreamingManager::todayWorldDisabled()) {   // D3c-1
-                            response = {{"success", false}, {"world", "voxfound"},
-                                        {"error", "generate_world does not apply to the switched world (built at boot)"}};
-                            if (cmd.onComplete) cmd.onComplete(response);
-                            continue;
-                        }
-
-                        std::string genType = jobParams.value("type", "Perlin");
-                        int seed = jobParams.value("seed", 42);
-                        // Terrain tuning params (heightScale, frequency, ...) â€” applied to the
-                        // generator on the worker thread. Captured whole so we stay in parity
-                        // with the synchronous generate_world handler.
-                        nlohmann::json terrainParams = jobParams.value("params", nlohmann::json::object());
-
-                        // Collect chunk coords: explicit list or from/to range (object form,
-                        // matching the synchronous handler + MCP tool body).
-                        std::vector<glm::ivec3> chunkCoords;
-                        if (jobParams.contains("chunks")) {
-                            for (const auto& c : jobParams["chunks"]) {
-                                chunkCoords.push_back(glm::ivec3(c.value("x", 0), c.value("y", 0), c.value("z", 0)));
-                            }
-                        } else if (jobParams.contains("from") && jobParams.contains("to")) {
-                            // Object form: from:{x,y,z}, to:{x,y,z} (MCP generate_world tool)
-                            auto& f = jobParams["from"];
-                            auto& t = jobParams["to"];
-                            int fx = f.value("x", 0), fy = f.value("y", 0), fz = f.value("z", 0);
-                            int tx = t.value("x", 0), ty = t.value("y", 0), tz = t.value("z", 0);
-                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
-                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
-                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
-                            for (int cx = minCx; cx <= maxCx; ++cx)
-                                for (int cy = minCy; cy <= maxCy; ++cy)
-                                    for (int cz = minCz; cz <= maxCz; ++cz)
-                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
-                        } else if (jobParams.contains("from_x") || jobParams.contains("to_x")) {
-                            // Flat form: from_x/from_y/from_z, to_x/to_y/to_z (direct submit_job tool)
-                            int fx = jobParams.value("from_x", 0), fy = jobParams.value("from_y", 0), fz = jobParams.value("from_z", 0);
-                            int tx = jobParams.value("to_x", 0), ty = jobParams.value("to_y", 0), tz = jobParams.value("to_z", 0);
-                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
-                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
-                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
-                            for (int cx = minCx; cx <= maxCx; ++cx)
-                                for (int cy = minCy; cy <= maxCy; ++cy)
-                                    for (int cz = minCz; cz <= maxCz; ++cz)
-                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
-                        } else {
-                            chunkCoords.push_back(glm::ivec3(0, 0, 0));
-                        }
-
-                        if (chunkCoords.size() > 64) {
-                            response = {{"error", "Too many chunks"}, {"count", chunkCoords.size()}, {"max", 64}};
-                            if (cmd.onComplete) cmd.onComplete(response);
-                            continue;
-                        }
-
-                        // Flora / occupancy bounds (XZ span of the generated chunks)
-                        int minCX = INT_MAX, maxCX = INT_MIN, minCZ = INT_MAX, maxCZ = INT_MIN;
-                        for (const auto& cc : chunkCoords) {
-                            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
-                            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
-                        }
-
-                        // Pre-create chunks on main thread (mutates the chunks vector)
-                        for (const auto& cc : chunkCoords) {
-                            if (!chunkManager->getChunkAtCoord(cc)) {
-                                chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
-                            }
-                        }
-
-                        int64_t chunkCount = static_cast<int64_t>(chunkCoords.size());
-                        ChunkManager* cmGen = chunkManager;
-                        Core::GameEventLog* evGen = gameEventLog.get();
-                        desc.backgroundWork = [cmGen, genType, chunkCoords, seed, chunkCount, terrainParams](Core::JobContext& ctx) -> nlohmann::json {
-                            WorldGenerator::GenerationType wgType = WorldGenerator::GenerationType::Perlin;
-                            if (genType == "Random") wgType = WorldGenerator::GenerationType::Random;
-                            else if (genType == "Flat") wgType = WorldGenerator::GenerationType::Flat;
-                            else if (genType == "Mountains") wgType = WorldGenerator::GenerationType::Mountains;
-                            else if (genType == "Caves") wgType = WorldGenerator::GenerationType::Caves;
-                            else if (genType == "City") wgType = WorldGenerator::GenerationType::City;
-
-                            WorldGenerator generator(wgType, seed);
-                            // Apply optional terrain params (parity with sync handler)
-                            if (!terrainParams.empty()) {
-                                auto& tp = generator.getTerrainParams();
-                                if (terrainParams.contains("heightScale"))  tp.heightScale  = terrainParams["heightScale"].get<float>();
-                                if (terrainParams.contains("frequency"))    tp.frequency    = terrainParams["frequency"].get<float>();
-                                if (terrainParams.contains("octaves"))       tp.octaves      = terrainParams["octaves"].get<int>();
-                                if (terrainParams.contains("persistence"))   tp.persistence  = terrainParams["persistence"].get<float>();
-                                if (terrainParams.contains("lacunarity"))    tp.lacunarity   = terrainParams["lacunarity"].get<float>();
-                                if (terrainParams.contains("caveThreshold")) tp.caveThreshold= terrainParams["caveThreshold"].get<float>();
-                                if (terrainParams.contains("stoneLevel"))    tp.stoneLevel   = terrainParams["stoneLevel"].get<float>();
-                            }
-
-                            int generated = 0;
-                            auto lock = cmGen->acquireWriteLock();
-                            for (const auto& cc : chunkCoords) {
-                                if (ctx.cancelled.load()) {
-                                    return {{"success", false}, {"cancelled", true}, {"generated", generated}};
-                                }
-                                Chunk* chunk = cmGen->getChunkAtCoord(cc);
-                                if (chunk) {
-                                    generator.generateChunk(*chunk, cc);
-                                    cmGen->markChunkDirty(chunk);
-                                    ++generated;
-                                }
-                                ctx.setProgress(static_cast<float>(generated) / chunkCount, "Generating terrain...");
-                            }
-                            return {{"success", true}, {"chunks_generated", generated}, {"type", genType}, {"seed", seed}};
-                        };
-                        ObjectTemplateManager* otmGen = objectTemplateManager.get();
-                        auto* npcGen = npcManager.get();
-                        desc.mainThreadFinalize = [cmGen, evGen, otmGen, npcGen, genType, seed, minCX, maxCX, minCZ, maxCZ](nlohmann::json& result) {
-                            // Per-frame budgeted updateDirtyChunks() flush spreads the mesh+GPU
-                            // commit over frames (chunks already marked dirty in background work),
-                            // so the finalize no longer stalls ~2.4s on a 64-chunk gen.
-                            int generated = result.value("chunks_generated", 0);
-                            if (evGen) {
-                                evGen->emit("world_generated", {
-                                    {"chunks", generated},
-                                    {"type", result.value("type", "")},
-                                    {"async", true}
-                                });
-                            }
-                            // Flora decoration: every region chunk exists now, so a tree's overhang
-                            // routes into the correct neighbor chunk (no clipped trees at seams).
-                            // Reconstruct a matching generator (same type/seed/default params) for
-                            // the deterministic placement plan. Height-based types only.
-                            if (otmGen) {
-                                WorldGenerator::GenerationType wg = WorldGenerator::GenerationType::Perlin;
-                                if (genType == "Random") wg = WorldGenerator::GenerationType::Random;
-                                else if (genType == "Flat") wg = WorldGenerator::GenerationType::Flat;
-                                else if (genType == "Mountains") wg = WorldGenerator::GenerationType::Mountains;
-                                else if (genType == "Caves") wg = WorldGenerator::GenerationType::Caves;
-                                else if (genType == "City") wg = WorldGenerator::GenerationType::City;
-                                WorldGenerator floraGen(wg, static_cast<uint32_t>(seed));
-                                otmGen->decorateFlora(floraGen, minCX * 32, minCZ * 32, maxCX * 32 + 31, maxCZ * 32 + 31);
-                            }
-                            // Rebuild nav grid so NPCs can path on freshly generated terrain.
-                            // Only when NPCs exist â€” a full-world NavGrid+NavGraph build is ~seconds
-                            // (the dominant finalize cost) and is pure waste with zero NPCs. NPC
-                            // creation paths rebuild nav themselves, so later-spawned NPCs still get it.
-                            if (generated > 0 && npcGen && npcGen->getNPCCount() > 0) {
-                                npcGen->buildNavGrid();
-                            }
-                        };
-
+                        // D3c-4: today's world generation was removed (the switched region is built at boot)
+                        response = {{"success", false}, {"world", "voxfound"},
+                                    {"error", "generate_world: today's world generation was removed (docs/VoxelFoundationPlan.md step 7)"}};
+                        if (cmd.onComplete) cmd.onComplete(response);
+                        continue;
                     } else if (jobType == "save_world") {
                         if (!chunkManager) {
                             response = {{"error", "ChunkManager not available"}};
