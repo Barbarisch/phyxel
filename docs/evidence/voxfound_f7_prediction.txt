@@ -1847,3 +1847,20 @@ D3b RESULTS (2026-11-24; the prediction above untouched). Release.
      G3 nav both ways; G4 20 pieces, 0 refused; today's chunks 0 throughout.
 D3b DONE: the switched world is the only world in every host. Today's store is now reached only by code that no host
 runs (its writers, readers, the PXB2 encoder) and by tests -- D3c / D4 delete it.
+
+D3c-1 PREDICTION -- nothing creates a Chunk while switched (2026-11-24; not yet written). Census (an Explore agent's
+read-only map, spot-checked: GameDefinitionLoader transition markers -> ensureChunkAt; Bindings add_cube): with today's
+world disabled, these paths still CREATE today's Chunk objects -- generate_world (sync + job), the fill_region job,
+GameDefinitionLoader's transition markers (ensureChunkAt) and its structures "fill" / "place_voxel", ObjectTemplateManager's
+dynamic (isStatic=false) and sequential spawns, the Python add_cube binding. And save_world gates placed-object
+persistence on saveAllChunks' return (a no-op count now).
+Change: ChunkManager::createChunk REFUSES while today's world is disabled (counted, reported by today_status as
+create_refused); the fill_region job and the loader's structures fill / place_voxel route to the switched edit path
+(GameDefinitionLoader::setSwitchedEdit, bound by both hosts); generate_world (sync + job) refuses on a switched world
+("the region is built from the world's recipe"); save_world persists placed objects when storage is attached.
+Not rerouted (refuse visibly instead -- recorded gaps): dynamic / sequential template spawns, the Python add_cube.
+  K1: the F7.26 battery and the six projects: create_refused counted -- predicted 0 for the battery (explicit config),
+      > 0 only where the census says (projects with transition-marker triggers); every number as D3b.
+  K2: the fill_region JOB on VoxFoundGate8: a 2 x 2 x 2 m Gold fill lands in the switched world (voxel query Gold 512
+      per metre cube); the red = the pre-change build (today's chunk created, switched world unchanged).
+  K3: a game.json structures "fill" (a 1 m Stone cube, in a copy of a project) appears in the switched world at boot.
