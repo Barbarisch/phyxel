@@ -15637,6 +15637,20 @@ tile's record runs (a few KB: bottom / top per column) and a compute pass expand
 fPrev, the surface rows), the host left with the run list and the table write. Predicted: ~5 -> ~1 ms a tile. A design step
 (`/design-check`: the parity gate is `ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk` - the device state bit-equal to the host
 seed's) - not started.
+**The design (2026-11-24, `/design-check` READY - read from `seedColumns`):** today a wake EXPANDS the tile's record runs into a
+host cell grid (`WaterGrid`, part of "seed + surface" 1.3 ms), walks every wet CELL for the bricks it needs (`seed.0d` 1.2 ms), then
+scatters and fills every cell (0.9 + 0.4). The run-based seed: (1) the need decided per COLUMN from its runs (a brick column is
+needed over [floor(bottom), ceil(top)] of each run - 72 x 72 columns a tile, not every wet cell; `markNeed`'s halo as today); (2)
+the slots allocated on the host as today (`applyResidency` 0.6 - it owns the tables); (3) the runs uploaded (bottom / top per
+column per run, a few KB) and a compute pass `wc_seed_runs` writes each stored cell's fill (the run's cover of the cell, as the host
+expansion computes it), fPrev = f, and the column's surface row - the host never builds the cell grid. Kept on the host: the tall
+collapse (rare; it falls back to today's path when tall cells are live). Chunk-independent (a pure function of the runs); no API
+change (a TEST switch `s_seedFromCellsForTest` = today's path, the red/reference). **Tests:** parity - the device state (f, fPrev,
+the brick map, the mass) bit-equal to today's cell seed in `ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk` and
+`ADeferredSeedLeavesTheSameDeviceState`; cost - the host part per tile in `DiagPatchLife`. **Predicted (honest, from the split):**
+~5 -> ~1.5 ms a tile (the need walk, the cell grid and the host fills gone; residency and the table write stay), the device + ~0.2 ms.
+That alone takes a two-tile wake frame from ~14 to ~7 ms - at the gate, not under it with the ripples' ~5 ms in the same frame; the
+ripple layer's first-frame state (58.3: label components 1.2, the mask 1.1) is the next cut after it. Not built.
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
