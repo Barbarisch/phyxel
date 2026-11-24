@@ -1884,3 +1884,12 @@ D3c-1 RESULTS (2026-11-24; the prediction above untouched). Release; raw voxfoun
      "doorway" (16,19,12) reads Wood, not Glass: that fill has no "replace", so it fills air only -- today's addCube
      fails on occupied cells the same way (the comment in its game.json expects a cut-out it never made).
   Not rerouted (refuse visibly now; gaps recorded): dynamic / sequential template spawns, the Python add_cube.
+
+D3c-2 (2026-11-24) -- the v1 -> PXB2 migration needs no Chunk object. Data first: 66 project DBs scanned (read-only);
+4 still hold ONLY v1 rows (no blobs) -- VillageChat default.db (69,652 rows), TestVideoGame1 default.db (17,408) and
+tavern.db (70,486), CharacterTestbed treedemo.db (2,070,400) -- so WorldStorage's migration is live and blocks
+deleting Chunk / ChunkBlobCodec::encode. Added VoxFound::encodePxb2FromRows (plain C/S/M rows -> PXB2 v2, the codec's
+format) + WorldStorage::readLegacyRows; the migration uses them (the Chunk path stays behind s_migrateViaChunk until D4).
+  RESULT (VoxFoundV1Migration.RowsEncoderEqualsChunkEncoder, PHYXEL_V1_DBS = the four DBs, each COPIED to a temp file
+  and opened unmigrated): 108 chunks -- content-equal 108, BYTE-identical 108. VoxFoundStorageLab* + WorldStorage*
+  tests: 46 pass. (No prediction was committed before this step: it is a refactor gated by an exact equality test.)

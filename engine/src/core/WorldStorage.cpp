@@ -75,6 +75,9 @@ bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk,
 bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::migrateLegacyChunks() { return false; }
+bool WorldStorage::readLegacyRows(const glm::ivec3&, Core::VoxFound::V1ChunkRows&) { return false; }
+std::vector<glm::ivec3> WorldStorage::legacyChunkCoords() { return {}; }
+std::vector<uint8_t> WorldStorage::encodeLegacyViaChunk(const glm::ivec3&) { return {}; }
 bool WorldStorage::setMeta(const std::string& key, const std::string& value) { return false; }
 std::string WorldStorage::getMeta(const std::string& key) const { return ""; }
 bool WorldStorage::hasMeta(const std::string& key) const { return false; }
@@ -686,7 +689,70 @@ bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) {
     return ok;
 }
 
+bool WorldStorage::readLegacyRows(const glm::ivec3& cc, Core::VoxFound::V1ChunkRows& out) {
+    if (!db) return false;
+    sqlite3_bind_int(selectCubesStmt, 1, cc.x);
+    sqlite3_bind_int(selectCubesStmt, 2, cc.y);
+    sqlite3_bind_int(selectCubesStmt, 3, cc.z);
+    while (sqlite3_step(selectCubesStmt) == SQLITE_ROW) {
+        const char* m = reinterpret_cast<const char*>(sqlite3_column_text(selectCubesStmt, 5));
+        out.cubes.push_back({{sqlite3_column_int(selectCubesStmt, 0), sqlite3_column_int(selectCubesStmt, 1),
+                              sqlite3_column_int(selectCubesStmt, 2)},
+                             m ? m : "Default", sqlite3_column_int(selectCubesStmt, 4) != 0,
+                             sqlite3_column_int(selectCubesStmt, 3) != 0});
+    }
+    sqlite3_reset(selectCubesStmt);
+    sqlite3_bind_int(selectSubcubesStmt, 1, cc.x);
+    sqlite3_bind_int(selectSubcubesStmt, 2, cc.y);
+    sqlite3_bind_int(selectSubcubesStmt, 3, cc.z);
+    while (sqlite3_step(selectSubcubesStmt) == SQLITE_ROW) {
+        const char* m = reinterpret_cast<const char*>(sqlite3_column_text(selectSubcubesStmt, 7));
+        out.subs.push_back({{sqlite3_column_int(selectSubcubesStmt, 0), sqlite3_column_int(selectSubcubesStmt, 1),
+                             sqlite3_column_int(selectSubcubesStmt, 2)},
+                            {sqlite3_column_int(selectSubcubesStmt, 3), sqlite3_column_int(selectSubcubesStmt, 4),
+                             sqlite3_column_int(selectSubcubesStmt, 5)},
+                            m ? m : "Default"});
+    }
+    sqlite3_reset(selectSubcubesStmt);
+    sqlite3_bind_int(selectMicrocubesStmt, 1, cc.x);
+    sqlite3_bind_int(selectMicrocubesStmt, 2, cc.y);
+    sqlite3_bind_int(selectMicrocubesStmt, 3, cc.z);
+    while (sqlite3_step(selectMicrocubesStmt) == SQLITE_ROW) {
+        const char* m = reinterpret_cast<const char*>(sqlite3_column_text(selectMicrocubesStmt, 9));
+        out.micros.push_back({{sqlite3_column_int(selectMicrocubesStmt, 0), sqlite3_column_int(selectMicrocubesStmt, 1),
+                               sqlite3_column_int(selectMicrocubesStmt, 2)},
+                              {sqlite3_column_int(selectMicrocubesStmt, 3), sqlite3_column_int(selectMicrocubesStmt, 4),
+                               sqlite3_column_int(selectMicrocubesStmt, 5)},
+                              {sqlite3_column_int(selectMicrocubesStmt, 6), sqlite3_column_int(selectMicrocubesStmt, 7),
+                               sqlite3_column_int(selectMicrocubesStmt, 8)},
+                              m ? m : "Default"});
+    }
+    sqlite3_reset(selectMicrocubesStmt);
+    return true;
+}
+
+std::vector<glm::ivec3> WorldStorage::legacyChunkCoords() {
+    std::vector<glm::ivec3> out;
+    if (!db) return out;
+    const char* sql = "SELECT chunk_x, chunk_y, chunk_z FROM cubes UNION SELECT chunk_x, chunk_y, chunk_z FROM subcubes "
+                      "UNION SELECT chunk_x, chunk_y, chunk_z FROM microcubes;";
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &st, nullptr) != SQLITE_OK) return out;
+    while (sqlite3_step(st) == SQLITE_ROW)
+        out.emplace_back(sqlite3_column_int(st, 0), sqlite3_column_int(st, 1), sqlite3_column_int(st, 2));
+    sqlite3_finalize(st);
+    return out;
+}
+
+std::vector<uint8_t> WorldStorage::encodeLegacyViaChunk(const glm::ivec3& cc) {
+    Chunk temp(cc * 32);
+    temp.initializeForLoading();
+    loadChunkFromLegacyRows(cc, temp);
+    return ChunkBlobCodec::encode(temp);
+}
+
 bool WorldStorage::migrateLegacyChunks() {
+    if (s_skipMigration) return true;   // D3c-2 tests: a v1 DB opened without migrating
     if (!db) return false;
 
     // Collect every chunk that still has v1 row-format data.
@@ -736,12 +802,25 @@ bool WorldStorage::migrateLegacyChunks() {
             continue;
         }
 
-        Chunk temp(coord * 32);
-        temp.initializeForLoading();
-        loadChunkFromLegacyRows(coord, temp);
-
+        // D3c-2: the rows encoded without a Chunk object (the legacy Chunk path only behind the A/B knob)
         ChunkBlobCodec::Counts counts;
-        std::vector<uint8_t> blob = ChunkBlobCodec::encode(temp, &counts);
+        std::vector<uint8_t> blob;
+        if (s_migrateViaChunk) {
+            ChunkBlobCodec::Counts c2;
+            Chunk temp(coord * 32);
+            temp.initializeForLoading();
+            loadChunkFromLegacyRows(coord, temp);
+            blob = ChunkBlobCodec::encode(temp, &c2);
+            counts = c2;
+        } else {
+            Core::VoxFound::V1ChunkRows rows;
+            readLegacyRows(coord, rows);
+            Core::VoxFound::Pxb2Counts c;
+            blob = Core::VoxFound::encodePxb2FromRows(rows, &c);
+            counts.cubes = c.cubes;
+            counts.subcubes = c.subcubes;
+            counts.microcubes = c.microcubes;
+        }
 
         sqlite3_bind_int(insertBlobStmt, 1, coord.x);
         sqlite3_bind_int(insertBlobStmt, 2, coord.y);

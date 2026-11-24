@@ -1,4 +1,5 @@
 #pragma once
+#include "core/voxfound/StorageLab.h"
 
 // Conditional SQLite include - disable if SQLite not available
 #ifdef HAVE_SQLITE3
@@ -157,6 +158,15 @@ private:
     /// row-format data is re-encoded as a blob; the pre-migration DB is
     /// copied to "<db>.v1.bak" for binary-rollback safety.
     bool migrateLegacyChunks();
+public:
+    /// docs/VoxelFoundationPlan.md D3c-2: one v1 chunk's rows (no Chunk object) and the two encodings of it --
+    /// encodePxb2FromRows (the migration's) and the legacy Chunk + ChunkBlobCodec::encode (kept until D4 for the A/B).
+    bool readLegacyRows(const glm::ivec3& chunkCoord, Core::VoxFound::V1ChunkRows& out);
+    std::vector<glm::ivec3> legacyChunkCoords();
+    std::vector<uint8_t> encodeLegacyViaChunk(const glm::ivec3& chunkCoord);
+    static inline bool s_migrateViaChunk = false;   // tests: the old (Chunk-based) migration encoder
+    static inline bool s_skipMigration = false;     // tests: open a v1 DB without migrating it (the A/B reads rows)
+private:
     
     // Transaction helpers
     bool beginTransaction();

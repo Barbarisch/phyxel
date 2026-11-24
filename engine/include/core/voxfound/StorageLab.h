@@ -80,6 +80,21 @@ GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats = 
 /// One subdivided cube: 9^3 ninths (index a * 81 + b * 9 + d, a = x) -> 8^3 voxels (index x * 64 + y * 8 + z).
 int resampleNinths(const uint8_t* ninths, uint8_t* voxels);
 
+/// docs/VoxelFoundationPlan.md D3c-2: a v1 row-format chunk (WorldStorage's cubes / subcubes / microcubes tables, chunk-
+/// local positions, in row order) and the PXB2 v2 blob it migrates to -- written WITHOUT a Chunk object (the format of
+/// ChunkBlobCodec::encode: palette in first-seen order, cube RLE in z-minor order, then subcubes, microcubes, an empty
+/// water-span section). Cubes: visible, non-subdivided rows; a repeated slot keeps its first row.
+struct V1ChunkRows {
+    struct Cube { glm::ivec3 p; std::string mat; bool visible = true, subdivided = false; };
+    struct Sub { glm::ivec3 p, s; std::string mat; };
+    struct Micro { glm::ivec3 p, s, m; std::string mat; };
+    std::vector<Cube> cubes;
+    std::vector<Sub> subs;
+    std::vector<Micro> micros;
+};
+struct Pxb2Counts { uint32_t cubes = 0, subcubes = 0, microcubes = 0; };
+std::vector<uint8_t> encodePxb2FromRows(const V1ChunkRows& rows, Pxb2Counts* counts = nullptr);
+
 /// Today's flora decoration (ObjectTemplateManager::decorateChunk), on the 1/8 m area: the ENGINE's
 /// planFlora over the area's columns (plus `marginM` so canopies rooted outside reach in), each pool placement
 /// stamped from `<templateDir>/<templateName>.voxel` (grid 8), footprint centred on the column centre, trunk

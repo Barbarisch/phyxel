@@ -20,6 +20,7 @@
 #include <fstream>
 #include <limits>
 #include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -1077,6 +1078,86 @@ int resampleNinths(const uint8_t* g, uint8_t* cellOut) {
         ++rescued;
     }
     return rescued;
+}
+
+std::vector<uint8_t> encodePxb2FromRows(const V1ChunkRows& rows, Pxb2Counts* counts) {
+    std::vector<std::string> pal{std::string()};
+    std::unordered_map<std::string, uint32_t> look;
+    auto idxOf = [&](const std::string& n) {
+        auto it = look.find(n);
+        if (it != look.end()) return it->second;
+        pal.push_back(n);
+        look.emplace(n, uint32_t(pal.size() - 1));
+        return uint32_t(pal.size() - 1);
+    };
+    auto inb = [](const glm::ivec3& p) { return p.x >= 0 && p.y >= 0 && p.z >= 0 && p.x < 32 && p.y < 32 && p.z < 32; };
+    auto cidx = [](const glm::ivec3& p) { return size_t(p.z + p.y * 32 + p.x * 1024); };
+    // cubes: material per slot (first row wins), visible + not subdivided
+    std::vector<int> cubeRow(32768, -1);
+    for (size_t r = 0; r < rows.cubes.size(); ++r) {
+        const auto& c = rows.cubes[r];
+        if (!inb(c.p) || c.subdivided || !c.visible) continue;
+        if (cubeRow[cidx(c.p)] < 0) cubeRow[cidx(c.p)] = int(r);
+    }
+    struct Run { uint16_t len; uint32_t idx; };
+    std::vector<Run> runs;
+    uint32_t cubeCount = 0, runIdx = 0, runLen = 0;
+    for (size_t i = 0; i < 32768; ++i) {
+        uint32_t idx = 0;
+        if (cubeRow[i] >= 0) {
+            idx = idxOf(rows.cubes[size_t(cubeRow[i])].mat);
+            ++cubeCount;
+        }
+        if (runLen > 0 && idx == runIdx && runLen < 0xFFFF) ++runLen;
+        else {
+            if (runLen > 0) runs.push_back({uint16_t(runLen), runIdx});
+            runIdx = idx;
+            runLen = 1;
+        }
+    }
+    runs.push_back({uint16_t(runLen), runIdx});
+    struct E { uint16_t cube; uint8_t sub, micro; uint32_t idx; };
+    std::vector<E> subs, micros;
+    std::set<uint32_t> seenS, seenM;
+    for (const auto& e : rows.subs) {
+        if (!inb(e.p)) continue;
+        const uint32_t key = uint32_t(cidx(e.p)) * 27 + uint32_t(e.s.x + e.s.y * 3 + e.s.z * 9);
+        if (!seenS.insert(key).second) continue;
+        subs.push_back({uint16_t(cidx(e.p)), uint8_t(e.s.x + e.s.y * 3 + e.s.z * 9), 0, idxOf(e.mat)});
+    }
+    for (const auto& e : rows.micros) {
+        if (!inb(e.p)) continue;
+        const uint32_t key = (uint32_t(cidx(e.p)) * 27 + uint32_t(e.s.x + e.s.y * 3 + e.s.z * 9)) * 27 +
+                             uint32_t(e.m.x + e.m.y * 3 + e.m.z * 9);
+        if (!seenM.insert(key).second) continue;
+        micros.push_back({uint16_t(cidx(e.p)), uint8_t(e.s.x + e.s.y * 3 + e.s.z * 9),
+                          uint8_t(e.m.x + e.m.y * 3 + e.m.z * 9), idxOf(e.mat)});
+    }
+    const bool wide = pal.size() > 256;
+    std::vector<uint8_t> b;
+    auto u8 = [&](uint32_t v) { b.push_back(uint8_t(v)); };
+    auto u16 = [&](uint32_t v) { u8(v & 0xFF); u8((v >> 8) & 0xFF); };
+    auto u32 = [&](uint32_t v) { u16(v & 0xFFFF); u16(v >> 16); };
+    auto pidx = [&](uint32_t v) { if (wide) u16(v); else u8(v); };
+    u32(0x32425850u);
+    u8(2);
+    u8(wide ? 1u : 0u);
+    u16(uint32_t(pal.size()));
+    u32(cubeCount);
+    u32(uint32_t(subs.size()));
+    u32(uint32_t(micros.size()));
+    for (const auto& n : pal) {
+        const size_t l = n.size() > 255 ? 255 : n.size();
+        u8(uint32_t(l));
+        b.insert(b.end(), n.begin(), n.begin() + long(l));
+    }
+    u32(uint32_t(runs.size()));
+    for (const auto& r : runs) { u16(r.len); pidx(r.idx); }
+    for (const auto& e : subs) { u16(e.cube); u8(e.sub); pidx(e.idx); u8(0); }
+    for (const auto& e : micros) { u16(e.cube); u8(e.sub); u8(e.micro); pidx(e.idx); u8(0); }
+    u32(0);   // water spans: none (v1 rows carry none)
+    if (counts) *counts = {cubeCount, uint32_t(subs.size()), uint32_t(micros.size())};
+    return b;
 }
 
 bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<std::string>& names,
