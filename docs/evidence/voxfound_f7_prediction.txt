@@ -1978,3 +1978,29 @@ D3c-5 RESULTS (2026-11-24; the prediction above untouched). The deletion was don
      carveChopKerf removes whole Log cubes, chipPocket 0; LOD pyramid persistence + eviction stash never fire; the debug
      sub / micro queries answer empty.
 D3c DONE (the 1/9 m writers + the Subcube / Microcube classes). NEXT D4: the store + its readers go.
+
+D4 PREDICTION -- the Chunk store and its readers go (2026-11-24; not yet written). Census (after D3c-5): Chunk.h is
+included by 24 engine + 2 editor + 47 test files; ChunkRenderManager named in 25 files, ChunkVoxelManager 14,
+ChunkPhysicsManager 8; chunkMap / getChunkAt users 32. The switched world takes from ChunkManager only its hooks
+(setVoxFound{Reads,Write,TreeCell,PlayBounds,ClearBoxes}), the water span store (WaterSpanList, voxFoundSpanStore,
+forEachWaterSpans, span revision), the streaming GENERATOR + WorldStorage, and chunkMap for the "today" census only; its
+mesher is voxfound/Mesher (not ChunkRenderManager). Plan: delete Chunk.{h,cpp}, ChunkVoxelManager,
+ChunkVoxelModificationSystem, ChunkVoxelQuerySystem, ChunkInitializer, FaceUpdateCoordinator, DirtyChunkTracker,
+ChunkPhysicsManager, ChunkRenderManager's mesher + per-chunk buffers (static knobs the switched world reads move or
+stay), ChunkBlobCodec::encode (the format and convertPxb2 stay), today's LOD pyramid / eviction cache over Chunks, and
+every reader the compiler names (raycaster today branch, DamageSystem / StructureGenerator / ObjectTemplateManager /
+WorldGenerator::generateChunk / PlacedObjectManager / StructureForge / PerfApi / DebrisApi chunk paths). ChunkManager
+stays as the host of the hooks + span store + generator + storage (no chunk map); ChunkStreamingManager keeps only
+what the switched world calls (WorldStorage open / meta, the generator); WorldStorage keeps v1 rows -> PXB2 migration.
+  R1: phyxel + phyxel_tests + phyxel_integration_tests build; Chunk.h no longer exists; `grep -r "class Chunk\b"` 0.
+  R2: the battery, the six projects, D3-scenes hold with every D3c-5 number (G1 {} / {}, 0 lost, max apply <= ~0.45 s;
+      G2 12 / 12, T3 0; G3 both ways; G4 20 / 0; six projects switched, stored_check 0 (VillageChat 1, known); scenes
+      C1-C3; today's chunks 0 by construction -- the today_status route still answers, resident 0); every frame draws
+      the world (no black / missing terrain -- the D2 lesson), compared against the D3c-5 frames.
+  R3: the packaged game (pkg_gate: TavernPkg scaffold + produce) still passes its stages and draws terrain in play.
+  R4: tests -- each non-compiling test PORTED (behaviour that stays) or RETIRED with its subject, listed by name; unit
+      / integration totals recorded against D3c-5 (4,665 / 3, 223 / 5).
+  R5: size -- net about -10,000 to -15,000 lines (the store files alone are ~4,000; readers + tests the rest).
+  Most likely miss: a live system reads Chunk objects in a way that happens to be harmless with 0 chunks but whose
+  replacement matters (lighting / occupancy pool feeds, water span persistence, grass) -- any such find is recorded,
+  not papered over.
