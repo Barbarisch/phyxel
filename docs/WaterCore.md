@@ -15651,6 +15651,12 @@ the brick map, the mass) bit-equal to today's cell seed in `ATileWakeSeedsTheSam
 ~5 -> ~1.5 ms a tile (the need walk, the cell grid and the host fills gone; residency and the table write stay), the device + ~0.2 ms.
 That alone takes a two-tile wake frame from ~14 to ~7 ms - at the gate, not under it with the ripples' ~5 ms in the same frame; the
 ripple layer's first-frame state (58.3: label components 1.2, the mask 1.1) is the next cut after it. Not built.
+**Tried a small exact piece first (2026-11-24), measured, REVERTED:** the need walk (`seed.0d`) bounded to the rows the tile's runs
+can fill (a seeded cell outside them holds nothing; the tall cell's row added) - parity exact (`the runs' band vs every row`: 0 f /
+fPrev cells / bricks differ, `ADeferredSeedLeavesTheSameDeviceState`; the whole-map-walk and tall-cell tests pass), but the walk
+1.18 -> **1.10 ms**: the volume's rows already hug the water (a patch's box is the bed - 1 .. the top + 2), so the band removes
+little. Not worth the code (reverted). The walk's cost is the wet cells themselves - only the run-based seed (no cell grid at all)
+removes it.
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
