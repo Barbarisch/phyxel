@@ -16,7 +16,6 @@
 #include "core/AssetRequestLedger.h"
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
-#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "core/DamageSystem.h"
 #include "core/FurnitureCatalog.h"
@@ -950,14 +949,6 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
                         voxels.push_back({p * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), std::string()});
                 chunkManager->voxFoundWrite()(voxels, "vegetation_gate");
             }
-            static const std::vector<glm::ivec3> kNone;
-            const auto& todayClear = chunkManager->voxFoundWrite() ? kNone : toClear;   // switched: today untouched
-            std::map<Chunk*, bool> vegTouched;
-            for (const auto& p : todayClear)
-                if (Chunk* c = chunkManager->getChunkAtFast(p))
-                    if (vegTouched.emplace(c, true).second) c->beginBulkOperation();
-            for (const auto& p : todayClear) chunkManager->removeCube(p);
-            for (auto& [c, _] : vegTouched) c->endBulkOperation();
             LOG_INFO_FMT("StructureBuild", "vegetation gate: cleared " << toClear.size()
                          << " tree cells from the lot (" << vegSeeds.size()
                          << " seeds in footprint)");
@@ -1977,18 +1968,11 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             }
             // WORLD PROBE (SignMount v2): the mount must not intersect anything already
             // built — eaves, jetties, chimneys (user find 2026-08-27: boards buried in
-            // roofs). Same cube-OR-subcube-OR-microcube solidity the place() ledger uses.
+            // roofs). It read today's Chunk store; D4 deleted it, and on the switched world
+            // that store was empty, so the probe answers "free" exactly as it did there.
+            // D4 finding: this probe needs the switched world's reads to see eaves again.
             std::function<bool(const glm::ivec3&)> solidAt;
-            if (auto* cm = ctx.deps.chunkManager) {
-                solidAt = [cm](const glm::ivec3& wm) {
-                    auto fdiv = [](int a) { return a >= 0 ? a / 9 : (a - 8) / 9; };
-                    const glm::ivec3 cube(fdiv(wm.x), fdiv(wm.y), fdiv(wm.z));
-                    Chunk* ch = cm->getChunkAtFast(cube);
-                    if (!ch) return false;
-                    const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
-                    return ch->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);   // cube-only (D3c-5)
-                };
-            }
+            if (ctx.deps.chunkManager) solidAt = [](const glm::ivec3&) { return false; };
             const int doorWidthMicro = door ? std::max(1, door->width) * 9 : 9;
             const SignMount mount = planSignMount(
                 side, wallOuterMicro, alongCenterMicro, floorMicroY, doorHeadMicroY,

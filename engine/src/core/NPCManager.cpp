@@ -454,9 +454,7 @@ void NPCManager::buildNavGrid() {
 
     // Determine XZ bounds from all loaded chunk origins (F7.1: the new store's chunks when the reads are routed to it)
     std::vector<glm::ivec3> coords;
-    if (const auto* reads = m_chunkManager->voxFoundReads()) coords = reads->chunks();
-    else
-        for (const auto& [coord, chunk] : m_chunkManager->chunkMap) coords.push_back(coord);
+    if (const auto* reads = m_chunkManager->voxFoundReads()) coords = reads->chunks();   // (no Chunk store since D4)
     if (coords.empty()) {
         LOG_WARN("NPCManager", "Cannot build NavGrid: no chunks loaded");
         return;

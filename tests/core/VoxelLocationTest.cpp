@@ -17,7 +17,6 @@ using namespace Phyxel;
 TEST(VoxelLocationTest, DefaultConstruction) {
     VoxelLocation loc;
     EXPECT_EQ(loc.type, VoxelLocation::EMPTY);
-    EXPECT_EQ(loc.chunk, nullptr);
     EXPECT_EQ(loc.localPos, glm::ivec3(-1));
     EXPECT_EQ(loc.worldPos, glm::ivec3(-1));
     EXPECT_EQ(loc.subcubePos, glm::ivec3(-1));
@@ -28,28 +27,18 @@ TEST(VoxelLocationTest, DefaultConstruction) {
 TEST(VoxelLocationTest, IsValid_Empty) {
     VoxelLocation loc;
     loc.type = VoxelLocation::EMPTY;
-    loc.chunk = nullptr;
-    EXPECT_FALSE(loc.isValid());
-}
-
-TEST(VoxelLocationTest, IsValid_NoChunk) {
-    VoxelLocation loc;
-    loc.type = VoxelLocation::CUBE;
-    loc.chunk = nullptr;
     EXPECT_FALSE(loc.isValid());
 }
 
 TEST(VoxelLocationTest, IsValid_CubeWithChunk) {
     VoxelLocation loc;
-    loc.type = VoxelLocation::CUBE;
-    loc.chunk = reinterpret_cast<Chunk*>(0x1); // Non-null pointer
+    loc.type = VoxelLocation::CUBE; // Non-null pointer
     EXPECT_TRUE(loc.isValid());
 }
 
 TEST(VoxelLocationTest, IsValid_SubdividedWithChunk) {
     VoxelLocation loc;
     loc.type = VoxelLocation::SUBDIVIDED;
-    loc.chunk = reinterpret_cast<Chunk*>(0x1);
     EXPECT_TRUE(loc.isValid());
 }
 
@@ -147,13 +136,6 @@ TEST(VoxelLocationTest, Equality_DifferentType) {
     EXPECT_TRUE(loc1 != loc2);
 }
 
-TEST(VoxelLocationTest, Equality_DifferentChunk) {
-    VoxelLocation loc1, loc2;
-    loc1.chunk = reinterpret_cast<Chunk*>(0x1);
-    loc2.chunk = reinterpret_cast<Chunk*>(0x2);
-    EXPECT_FALSE(loc1 == loc2);
-}
-
 TEST(VoxelLocationTest, Equality_DifferentLocalPos) {
     VoxelLocation loc1, loc2;
     loc1.localPos = glm::ivec3(1, 2, 3);
@@ -184,17 +166,14 @@ TEST(VoxelLocationTest, Equality_DifferentMicrocubePos) {
 
 TEST(VoxelLocationTest, Equality_AllFieldsMatch) {
     VoxelLocation loc1, loc2;
-    Chunk* testChunk = reinterpret_cast<Chunk*>(0x12345);
     
     loc1.type = VoxelLocation::SUBDIVIDED;
-    loc1.chunk = testChunk;
     loc1.localPos = glm::ivec3(1, 2, 3);
     loc1.worldPos = glm::ivec3(10, 20, 30);
     loc1.subcubePos = glm::ivec3(0, 1, 2);
     loc1.microcubePos = glm::ivec3(1, 0, 1);
     
     loc2.type = VoxelLocation::SUBDIVIDED;
-    loc2.chunk = testChunk;
     loc2.localPos = glm::ivec3(1, 2, 3);
     loc2.worldPos = glm::ivec3(10, 20, 30);
     loc2.subcubePos = glm::ivec3(0, 1, 2);

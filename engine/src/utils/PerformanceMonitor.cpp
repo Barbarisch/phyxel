@@ -22,7 +22,7 @@ void PerformanceMonitor::printPerformanceStats(
     Physics::PhysicsWorld* physicsWorld
 ) {
     float fps = timer->getFPS();
-    auto chunkStats = chunkManager->getPerformanceStats();
+    (void)chunkManager;   // (today's chunk statistics went with the Chunk store, D4)
     
     LOG_INFO("Performance", "Performance Stats:");
     LOG_INFO_FMT("Performance", "  FPS: " << fps);
@@ -32,8 +32,6 @@ void PerformanceMonitor::printPerformanceStats(
     LOG_INFO_FMT("Performance", "  Draw Calls: " << frameTiming.drawCalls);
     LOG_INFO_FMT("Performance", "  Visible Instances: " << frameTiming.visibleInstances);
     LOG_INFO_FMT("Performance", "  Culled Instances: " << frameTiming.culledInstances);
-    LOG_INFO_FMT("Performance", "  Total Chunks: " << chunkManager->chunks.size());
-    LOG_INFO_FMT("Performance", "  Total Cubes: " << chunkStats.totalCubes);
     int bodyCount = physicsWorld->getVoxelWorld() ? physicsWorld->getVoxelWorld()->getBodyCount() : 0;
     LOG_INFO_FMT("Performance", "  Physics Bodies: " << bodyCount);
     LOG_INFO("Performance", "---");

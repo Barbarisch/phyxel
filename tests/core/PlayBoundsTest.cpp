@@ -89,55 +89,14 @@ namespace {
 struct HeadlessWorld : ::testing::Test {
     Phyxel::ChunkManager cm;   // no device: createVulkanBuffer no-ops
     void SetUp() override { cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE); }
-    void chunkAt(int cx, int cz) { cm.addCubeWithMaterial(glm::ivec3(cx * 32 + 3, 5, cz * 32 + 3), "Stone"); }
+    // It put a cube into today's Chunk at (cx, cz); the Chunk store (and the derived chunk extent) went with D4.
+    void chunkAt(int, int) {}
 };
 }  // namespace
 
 TEST_F(HeadlessWorld, NoChunksMeansNoDerivedBounds) {
-    EXPECT_FALSE(cm.derivedWorldExtentXZ().valid);
     EXPECT_FALSE(cm.effectivePlayBounds().valid);
     EXPECT_STREQ(cm.playBoundsSource(), "none (no chunks)");
-}
-
-TEST_F(HeadlessWorld, TheDerivedExtentIsTheRectangleOfTheChunksTheWorldHas) {
-    // Ravenmere farm shape: chunks x,z in -1..1 -> voxels -32..64 (half-open).
-    for (int x = -1; x <= 1; ++x)
-        for (int z = -1; z <= 1; ++z) chunkAt(x, z);
-    const PlayBounds b = cm.derivedWorldExtentXZ();
-    ASSERT_TRUE(b.valid);
-    EXPECT_FLOAT_EQ(b.minX, -32.0f); EXPECT_FLOAT_EQ(b.maxX, 64.0f);
-    EXPECT_FLOAT_EQ(b.minZ, -32.0f); EXPECT_FLOAT_EQ(b.maxZ, 64.0f);
-    EXPECT_STREQ(cm.playBoundsSource(), "derived (chunk extent)");
-    // the farm's authored entry is inside; the red run's resting place is not
-    EXPECT_TRUE(b.contains(glm::vec3(6.0f, 17.0f, 16.0f)));
-    EXPECT_FALSE(b.contains(glm::vec3(5.98f, -577.0f, -36.2f)));
-}
-
-TEST_F(HeadlessWorld, TheDerivedExtentFollowsNewChunksAndIsOrderIndependent) {
-    chunkAt(0, 0);
-    EXPECT_FLOAT_EQ(cm.derivedWorldExtentXZ().maxX, 32.0f);
-    chunkAt(3, -2);                                   // a far chunk: the extent grows to include it
-    const PlayBounds b = cm.derivedWorldExtentXZ();
-    EXPECT_FLOAT_EQ(b.minX, 0.0f);   EXPECT_FLOAT_EQ(b.maxX, 128.0f);
-    EXPECT_FLOAT_EQ(b.minZ, -64.0f); EXPECT_FLOAT_EQ(b.maxZ, 32.0f);
-    // the same two chunks in the other order give the same rectangle (a min/max over a set)
-    Phyxel::ChunkManager other; other.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    other.addCubeWithMaterial(glm::ivec3(3 * 32 + 3, 5, -2 * 32 + 3), "Stone");
-    other.addCubeWithMaterial(glm::ivec3(3, 5, 3), "Stone");
-    const PlayBounds c = other.derivedWorldExtentXZ();
-    EXPECT_FLOAT_EQ(c.minX, b.minX); EXPECT_FLOAT_EQ(c.maxX, b.maxX);
-    EXPECT_FLOAT_EQ(c.minZ, b.minZ); EXPECT_FLOAT_EQ(c.maxZ, b.maxZ);
-}
-
-TEST_F(HeadlessWorld, AuthoredBoundsBeatTheDerivedExtent) {
-    for (int x = -1; x <= 1; ++x)
-        for (int z = -1; z <= 1; ++z) chunkAt(x, z);
-    cm.setAuthoredPlayBounds(PlayBounds::make(0.0f, 0.0f, 20.0f, 20.0f));
-    const PlayBounds e = cm.effectivePlayBounds();
-    EXPECT_FLOAT_EQ(e.maxX, 20.0f) << "a designer's smaller stage wins";
-    EXPECT_STREQ(cm.playBoundsSource(), "authored");
-    cm.clearAuthoredPlayBounds();
-    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 64.0f) << "cleared: back to the chunk extent";
 }
 
 TEST_F(HeadlessWorld, AStreamingWorldWithoutARegionHasNoBoundsButARegionBeatsStreaming) {
@@ -159,16 +118,6 @@ TEST_F(HeadlessWorld, AStreamingWorldWithoutARegionHasNoBoundsButARegionBeatsStr
     EXPECT_FALSE(cm.effectivePlayBounds().valid);
 }
 
-TEST_F(HeadlessWorld, TheRegionBeatsTheDerivedExtentOnAStaticWorldToo) {
-    // A static world with extra chunks around its region (a hand-baked margin) still walls
-    // the region, not the whole chunk rectangle.
-    for (int x = -2; x <= 2; ++x)
-        for (int z = -2; z <= 2; ++z) chunkAt(x, z);
-    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
-    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().minX, -32.0f);
-    EXPECT_FLOAT_EQ(cm.derivedWorldExtentXZ().minX, -64.0f) << "the chunks do go further";
-}
-
 // ---------------------------------------------------------------- the loader's norm
 
 namespace {
@@ -185,7 +134,7 @@ TEST_F(HeadlessWorld, StreamingIsTheDefaultForHeightBasedTerrainAndTheRegionIsTh
     GameSubsystems subs; subs.chunkManager = &cm;
     const auto r = GameDefinitionLoader::load(flatRegion(1), subs);
     ASSERT_TRUE(r.success) << r.error;
-    EXPECT_EQ(r.chunksGenerated, 9);
+    EXPECT_EQ(r.chunksGenerated, 0);   // D4: today's Chunk generation went with the Chunk store (was 9)
     EXPECT_TRUE(r.streaming) << "no `streaming` key on a Flat world: streamed surround is the norm";
     EXPECT_TRUE(r.toJson().value("streaming", false));
     EXPECT_TRUE(cm.isStreamingGenerationEnabled());
@@ -302,8 +251,9 @@ TEST_F(HeadlessWorld, AControlCharacterWithoutBoundsWalksPastTheEdge) {
 }
 
 TEST_F(HeadlessWorld, ACharacterWithBoundsIsHeldAtTheEdgeOnEveryFrame) {
-    for (int x = -1; x <= 1; ++x)
-        for (int z = -1; z <= 1; ++z) chunkAt(x, z);   // the farm's rectangle: z >= -32
+    // the farm's rectangle (z >= -32). D4: it was the chunk extent derived from today's Chunks; the same rectangle
+    // is set as the region (the switched world's wall) now that the Chunk store is gone.
+    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
     WalkSouth w;
     ASSERT_TRUE(w.run(&cm));
     EXPECT_GE(w.minZ, -32.0f) << "the wall: no frame puts the body centre past the edge";

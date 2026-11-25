@@ -9,7 +9,6 @@ namespace Phyxel {
 
 // Forward declarations
 class ChunkManager;
-class Chunk;
 class GpuParticlePhysics;
 namespace Physics {
     class PhysicsWorld;
@@ -43,33 +42,6 @@ public:
         GetPhysicsWorldFunc physicsWorldFunc
     );
     
-    // =========================================================================
-    // VOXEL BREAKING OPERATIONS (with physics)
-    // =========================================================================
-    
-    /**
-     * Break a cube and convert it to a dynamic physics object
-     * @param location CubeLocation identifying the cube
-     * @param cameraPos Camera position for calculating impulse direction
-     * @param applyForce Whether to apply impulse forces (true for mouse breaking, false for gentle removal)
-     * @return true if cube was successfully broken
-     */
-    bool breakCube(const CubeLocation& location, const glm::vec3& cameraPos, bool applyForce = true);
-    
-    // =========================================================================
-    // VOXEL PLACEMENT OPERATIONS
-    // =========================================================================
-    
-    /**
-     * Place a cube at the specified world position
-     * Will auto-create chunk if it doesn't exist
-     * Fails if position is already occupied
-     * @param worldPos World position where cube should be placed
-     * @param color Color/material of the cube
-     * @return true if cube was successfully placed
-     */
-    bool placeCube(const glm::ivec3& worldPos, const glm::vec3& color);
-    
     /// Set a callback that returns the material name to use when placing voxels.
     /// Called at placement time, so the provider always returns the current selection.
     /// An empty string or unset provider means no material (uses addCube default).
@@ -99,15 +71,9 @@ public:
     }
 private:
     std::function<GpuParticlePhysics*()> m_gpuDebris;
-    /// Spawn one broken piece as GPU debris (refused + counted without a GPU solver).
-    bool spawnPiece(const glm::vec3& centre, float edge, const std::string& material);
-    
-    // Helper methods for material selection
-    std::string selectMaterialForCube(const glm::vec3& cubeWorldPos) const;
-    
-    // Helper methods for placement
-    glm::vec3 getCurrentPlacementColor() const;
-    bool ensureChunkExists(const glm::ivec3& worldPos);
+public:
+    /// The GPU debris solver broken pieces go to (null = none wired).
+    GpuParticlePhysics* gpuDebris() const { return m_gpuDebris ? m_gpuDebris() : nullptr; }
 };
 
 } // namespace Phyxel

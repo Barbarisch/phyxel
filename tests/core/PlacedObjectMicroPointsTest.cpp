@@ -43,7 +43,7 @@ const InteractionPoint* seatOf(const PlacedObjectManager& pom, const std::string
 TEST(PlacedObjectMicroPoints, MicroPlacementCarriesItsSeatAtTheRealOriginNotTheFlooredCube) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    cm.createChunk(glm::ivec3(0, 0, 0), /*populate=*/false);
+    // (cm.createChunk -- an empty Chunk for the placement -- went with D4)
     ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(writeTempSeat().string()));
     const VoxelTemplate* tmpl = otm.getTemplate("test_micro_seat");
@@ -71,7 +71,7 @@ TEST(PlacedObjectMicroPoints, MicroPlacementCarriesItsSeatAtTheRealOriginNotTheF
 TEST(PlacedObjectMicroPoints, PlacementAndReloadAgreeBitForBit) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    cm.createChunk(glm::ivec3(0, 0, 0), false);
+    // (cm.createChunk -- an empty Chunk for the placement -- went with D4)
     ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(writeTempSeat().string()));
     const VoxelTemplate* tmpl = otm.getTemplate("test_micro_seat");

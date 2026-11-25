@@ -1,5 +1,4 @@
 #include "IntegrationTestFixture.h"
-#include "core/Chunk.h"
 #include <glm/glm.hpp>
 
 namespace Phyxel {

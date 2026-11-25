@@ -4998,14 +4998,6 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("camera_path", json::object()).dump(), "application/json");
     });
 
-    // GET /api/debug/mesh_timing?reset=0|1 — chunk re-mesh cost by phase and by the chunk's
-    // microcube count (PerfProgram I7). reset=1 zeroes the counters after reading.
-    srv.Get("/api/debug/mesh_timing", [this](const httplib::Request& req, httplib::Response& res) {
-        json params = json::object();
-        if (req.has_param("reset")) params["reset"] = req.get_param_value("reset");
-        res.set_content(queueAndWait("get_mesh_timing", params).dump(), "application/json");
-    });
-
     // GET /api/debug/frame_profile — Per-phase CPU frame profile tree (input/update/render)
     srv.Get("/api/debug/frame_profile", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_frame_profile", json::object());

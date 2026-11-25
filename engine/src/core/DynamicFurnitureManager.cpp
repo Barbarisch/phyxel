@@ -203,20 +203,7 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
 
     // 6. Remove static voxels from chunks and rebuild physics collision
     m_placedObjects->clearVoxelsOnly(placedObjectId);
-    if (m_chunkManager) {
-        glm::ivec3 cMin = ChunkManager::worldToChunkCoord(placed->boundingMin);
-        glm::ivec3 cMax = ChunkManager::worldToChunkCoord(placed->boundingMax);
-        for (int cx = cMin.x; cx <= cMax.x; ++cx) {
-            for (int cy = cMin.y; cy <= cMax.y; ++cy) {
-                for (int cz = cMin.z; cz <= cMax.z; ++cz) {
-                    Chunk* chunk = m_chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-                    if (chunk) {
-                        chunk->updateChunkPhysicsBody();
-                    }
-                }
-            }
-        }
-    }
+    // (Today's chunk physics bodies were refreshed here; they went with the Chunk store in D4.)
 
     // 7. Create VoxelDynamicsWorld rigid body
     obj.rigidBody = voxelWorld->createBody(localBoxes, worldPos, initOrientation,

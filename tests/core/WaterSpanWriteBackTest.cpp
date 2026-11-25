@@ -20,7 +20,7 @@ ColumnRun run(float lo, float hi) { ColumnRun r; r.bottomY = lo; r.topY = hi; r.
 TEST(WaterSpanWriteBackTest, ClipAcrossAVerticalBorderAndReassemble) {
     // one run 20.5 .. 40.25 in column (35, 7): chunk (1, 0, 0) holds 20.5..32, chunk (1, 1, 0) holds 32..40.25
     WorldSpan s; s.x = 35; s.z = 7; s.bottomY = 20.5f; s.topY = 40.25f;
-    std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+    std::map<int, std::vector<WaterSpanLocal>> clips;
     clipSpansToChunks({s}, 1, 0, 0, 1, clips);
     ASSERT_EQ(clips.size(), 2u);
     ASSERT_EQ(clips[0].size(), 1u);
@@ -28,7 +28,7 @@ TEST(WaterSpanWriteBackTest, ClipAcrossAVerticalBorderAndReassemble) {
     EXPECT_EQ(clips[0][0].x, 3); EXPECT_EQ(clips[0][0].z, 7);
     EXPECT_FLOAT_EQ(clips[0][0].bottom, 20.5f); EXPECT_FLOAT_EQ(clips[0][0].top, 32.0f) << "continues above";
     EXPECT_FLOAT_EQ(clips[1][0].bottom, 0.0f);  EXPECT_FLOAT_EQ(clips[1][0].top, 8.25f);
-    std::map<int, const std::vector<Chunk::WaterSpanLocal>*> chunks{{0, &clips[0]}, {1, &clips[1]}};
+    std::map<int, const std::vector<WaterSpanLocal>*> chunks{{0, &clips[0]}, {1, &clips[1]}};
     const auto back = assembleColumnSpans(chunks, 1, 0);
     ASSERT_EQ(back.size(), 1u) << "the two clips are one run again";
     EXPECT_EQ(back[0].x, 35); EXPECT_EQ(back[0].z, 7);
@@ -51,7 +51,7 @@ TEST(WaterSpanWriteBackTest, MergeReplacesOnlyTheBoxRange) {
 }
 
 TEST(WaterSpanWriteBackTest, DrainedChunkIsClearedNotKept) {
-    std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+    std::map<int, std::vector<WaterSpanLocal>> clips;
     clipSpansToChunks({}, 0, 0, 0, 2, clips);
     ASSERT_EQ(clips.size(), 3u) << "every chunk of the range is present so the caller clears it";
     for (auto& [cy, l] : clips) EXPECT_TRUE(l.empty());
@@ -81,11 +81,11 @@ TEST(WaterCoreSeamTest, WriteBackIdenticalAcrossChunkSeams) {
         cols.push_back(c);
     }
     // write: per chunk column, merge into (empty) existing spans, clip to the chunks the box crosses
-    std::map<std::pair<int, int>, std::map<int, std::vector<Chunk::WaterSpanLocal>>> stored;   // (cx,cz) -> cy -> spans
+    std::map<std::pair<int, int>, std::map<int, std::vector<WaterSpanLocal>>> stored;   // (cx,cz) -> cy -> spans
     for (const auto& c : cols) {
         const int cx = c.x / 32, cz = c.z / 32;
         auto& chunkCol = stored[{cx, cz}];
-        std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+        std::map<int, const std::vector<WaterSpanLocal>*> have;
         for (auto& [cy, l] : chunkCol) have[cy] = &l;
         auto world = assembleColumnSpans(have, cx, cz);
         // keep other columns, replace this one
@@ -93,7 +93,7 @@ TEST(WaterCoreSeamTest, WriteBackIdenticalAcrossChunkSeams) {
         for (const auto& w : world) if (!(w.x == c.x && w.z == c.z)) others.push_back(w);
         auto merged = mergeColumnRuns(world, c.x, c.z, 28.0f, 37.0f, c.runs);
         others.insert(others.end(), merged.begin(), merged.end());
-        std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+        std::map<int, std::vector<WaterSpanLocal>> clips;
         clipSpansToChunks(others, cx, cz, 0, 1, clips);
         chunkCol = clips;
     }
@@ -108,7 +108,7 @@ TEST(WaterCoreSeamTest, WriteBackIdenticalAcrossChunkSeams) {
     // read back per chunk column and compare with the world-space runs
     for (const auto& c : cols) {
         const int cx = c.x / 32, cz = c.z / 32;
-        std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+        std::map<int, const std::vector<WaterSpanLocal>*> have;
         for (auto& [cy, l] : stored[{cx, cz}]) have[cy] = &l;
         const auto world = assembleColumnSpans(have, cx, cz);
         int found = 0;

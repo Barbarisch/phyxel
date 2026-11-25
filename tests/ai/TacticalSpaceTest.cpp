@@ -2,6 +2,7 @@
 
 #include "ai/TacticalSpace.h"
 #include "core/ChunkManager.h"
+#include "../core/CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "physics/PhysicsWorld.h"
 
 using namespace Phyxel;
@@ -25,13 +26,14 @@ protected:
         // Floor: y=16 across the chunk, so feet at y=17 are standable.
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z)
-                cm.addCubeWithMaterial(glm::ivec3(x, 16, z), "Stone");
+                terrain.addCube(glm::ivec3(x, 16, z));   // D4: was cm.addCubeWithMaterial into today's Chunk
+        terrain.install(cm);
     }
 
     /// A wall of `h` cubes at (x,z), rising from the floor.
     void pillar(int x, int z, int h) {
         for (int i = 1; i <= h; ++i)
-            cm.addCubeWithMaterial(glm::ivec3(x, 16 + i, z), "Stone");
+            terrain.addCube(glm::ivec3(x, 16 + i, z));
     }
 
     /// Feet position on the floor.
@@ -40,6 +42,7 @@ protected:
     // physics BEFORE cm: members destruct in reverse order, and ~Chunk
     // unregisters its occupancy grid from the physics world.
     Phyxel::Physics::PhysicsWorld physics;
+    Phyxel::Testing::CubeWorldReads terrain;
     ChunkManager cm;
 };
 
@@ -79,7 +82,7 @@ TEST_F(TacticalSpaceTest, StandableRequiresGroundAndHeadroom) {
     EXPECT_TRUE(AI::TacticalSpace::isStandable(cm, feet(10, 10)));
 
     // Roofed in: ground is there, but the body does not fit.
-    cm.addCubeWithMaterial(glm::ivec3(10, 17, 10), "Stone");
+    terrain.addCube(glm::ivec3(10, 17, 10));
     EXPECT_FALSE(AI::TacticalSpace::isStandable(cm, feet(10, 10)));
 
     // No ground at all (above the floor, nothing underfoot).

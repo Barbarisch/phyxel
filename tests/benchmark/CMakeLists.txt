@@ -3,7 +3,6 @@
 
 add_executable(phyxel_benchmarks
     BenchmarkFixture.h
-    ChunkBenchmarks.cpp
     PhysicsBenchmarks.cpp
 )
 

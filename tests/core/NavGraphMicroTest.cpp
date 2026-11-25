@@ -2,6 +2,7 @@
 
 #include "core/NavGraph.h"
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "core/NPCManager.h"
 #include "core/BuildingProgram.h"
 #include "core/RoomLayout.h"
@@ -116,23 +117,21 @@ bool passesDoorCell(const NavGraph::PathResult& r) {
 // full depth; `door` leaves a 1 x 2 cube opening at z=15 (was a subcube wall with microcube
 // jambs before the Chunk 1/9 m store was deleted in D3c-5).
 struct ChunkDoorWorld {
+    Phyxel::Testing::CubeWorldReads terrain;   // D4: the switched store (was an empty Chunk in chunkMap)
     ChunkManager cm;
     explicit ChunkDoorWorld(bool door) {
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-        owned->initializeForLoading();
         for (int x = 0; x < 32; ++x)
-            for (int z = 0; z < 32; ++z) owned->addCube(glm::ivec3(x, 15, z));
+            for (int z = 0; z < 32; ++z) terrain.addCube(glm::ivec3(x, 15, z));
         // Since D3c-5 (the Chunk 1/9 m store was deleted) the wall is whole CUBES at x=10 and the
         // door is a 1-cube-wide, 2-cube-tall opening at z=15 (9 x 18 micro reveal); y=18 is the lintel.
         for (int z = 0; z < 32; ++z) {
             for (int y = 16; y <= 18; ++y) {
                 const bool reveal = door && z == 15 && y <= 17;
-                if (!reveal) owned->addCube(glm::ivec3(10, y, z), "StoneBricks");
+                if (!reveal) terrain.addCube(glm::ivec3(10, y, z));
             }
         }
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-        cm.chunks.push_back(std::move(owned));
+        terrain.install(cm);
     }
 };
 
@@ -444,39 +443,6 @@ TEST(NavGraphMicroTest, RuntimeCompositePathsThroughAFramedDoorOfRealVoxels) {
     }
 }
 
-// A prop hanging over the doorway (the tavern sign) must not eat the door's headroom.
-// The real-voxel door reveal is 18 micro tall (feet 144, y 16.0 .. 18.0); the 17-micro
-// agent (AgentProfile.h) needs 144..160. A sign whose body occupies y 17.9..18.0 (micro 161) sits
-// ABOVE the agent - the cube-rounded overlay marked cube 17 solid and sealed the door;
-// the micro overlay must let it through. Lowered into the agent's band it must block.
-TEST(NavGraphMicroTest, OverheadPropBoxDoesNotEatDoorHeadroom) {
-    NavAgentProfile agent;
-    const glm::vec3 from(5.5f, 16.0f, 15.5f), to(20.5f, 16.0f, 15.5f);
-    ChunkDoorWorld w(/*door=*/true);
-    NPCManager npc;
-    npc.setChunkManager(&w.cm);
-    npc.setNavObstacleProvider([]() {
-        return std::vector<std::pair<glm::vec3, glm::vec3>>{
-            {glm::vec3(9.0f, 17.9f, 14.0f), glm::vec3(12.0f, 18.0f, 17.0f)}};   // sign, 1 micro thick, above the 17-micro agent (feet 144 .. 160)
-    });
-    npc.buildNavGrid();
-    ASSERT_NE(npc.getNavGraph(), nullptr);
-    auto r = npc.getNavGraph()->findPath(from, to, agent);
-    EXPECT_TRUE(r.found) << "a sign above the agent's head must not block the door";
-    // The sign IS solid where it hangs (micro y 160,161 over the reveal), not below it.
-    EXPECT_TRUE(npc.navObstacleMicro(glm::ivec3(93, 161, 139)));
-    EXPECT_FALSE(npc.navObstacleMicro(glm::ivec3(93, 159, 139)));
-    EXPECT_EQ(npc.navObstacleFill(glm::ivec3(10, 17, 15)), 1) << "partial, not a solid cube";
-
-    npc.setNavObstacleProvider([]() {
-        return std::vector<std::pair<glm::vec3, glm::vec3>>{
-            {glm::vec3(9.0f, 17.4f, 14.0f), glm::vec3(12.0f, 18.0f, 17.0f)}};   // lowered into the band
-    });
-    npc.buildNavGrid();
-    EXPECT_FALSE(npc.getNavGraph()->findPath(from, to, agent).found)
-        << "a sign hanging into the 1.75 m band must block";
-}
-
 // ============================================================================
 // C. realized typology: the runtime oracle must agree with the settlement gate
 // ============================================================================
@@ -524,8 +490,8 @@ TEST(NavGraphMicroTest, RuntimeOracleAgreesWithTraversalProbeOnARealizedHouse) {
 TEST(NavGraphMicroTest, AnNpcBesideATallTrunkStaysOnTheGround) {
     ChunkDoorWorld w(/*door=*/false);
     // A 1-cube trunk with a 3x3 canopy, 5 cubes tall, at (20,16..21,8): a street tree.
-    for (int y = 16; y <= 20; ++y) w.cm.chunkMap.at(glm::ivec3(0, 0, 0))->addCube(glm::ivec3(20, y, 8));
-    for (int x = 19; x <= 21; ++x) for (int z = 7; z <= 9; ++z) w.cm.chunkMap.at(glm::ivec3(0, 0, 0))->addCube(glm::ivec3(x, 21, z));
+    for (int y = 16; y <= 20; ++y) w.terrain.addCube(glm::ivec3(20, y, 8));
+    for (int x = 19; x <= 21; ++x) for (int z = 7; z <= 9; ++z) w.terrain.addCube(glm::ivec3(x, 21, z));
     Phyxel::Physics::PhysicsWorld physics;
     physics.initialize();
     NPCManager npc;

@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelOccupancyGrid.h"
 #include "core/ItemEffectSystem.h"
 #include "core/ItemRegistry.h"
 #include "core/KinematicVoxelManager.h"
@@ -18,6 +21,8 @@
 
 #include <map>
 #include <set>
+#include <tuple>
+#include <vector>
 
 using namespace Phyxel;
 using namespace Phyxel::Core;
@@ -77,21 +82,29 @@ TEST(NpcTorchPolicyTest, NightAndIndoorLatchesHaveHysteresis) {
 
 namespace {
 struct World {
+    // D4: the cubes live in the switched store (reads routed through setVoxFoundReads) and, for collision, in
+    // per-chunk occupancy grids registered by registerCollision -- today's Chunk (and its physics body) went with D4.
+    Phyxel::Testing::CubeWorldReads terrain;
     ChunkManager cm;
-    World() { cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE); }
-    Phyxel::Chunk* chunkFor(const glm::ivec3& w) {
+    std::set<std::tuple<int, int, int>> cubes;
+    std::vector<std::unique_ptr<Phyxel::Physics::VoxelOccupancyGrid>> grids;
+    World() { cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE); terrain.install(cm); }
+    void cube(const glm::ivec3& w) { terrain.addCube(w); cubes.insert({w.x, w.y, w.z}); }
+    void registerCollision(Phyxel::Physics::PhysicsWorld& physics) {
         auto fd = [](int a) { return a >= 0 ? a / 32 : -((-a + 31) / 32); };
-        const glm::ivec3 c(fd(w.x), fd(w.y), fd(w.z));
-        auto it = cm.chunkMap.find(c);
-        if (it != cm.chunkMap.end()) return it->second;
-        auto chunk = std::make_unique<Phyxel::Chunk>(c * 32);
-        chunk->initializeForLoading();
-        Phyxel::Chunk* raw = chunk.get();
-        cm.chunkMap[c] = raw;
-        cm.chunks.push_back(std::move(chunk));
-        return raw;
+        std::map<std::tuple<int, int, int>, Phyxel::Physics::VoxelOccupancyGrid*> byChunk;
+        for (const auto& [x, y, z] : cubes) {
+            const glm::ivec3 c(fd(x), fd(y), fd(z));
+            auto& g = byChunk[{c.x, c.y, c.z}];
+            if (!g) {
+                grids.push_back(std::make_unique<Phyxel::Physics::VoxelOccupancyGrid>());
+                g = grids.back().get();
+                g->setChunkOrigin(c * 32);
+            }
+            g->setCube(glm::ivec3(x, y, z) - c * 32, true);
+        }
+        for (auto& g : grids) physics.getVoxelWorld()->registerGrid(g.get());
     }
-    void cube(const glm::ivec3& w) { chunkFor(w)->addCube(w - (w / 32) * 32); }
     void ground(int x0, int x1, int z0, int z1) {
         for (int x = x0; x <= x1; ++x) for (int z = z0; z <= z1; ++z) cube(glm::ivec3(x, 15, z));
     }
@@ -175,10 +188,7 @@ struct Town {
         // Collision for the rig's chunks, or every NPC falls through the floor and the shelter
         // scan runs in the void (the first version of this rig did exactly that).
         world.cm.setPhysicsWorld(&physics);
-        for (auto& c : world.cm.chunks) {
-            c->setPhysicsWorld(&physics);
-            c->createChunkPhysicsBody();
-        }
+        world.registerCollision(physics);
         npcs.setChunkManager(&world.cm);
         npcs.setPhysicsWorld(&physics);
         npcs.setDayNightCycle(&cycle);

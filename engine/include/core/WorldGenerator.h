@@ -18,7 +18,6 @@
 
 namespace Phyxel {
 
-class Chunk;
 struct WorldRecipe;
 class HydrologyMap;
 class FlowField;
@@ -49,9 +48,6 @@ public:
     
     // Constructor
     explicit WorldGenerator(GenerationType type = GenerationType::Random, uint32_t seed = 0);
-    
-    // Generate chunk content
-    void generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord);
     
     // Set custom generation function
     void setCustomGenerator(GenerationFunction func) { customGenerator = func; generationType = GenerationType::Custom; }

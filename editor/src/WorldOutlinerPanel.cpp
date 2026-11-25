@@ -522,7 +522,7 @@ void WorldOutlinerPanel::renderPlacedObjectNode(const Core::PlacedObject& obj,
 void WorldOutlinerPanel::renderChunksSection() {
     if (!m_chunkManager) return;
 
-    size_t chunkCount = m_chunkManager->chunkMap.size();
+    size_t chunkCount = 0;   // today's Chunk store went with D4
     char label[128];
     snprintf(label, sizeof(label), "Chunks (%zu)###Chunks", chunkCount);
 
@@ -533,13 +533,6 @@ void WorldOutlinerPanel::renderChunksSection() {
     struct ChunkInfo { glm::ivec3 origin; size_t cubes; };
     std::vector<ChunkInfo> infos;
     infos.reserve(chunkCount);
-    for (auto& [coord, chunk] : m_chunkManager->chunkMap) {
-        if (!chunk) continue;
-        infos.push_back({
-            chunk->getWorldOrigin(),
-            chunk->getCubeCount()
-        });
-    }
     std::sort(infos.begin(), infos.end(), [](const ChunkInfo& a, const ChunkInfo& b) {
         if (a.origin.x != b.origin.x) return a.origin.x < b.origin.x;
         if (a.origin.y != b.origin.y) return a.origin.y < b.origin.y;

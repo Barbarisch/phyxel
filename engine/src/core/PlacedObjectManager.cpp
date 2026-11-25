@@ -4,7 +4,6 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/SnapshotManager.h"
 #include "core/VoxelTemplate.h"
-#include "core/Chunk.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
 
@@ -539,23 +538,7 @@ PlacedObjectManager::SeatPlan PlacedObjectManager::seatStructure(
     // ---- excavate the terrain the structure occupies (occupied columns, floor..top) ----
     // Keep terrain BELOW the floor as foundation; remove the floor-level cube (grass) and
     // anything poking into the body so the placed floor isn't buried or fighting terrain.
-    std::set<Chunk*> dirty;
-    for (auto& [k, xz] : colXZ) {
-        std::vector<glm::ivec3> rm;
-        Chunk* ch = nullptr;
-        for (int wy = plan.floorWorldY; wy <= structTopY; ++wy) {
-            glm::ivec3 wp(xz.first, wy, xz.second);
-            if (!m_chunkManager->hasVoxelAt(wp)) continue;
-            glm::ivec3 cc = ChunkManager::worldToChunkCoord(wp);
-            glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-            Chunk* c2 = m_chunkManager->getChunkAtCoord(cc);
-            if (!c2) continue;
-            c2->removeCube(lp, /*deferRebuild=*/true);
-            dirty.insert(c2);
-            ++plan.excavated;
-        }
-        (void)ch; (void)rm;
-    }
+    // (Excavation of today's Chunk cells ran here; the Chunk store went with D4.)
 
     // ---- steps: in front of GROUND-LEVEL openings where the exterior ground is lower ----
     // A doorway column has the floor layer but NO wall directly above it, and a neighbor
@@ -578,19 +561,13 @@ PlacedObjectManager::SeatPlan PlacedObjectManager::seatStructure(
                 int rise = prevSurface - extSurface;
                 if (rise > maxStepRise * 6) break;        // too tall to bridge sanely
                 int stepTopY = prevSurface - 1;           // one cube down from the prior tread
-                glm::ivec3 wp(ex, stepTopY, ez);
-                glm::ivec3 cc = ChunkManager::worldToChunkCoord(wp);
-                glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-                Chunk* ch = m_chunkManager->getChunkAtCoord(cc);
-                if (ch && ch->addCube(lp, stepMaterial)) { dirty.insert(ch); ++plan.stepsPlaced; }
+                (void)stepMaterial;   // (the step cube went into today's Chunk store; D4)
                 prevSurface = stepTopY + 1;
             }
             break; // one exit direction per opening
         }
     }
 
-    for (Chunk* c : dirty) m_chunkManager->markChunkDirty(c);
-    if (!dirty.empty()) m_chunkManager->updateDirtyChunks();
 
     plan.flush = true;  // floorWorldY == groundTop by construction; scan-verified by the caller
     plan.ok    = true;
@@ -636,21 +613,7 @@ void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& m
         }
     }
 
-    bool anyModified = false;
-    for (auto& [cc, positions] : chunkBatches) {
-        Chunk* chunk = m_chunkManager->getChunkAtCoord(cc);
-        if (!chunk) continue;
-
-        chunk->removeCubesBatch(positions);
-        // Mark dirty so updateDirtyChunks() rebuilds with proper cross-chunk culling
-        m_chunkManager->markChunkDirty(chunk);
-        anyModified = true;
-    }
-
-    // Flush dirty chunks immediately so the visual update is applied this frame
-    if (anyModified) {
-        m_chunkManager->updateDirtyChunks();
-    }
+    (void)chunkBatches;   // (today's Chunk cells were cleared here; the Chunk store went with D4)
 }
 
 std::string PlacedObjectManager::placeTemplate(const std::string& templateName,

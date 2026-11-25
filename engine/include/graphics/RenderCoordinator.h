@@ -238,9 +238,7 @@ public:
     struct FarLodChunk {
         glm::ivec3 chunkCoord{0};
         glm::ivec3 worldOrigin{0};
-        // unique_ptr because ChunkRenderBuffer takes the device in its constructor and has
-        // no default ctor -- it cannot be a plain member of a default-constructed struct.
-        std::unique_ptr<ChunkRenderBuffer> buffer;
+        // (the ChunkRenderBuffer went with D4: no far chunk is ever built, the list stays empty)
         uint32_t instanceCount = 0;
         int level = 0;
     };
@@ -1328,7 +1326,7 @@ private:
     size_t m_vfGrassTotal = 0;
     bool m_hideWorld = false;   // F2.8 A/B switch, see setHideWorld
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
-    void applyOcclusionCulling(const glm::vec3& cameraPos, const Utils::Frustum& cameraFrustum);
+    // (applyOcclusionCulling over today's Chunks went with D4.)
     // Scratch containers reused across applyOcclusionCulling() calls (cleared, not
     // reallocated, each frame — .clear() retains bucket/capacity). Avoids per-frame heap churn.
     std::unordered_map<int64_t, size_t> m_occCoordToIdx;

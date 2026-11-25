@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "core/NPCManager.h"
 #include "core/NavGraph.h"
 
@@ -18,16 +19,14 @@ using namespace Phyxel::Core;
 
 namespace {
 struct FlatWorld {
+    Phyxel::Testing::CubeWorldReads terrain;   // D4: was an empty Chunk in chunkMap
     ChunkManager cm;
     FlatWorld() {
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-        owned->initializeForLoading();
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z)
-                owned->addCube(glm::ivec3(x, 15, z));   // floor: stand at y=16
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-        cm.chunks.push_back(std::move(owned));
+                terrain.addCube(glm::ivec3(x, 15, z));   // floor: stand at y=16
+        terrain.install(cm);
     }
 };
 

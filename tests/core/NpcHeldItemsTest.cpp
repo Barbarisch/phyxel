@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "core/ItemEffectSystem.h"
 #include "core/ItemRegistry.h"
 #include "core/KinematicVoxelManager.h"
@@ -21,6 +22,7 @@ using namespace Phyxel::Core;
 
 namespace {
 struct Rig {
+    Phyxel::Testing::CubeWorldReads terrain;
     ChunkManager cm;
     Phyxel::Physics::PhysicsWorld physics;
     NPCManager npcs;
@@ -33,12 +35,9 @@ struct Rig {
 
     Rig() {
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto chunk = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-        chunk->initializeForLoading();
-        for (int x = 0; x < 32; ++x)
-            for (int z = 0; z < 32; ++z) chunk->addCube(glm::ivec3(x, 15, z));
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = chunk.get();
-        cm.chunks.push_back(std::move(chunk));
+        for (int x = 0; x < 32; ++x)   // D4: the floor in the switched store (was an empty Chunk)
+            for (int z = 0; z < 32; ++z) terrain.addCube(glm::ivec3(x, 15, z));
+        terrain.install(cm);
         physics.initialize();
         npcs.setChunkManager(&cm);
         npcs.setPhysicsWorld(&physics);

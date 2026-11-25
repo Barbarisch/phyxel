@@ -4,8 +4,7 @@
 #include "scene/CubeLocation.h"
 #include "scene/VoxelRaycaster.h"
 #include "scene/VoxelManipulationSystem.h"
-#include "scene/interaction/PlacementTool.h"
-#include "scene/interaction/DestructionTool.h"
+#include "scene/interaction/InteractionContext.h"
 #include "core/AudioSystem.h"
 #include "core/SoundRegistry.h"
 #include "scene/IWorldEditor.h"
@@ -182,9 +181,6 @@ private:
     VoxelRaycaster m_raycaster;             // Handles all raycasting operations
     VoxelManipulationSystem m_manipulator;  // Handles voxel removal, subdivision, and breaking
     
-    // Interaction Tools
-    std::unique_ptr<PlacementTool> m_placementTool;
-    std::unique_ptr<DestructionTool> m_destructionTool;
     
     // Hover state
     bool m_hasHoveredCube;
@@ -239,14 +235,6 @@ private:
     // Helper to create interaction context
     InteractionContext createContext() const;
 
-    // Optimized O(1) raycasting functions (delegated to VoxelRaycaster)
-    VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    
-    // Conversion and compatibility functions
-    CubeLocation voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const;
-    
-    // Chunk-based hover management (optimized)
-    void setHoveredCubeInChunksOptimized(const CubeLocation& location);
     void clearHoveredCubeInChunksOptimized();
     
     // Utility functions (delegated to VoxelRaycaster)

@@ -8,11 +8,11 @@
 
 #include <glm/glm.hpp>
 
-#include "core/Chunk.h"
+#include "core/WaterSpanLocal.h"
 #include "core/WorldGenerator.h"
 
 namespace Phyxel {
 
-std::vector<Chunk::WaterSpanLocal> waterSpansForChunk(WorldGenerator& gen, const glm::ivec3& chunkCoord);
+std::vector<WaterSpanLocal> waterSpansForChunk(WorldGenerator& gen, const glm::ivec3& chunkCoord);
 
 }  // namespace Phyxel

@@ -248,7 +248,7 @@ TEST(WorldReads, NavigationPathsThroughAFramedDoorOfNewStoreVoxels) {
         const WorldReads r = w.reads();
         ChunkManager cm;
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        ASSERT_TRUE(cm.chunkMap.empty()) << "no old chunks: every read must come from the new store";
+        // (no old chunks: every read comes from the new store -- today's Chunk store went with D4)
         cm.setVoxFoundReads(&r);
         EXPECT_EQ(cm.getVoxelTypeAt({10, 16, 3}), VoxelLocation::SUBDIVIDED) << "the wall cube is partial";
         EXPECT_TRUE(cm.occupiedMicro({10 * 9 + 6, 16 * 9 + 4, 3 * 9 + 4})) << "inside the wall";

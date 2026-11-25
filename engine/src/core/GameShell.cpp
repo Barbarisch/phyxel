@@ -101,7 +101,8 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.voxFoundStatusProvider = [this]() -> nlohmann::json {   // D3-core: the switched world's state
         auto* cm = gameApi_.runtime ? gameApi_.runtime->getChunkManager() : nullptr;
         nlohmann::json r = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
-                            {"today_chunks_resident", cm ? cm->chunkMap.size() : 0}};
+                            {"today_chunks_resident", 0}};   // no Chunk store since D4
+        (void)cm;
         if (!vfw_) { r["hosted"] = false; return r; }
         r["hosted"] = true;
         r["boot_pending"] = vfw_->voxFoundBootPending;

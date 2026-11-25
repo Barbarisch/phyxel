@@ -335,7 +335,7 @@ private:
 };
 
 // ── Phase D write-back (docs/WaterCore.md 16.2) ──────────────────────────────────────────────
-// The world keeps water as COLUMN SPANS (Chunk::WaterSpanLocal, float tops). An active volume
+// The world keeps water as COLUMN SPANS (WaterSpanLocal, float tops). An active volume
 // writes itself back as RUNS per world voxel column, a pure function of its cells:
 //   * the per^2 sub-columns of each cell layer are averaged to one fill per layer, f̄(y);
 //   * a layer is wet iff f̄·h >= WaterGrid::kSurfaceMinDepth (1 mm);

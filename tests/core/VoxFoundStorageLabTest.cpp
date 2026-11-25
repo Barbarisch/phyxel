@@ -24,7 +24,6 @@
 #include <set>
 
 #include "core/ChunkBlobCodec.h"
-#include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/voxfound/StorageLab.h"
 
@@ -610,11 +609,6 @@ TEST(VoxFoundStorageLab, CodecV3RejectsMalformedBlobs) {
 
 // ---- F3.4: the converter from PXB2 (§3.6, §7a) -------------------------------------------------------------------
 namespace {
-std::unique_ptr<Phyxel::Chunk> todayChunk() {
-    auto c = std::make_unique<Phyxel::Chunk>(glm::ivec3(0));
-    c->initializeForLoading();
-    return c;
-}
 // What a test put into a cube cell below the cube level: ninth-grid materials by name ("" = air).
 struct NinthCell {
     std::string ninth[9][9][9];
@@ -703,14 +697,17 @@ TEST(VoxFoundStorageLab, ConverterCubesAreExact) {
     std::mt19937 rng(3401u);
     auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
     const char* mats[] = {"Stone", "Dirt", "Grass", "Wood", "Bricks"};
-    auto chunk = todayChunk();
+    // D4: the PXB2 blob is written WITHOUT a Chunk (encodePxb2FromRows, same format as the deleted
+    // ChunkBlobCodec::encode) -- the Chunk store went with D4.
     std::map<int, std::string> placed;   // cube index z + 32y + 1024x -> material
     for (int k = 0; k < 6000; ++k) {
         const glm::ivec3 p(rnd(0, 31), rnd(0, 31), rnd(0, 31));
-        const std::string m = mats[rnd(0, 4)];
-        if (chunk->addCube(p, m, true)) placed[p.z + 32 * p.y + 1024 * p.x] = m;
+        placed[p.z + 32 * p.y + 1024 * p.x] = mats[rnd(0, 4)];
     }
-    const std::vector<uint8_t> blob = Phyxel::ChunkBlobCodec::encode(*chunk);
+    Phyxel::Core::VoxFound::V1ChunkRows rows;
+    for (const auto& [ci, m] : placed)
+        rows.cubes.push_back({glm::ivec3(ci / 1024, (ci / 32) % 32, ci % 32), m});
+    const std::vector<uint8_t> blob = Phyxel::Core::VoxFound::encodePxb2FromRows(rows);
     BlockStore s;
     std::vector<std::string> names;
     Pxb2ConvertStats st;
@@ -730,9 +727,11 @@ TEST(VoxFoundStorageLab, ConverterCubesAreExact) {
             }
     EXPECT_EQ(bad, 0u);
     // a whole uniform chunk
-    auto full = todayChunk();
-    full->fillAllCubes("Stone");
-    const std::vector<uint8_t> fb = Phyxel::ChunkBlobCodec::encode(*full);
+    Phyxel::Core::VoxFound::V1ChunkRows fullRows;
+    for (int x = 0; x < 32; ++x)
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 32; ++z) fullRows.cubes.push_back({glm::ivec3(x, y, z), "Stone"});
+    const std::vector<uint8_t> fb = Phyxel::Core::VoxFound::encodePxb2FromRows(fullRows);
     ASSERT_TRUE(convertPxb2(fb.data(), fb.size(), s, names, &st, &err)) << err;
     EXPECT_EQ(st.cubes, 32768u);
     EXPECT_EQ(s.detailedBlocks(), 0u);

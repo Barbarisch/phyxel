@@ -2,6 +2,7 @@
 
 #include "core/WaterManager.h"
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 
 #include <cmath>
 #include <glm/glm.hpp>
@@ -165,22 +166,20 @@ namespace {
 // Ground everywhere at y<=2; wall ring y 3..5 around the 4x4 interior [12,15]^2; 16 cells poured →
 // a settled 1-deep pool at y=3 (surface level 4.0).
 struct TerrainBasinFixture {
+    Phyxel::Testing::CubeWorldReads terrain;   // D4: the switched store (was an empty Chunk in chunkMap)
     ChunkManager cm;
     std::unique_ptr<WaterManager> wm;
     explicit TerrainBasinFixture(const glm::ivec3& origin = glm::ivec3(0, 0, 0), bool pour = true) {
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-        owned->initializeForLoading();
         for (int x = 0; x < 32; ++x)
             for (int z = 0; z < 32; ++z) {
-                for (int y = 0; y <= 2; ++y) owned->addCube(glm::ivec3(x, y, z));
+                for (int y = 0; y <= 2; ++y) terrain.addCube(glm::ivec3(x, y, z));
                 const bool ring = x >= 11 && x <= 16 && z >= 11 && z <= 16 &&
                                   !(x >= 12 && x <= 15 && z >= 12 && z <= 15);
                 if (ring)
-                    for (int y = 3; y <= 5; ++y) owned->addCube(glm::ivec3(x, y, z));
+                    for (int y = 3; y <= 5; ++y) terrain.addCube(glm::ivec3(x, y, z));
             }
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-        cm.chunks.push_back(std::move(owned));
+        terrain.install(cm);
         wm = std::make_unique<WaterManager>(&cm, origin, glm::ivec3(32, 16, 32));
         if (pour) {
             for (int x = 12; x <= 15; ++x)
@@ -1087,8 +1086,7 @@ TEST(WaterManagerTest, ShorelineSnapSkipsVoidColumns) {
 TEST(WaterManagerTest, ValidateTableFlagsCarvedRimLeaksOnly) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-    owned->initializeForLoading();
+    Phyxel::Testing::CubeWorldReads terrain;   // D4: the switched store (was an empty Chunk in chunkMap)
     // A lake basin: interior columns x,z in [10,13] with floor at y=5 (under water, level 8);
     // rim ring x,z in [9,14] \ interior at y=10 (contains); everything else solid to y=10.
     // ONE rim column (9,12) carved down to y=6 — below the level → the leak.
@@ -1097,10 +1095,9 @@ TEST(WaterManagerTest, ValidateTableFlagsCarvedRimLeaksOnly) {
             const bool interior = (x >= 10 && x <= 13 && z >= 10 && z <= 13);
             int top = interior ? 5 : 10;
             if (x == 9 && z == 12) top = 6;   // the carved (leaky) rim column
-            for (int y = 0; y <= top; ++y) owned->addCube(glm::ivec3(x, y, z));
+            for (int y = 0; y <= top; ++y) terrain.addCube(glm::ivec3(x, y, z));
         }
-    cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-    cm.chunks.push_back(std::move(owned));
+    terrain.install(cm);
 
     WaterManager wm(&cm, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
     wm.setWaterTable([](float wx, float wz) -> float {
@@ -1114,55 +1111,6 @@ TEST(WaterManagerTest, ValidateTableFlagsCarvedRimLeaksOnly) {
     EXPECT_EQ(v.rimLeaks, 1) << "exactly the one carved rim column should be flagged";
     EXPECT_EQ(v.worstLeakAt, glm::ivec2(9, 12));
     EXPECT_FLOAT_EQ(v.worstLeakDepth, 2.0f) << "floor(8) - surface 6 = 2";
-}
-
-// ─── Stale-solid window (streamed chunks → water solidity) ────────────────────────────────────────
-// A chunk that streams in INSIDE the water region must push its solids into the sim: without it,
-// water flooded where terrain later loads stays INSIDE that terrain until the next recenter happens
-// to re-read solidity (the stale-solid window). ChunkManager::syncChunkToOccupancy is the per-chunk
-// push the streaming pump's onChunkLoaded hook calls; here we drive it exactly the way the pump
-// does, against a REAL ChunkManager wired to the manager like the editor wires it.
-TEST(WaterManagerTest, StreamedInTerrainDrainsTheWaterItDisplaced) {
-    ChunkManager cm;
-    // The subsystem callbacks (incl. the chunk-map accessor every voxel query needs) are wired in
-    // initialize(), not the constructor — null Vulkan handles are fine headless (nothing in the
-    // wiring touches the device; only chunk-buffer creation would, and we bypass it).
-    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    // Terrain that exists in the world before the water sim knows about it: a solid 8×8 island
-    // block, world x,z in [8,15], y in [0,7]. Built headless and inserted directly (the
-    // createChunk path needs a Vulkan device), exactly what a not-yet-streamed chunk looks like.
-    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
-    owned->initializeForLoading();
-    for (int x = 8; x <= 15; ++x)
-        for (int z = 8; z <= 15; ++z)
-            for (int y = 0; y <= 7; ++y) owned->addCube(glm::ivec3(x, y, z));
-    cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-    cm.chunks.push_back(std::move(owned));
-
-    WaterManager wm(&cm, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
-    cm.setVoxelOccupancyCallback([&wm](int x, int y, int z, bool solid) {
-        wm.setSolidWorld(x, y, z, solid);
-    });
-    // NOTE: the sim's solidity was synced at construction (syncSolidsFromChunks reads the chunk),
-    // so to reproduce the STALE state we flood first with an empty mask: clear the island cells.
-    for (int x = 8; x <= 15; ++x)
-        for (int z = 8; z <= 15; ++z)
-            for (int y = 0; y <= 7; ++y) wm.setSolidWorld(x, y, z, false);
-
-    wm.setWaterTable([](float, float) { return 6.0f; });   // uniform sea, level y=6
-    wm.update(0.1f);
-    ASSERT_GT(wm.totalMass(), 1000.0f) << "sea should have flooded";
-    ASSERT_GT(wm.massAtWorld(glm::vec3(10.5f, 3.5f, 10.5f)), 0.5f)
-        << "precondition: water should sit where the island terrain exists (the stale window)";
-
-    // The chunk "streams in": the pump pushes its solids at every occupancy consumer.
-    cm.syncChunkToOccupancy(glm::ivec3(0, 0, 0));
-    wm.update(0.1f);   // solidity change dirtied the ocean → re-derive + step
-
-    EXPECT_LT(wm.massAtWorld(glm::vec3(10.5f, 3.5f, 10.5f)), 1e-3f)
-        << "water still INSIDE streamed-in terrain — the stale-solid window is back";
-    EXPECT_GT(wm.massAtWorld(glm::vec3(3.5f, 3.5f, 3.5f)), 0.5f)
-        << "open sea next to the island should still be flooded";
 }
 
 // ─── Phase A STRESS (doc-required: docs/Water.md §Phase A "Stress") ───────────────────────

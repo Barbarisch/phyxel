@@ -15,7 +15,7 @@ bool spanLess(const WorldSpan& a, const WorldSpan& b) {
 }
 }  // namespace
 
-bool clipSpanToChunk(const WorldSpan& s, int cy, Chunk::WaterSpanLocal& out) {
+bool clipSpanToChunk(const WorldSpan& s, int cy, WaterSpanLocal& out) {
     const float base = static_cast<float>(cy) * 32.0f;
     const float lo = std::max(s.bottomY, base), hi = std::min(s.topY, base + 32.0f);
     if (hi <= lo) return false;
@@ -26,7 +26,7 @@ bool clipSpanToChunk(const WorldSpan& s, int cy, Chunk::WaterSpanLocal& out) {
     return true;
 }
 
-std::vector<WorldSpan> assembleColumnSpans(const std::map<int, const std::vector<Chunk::WaterSpanLocal>*>& chunks, int cx, int cz) {
+std::vector<WorldSpan> assembleColumnSpans(const std::map<int, const std::vector<WaterSpanLocal>*>& chunks, int cx, int cz) {
     std::vector<WorldSpan> out;
     for (const auto& [cy, spans] : chunks) {
         if (!spans) continue;
@@ -75,20 +75,20 @@ std::vector<WorldSpan> mergeColumnRuns(const std::vector<WorldSpan>& existing, i
 }
 
 void clipSpansToChunks(const std::vector<WorldSpan>& spans, int cx, int cz, int cyLo, int cyHi,
-                       std::map<int, std::vector<Chunk::WaterSpanLocal>>& out) {
+                       std::map<int, std::vector<WaterSpanLocal>>& out) {
     for (int cy = cyLo; cy <= cyHi; ++cy) out[cy];   // present, possibly empty (a drained chunk is cleared)
     for (const auto& s : spans) {
         const int cyA = static_cast<int>(std::floor(s.bottomY / 32.0f));
         const int cyB = static_cast<int>(std::floor((s.topY - 1e-4f) / 32.0f));
         for (int cy = cyA; cy <= cyB; ++cy) {
-            Chunk::WaterSpanLocal l;
+            WaterSpanLocal l;
             if (!clipSpanToChunk(s, cy, l)) continue;
             (void)cx; (void)cz;
             out[cy].push_back(l);
         }
     }
     for (auto& [cy, list] : out)
-        std::sort(list.begin(), list.end(), [](const Chunk::WaterSpanLocal& a, const Chunk::WaterSpanLocal& b) {
+        std::sort(list.begin(), list.end(), [](const WaterSpanLocal& a, const WaterSpanLocal& b) {
             const uint32_t ka = (uint32_t(a.x) << 8) | a.z, kb = (uint32_t(b.x) << 8) | b.z;
             return ka != kb ? ka < kb : a.bottom < b.bottom;
         });

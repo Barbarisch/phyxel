@@ -1163,9 +1163,6 @@ void GameApiService::registerCommands() {
     reg.on("get_cpu_timing", [this](const APICommand& cmd, json& r) {
         r = PerfApi::cpuTiming(renderCoordinator, cmd.params);
     });
-    reg.on("get_mesh_timing", [](const APICommand& cmd, json& r) {
-        r = PerfApi::meshTiming(cmd.params);
-    });
 
     // I5/I6: voxel tier census + per-tier draw masks, same JSON as the editor's routes.
     reg.on("get_voxel_tiers", [this](const APICommand& cmd, json& r) {

@@ -27,9 +27,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/WaterSurfaceRenderPipeline.h"   // 27.27 arena_no_grow red control
 #include "graphics/WaterRenderPipeline.h"   // water_render_grid probe (renderWaterAt)
-#include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
-#include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
 #include "core/MaterialRegistry.h"
 #include "core/PerfApi.h"
 #include "core/TraversalProbe.h"
@@ -85,8 +83,6 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #include "ai/LLMClient.h"
 #include "ai/TTSService.h"  // TTSVoiceHint + setVoiceHintResolver (personality-driven voice)
 #include "core/WorldStorage.h"
-#include "core/Chunk.h"
-#include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldForgeBuildService.h"
 #include "core/WorldForgeLedger.h"
@@ -486,7 +482,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // 32.4 (A2b): the record cache follows residency - the whole set's hash every frame (cheap), one chunk column's on a change
     // (chunk y -4..31 = the record read's world y -128..1023; each chunk's coordinate AND object, a reload into a new object counts)
     waterCore->setRecordResidency(
-        [this]() -> uint64_t { return chunkManager ? Core::residentSetHash(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end()) : 0; },
+        // The resident set was today's Chunk map (empty on the switched world: hash 0); the Chunk store went with D4.
+        [this]() -> uint64_t { return 0; },
         [this](int cx, int cz) -> uint64_t {
             if (!chunkManager) return 0;
             uint64_t h = 0;
@@ -508,7 +505,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             for (auto& [cc, cols] : perChunkCol) {
                 const int cx = cc.first, cz = cc.second;
                 // F7.18: through ChunkManager::waterSpansAt (today's chunks, or the switched world's store)
-                std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+                std::map<int, const std::vector<WaterSpanLocal>*> have;
                 bool allResident = true;
                 for (int cy = cyLo; cy <= cyHi; ++cy) {
                     const auto* l = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz));
@@ -530,7 +527,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 // clip back into the resident chunks of this column (only those; others keep their clips)
                 int cyMin = INT_MAX, cyMax = INT_MIN;
                 for (auto& [cy, l] : have) { cyMin = std::min(cyMin, cy); cyMax = std::max(cyMax, cy); }
-                std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+                std::map<int, std::vector<WaterSpanLocal>> clips;
                 clipSpansToChunks(result, cx, cz, cyMin, cyMax, clips);
                 for (auto& [cy, list] : clips) {
                     // a span clip aimed at a non-resident chunk outside the box range: it keeps what it had (assembled
@@ -553,7 +550,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             std::vector<WorldSpan> all;
             for (int cz = floorDiv32(minVoxel.z); cz <= floorDiv32(maxVoxel.z); ++cz)
                 for (int cx = floorDiv32(minVoxel.x); cx <= floorDiv32(maxVoxel.x); ++cx) {
-                    std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+                    std::map<int, const std::vector<WaterSpanLocal>*> have;
                     for (int cy = floorDiv32(minVoxel.y) - 1; cy <= floorDiv32(maxVoxel.y) + 1; ++cy)
                         if (const auto* l = chunkManager->waterSpansAt(glm::ivec3(cx, cy, cz))) have[cy] = l;
                     for (const auto& w : assembleColumnSpans(have, cx, cz))
@@ -948,9 +945,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
 
         const glm::ivec3 wp(x, y, z);
-        auto* cube = chunkManager->getCubeAt(wp);
+        {   // today's Chunk cube (with its accumulated damage) went with D4: there is never a full cube here
 
-        if (!cube) {
             // No full cube here. Either a SUBDIVIDED cell (subcubes/microcubes -- which is
             // every generated building wall) or genuinely air. getCubeAt returns null for
             // both, so hasVoxelAt separates them. NOTE: `exists` previously reported a solid
@@ -970,45 +966,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             return result;
         }
 
-        result["exists"] = true;
-        result["damage_tracked"] = true;
-
-        const std::string& material = cube->getMaterialName();
-        result["material"] = material;   // needed to interpret the values below
-
-        // responseFor is static -- it reads only MaterialRegistry, never world state.
-        const float toughness = Phyxel::DamageSystem::responseFor(material).toughness;
-        const float energy    = cube->getAccumulatedDamage();
-
-        // Units named at the field, and the DENOMINATOR echoed, so a caller can reproduce
-        // damage01 and catch a normalization change without reading engine source.
-        result["damage_energy"] = energy;            // apply_damage `energy` units
-        result["toughness"]     = toughness;         // same units; energy needed to break
-        result["damage01"]      = (toughness > 0.0f) // fraction of break toughness, [0,1]
-                                    ? std::min(1.0f, std::max(0.0f, energy / toughness))
-                                    : 0.0f;
-        // The stage the SHADER actually receives, not a re-derivation: a test asserting only
-        // on damage01 could pass while the rendered surface showed something else. Resolved
-        // through the SAME entry point the mesher uses, so the two cannot disagree.
-        // Since P1 (3.2) this is normalized by the material's own toughness, so damage_stage
-        // and damage01 now move together for every material -- a caller can check
-        // damage_stage ~= round(damage01 * stageMax) and catch a normalization regression.
-        // 0..damage_stages_max: pristine plus each visible stage. This is the SEMANTIC stage.
-        // `damage_stage_bits` is the same thing spread across the 4-bit instance field that
-        // voxel.frag actually samples -- both are echoed so a caller can assert on the stage it
-        // reasons about AND on the value the shader receives, without having to know the packing.
-        //
-        // BOTH report the RUNTIME stage count, not the compiled default. damage_stage already
-        // resolved it (displayStage defaults to the runtime value); reporting the constexpr
-        // beside it would mean that during a P4 A/B at 3 stages this said "stage 2 of 7" -- the
-        // numerator measured on one scale and the denominator on another, which is worse than
-        // either alone because it looks self-consistent.
-        result["damage_stage"]      = static_cast<int>(
-            Phyxel::DamageSystem::displayStage(material, energy));
-        result["damage_stages_max"] = Phyxel::Core::damageStagesVisible();
-        result["damage_stage_bits"] = static_cast<int>(
-            Phyxel::DamageSystem::displayStageBits(material, energy));
-        return result;
     });
 
     // Baked per-cell light, as numbers. The stored light field is the engine's largest
@@ -1018,24 +975,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         nlohmann::json r;
         r["position"] = {{"x", x}, {"y", y}, {"z", z}};
         if (!chunkManager) { r["error"] = "no chunk manager"; return r; }
-        const auto bl = chunkManager->sampleBakedLight(glm::ivec3(x, y, z));
-        r["sky"] = bl.sky;                       // 0-15, open-sky exposure
-        r["block"] = {{"r", bl.r}, {"g", bl.g}, {"b", bl.b}};   // 0-15 per channel
-        auto* cube = chunkManager->getCubeAt(glm::ivec3(x, y, z));
-        r["solid_cube"] = (cube != nullptr);     // so an air/solid mix-up is visible, not guessed
+        // Today's Chunk baked light went with D4; with no Chunk resident the answer was open sky, no block light,
+        // no cube and no opacity mask -- which is what this still answers.
+        r["sky"] = 15;                           // 0-15, open-sky exposure
+        r["block"] = {{"r", 0}, {"g", 0}, {"b", 0}};   // 0-15 per channel
+        r["solid_cube"] = false;
         // The opacity mask that DECIDED the sky value above: which axes this cell blocks.
         // Without it, "this cell passed light" leaves you guessing whether the geometry or the
         // flood is at fault.
-        if (const auto* ch = chunkManager->getChunkAtCoord(
-                Utils::CoordinateUtils::worldToChunkCoord(glm::ivec3(x, y, z)))) {
-            uint8_t mask = 0;
-            if (ch->lightOpaqueAt(Utils::CoordinateUtils::worldToLocalCoord(glm::ivec3(x, y, z)),
-                                  mask)) {
-                r["opaque_mask"] = mask;
-                r["blocks"] = {{"x", (mask & 1u) != 0}, {"y", (mask & 2u) != 0},
-                               {"z", (mask & 4u) != 0}};
-            }
-        }
         return r;
     });
 
@@ -1082,15 +1029,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     apiServer->setChunkInfoHandler([this]() -> nlohmann::json {
         if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
-        size_t chunkCount = chunkManager->chunks.size();
-        auto stats = chunkManager->getPerformanceStats();
+        // Today's Chunk store went with D4: no chunk, every count 0.
         return nlohmann::json{
-            {"chunkCount", chunkCount},
+            {"chunkCount", 0},
             {"stats", {
-                {"totalVertices", stats.totalVertices},
-                {"totalVisibleFaces", stats.totalVisibleFaces},
-                {"totalHiddenFaces", stats.totalHiddenFaces},
-                {"fullyOccludedCubes", stats.fullyOccludedCubes}
+                {"totalVertices", 0},
+                {"totalVisibleFaces", 0},
+                {"totalHiddenFaces", 0},
+                {"fullyOccludedCubes", 0}
             }}
         };
     });
@@ -1109,21 +1055,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
         nlohmann::json voxels = nlohmann::json::array();
         int count = 0;
-        for (int ix = minX; ix <= maxX; ++ix) {
-            for (int iy = minY; iy <= maxY; ++iy) {
-                for (int iz = minZ; iz <= maxZ; ++iz) {
-                    auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
-                    if (cube) {
-                        voxels.push_back({
-                            {"x", ix}, {"y", iy}, {"z", iz},
-                            {"material", cube->getMaterialName()},
-                            {"visible", cube->isVisible()}
-                        });
-                        ++count;
-                    }
-                }
-            }
-        }
+        (void)count;   // today's Chunk cubes were listed here (none since D4)
         return nlohmann::json{
             {"count", count},
             {"volume", volume},
@@ -1136,24 +1068,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Subcube query: returns all subcubes at a parent cube world position
     apiServer->setSubcubeQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
-        glm::ivec3 worldPos(x, y, z);
-        auto* chunk = chunkManager->getChunkAt(worldPos);
-        if (!chunk) {
-            return nlohmann::json{{"position", {{"x", x}, {"y", y}, {"z", z}}}, {"subcubes", nlohmann::json::array()}, {"microcubes", nlohmann::json::array()}, {"subcube_count", 0}, {"microcube_count", 0}, {"has_full_cube", false}};
-        }
-        glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-        auto* cube = chunk->getCubeAt(localPos);
-        // A Chunk holds no 1/9 m subcubes/microcubes since D3c-5: the lists are always empty.
-        nlohmann::json subArr = nlohmann::json::array();
-        nlohmann::json microArr = nlohmann::json::array();
-        return nlohmann::json{
-            {"position", {{"x", x}, {"y", y}, {"z", z}}},
-            {"has_full_cube", cube != nullptr},
-            {"subcube_count", subArr.size()},
-            {"microcube_count", microArr.size()},
-            {"subcubes", subArr},
-            {"microcubes", microArr}
-        };
+        // Today's Chunk went with D4: the answer is always the empty one.
+        return nlohmann::json{{"position", {{"x", x}, {"y", y}, {"z", z}}}, {"subcubes", nlohmann::json::array()}, {"microcubes", nlohmann::json::array()}, {"subcube_count", 0}, {"microcube_count", 0}, {"has_full_cube", false}};
     });
 
     // Detailed region scan: full cubes + subcubes in a region
@@ -1174,28 +1090,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         nlohmann::json microcubesList = nlohmann::json::array();
         int cubeCount = 0, subcubeCount = 0, microcubeCount = 0;
 
-        for (int ix = minX; ix <= maxX; ++ix) {
-            for (int iy = minY; iy <= maxY; ++iy) {
-                for (int iz = minZ; iz <= maxZ; ++iz) {
-                    glm::ivec3 worldPos(ix, iy, iz);
-                    auto* chunk = chunkManager->getChunkAt(worldPos);
-                    if (!chunk) continue;
-                    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-
-                    auto* cube = chunk->getCubeAt(localPos);
-                    if (cube) {
-                        cubes.push_back({
-                            {"x", ix}, {"y", iy}, {"z", iz},
-                            {"material", cube->getMaterialName()},
-                            {"type", "cube"}
-                        });
-                        ++cubeCount;
-                    }
-
-                    // (no subcubes/microcubes in a Chunk since D3c-5)
-                }
-            }
-        }
+        // (today's Chunk cubes were listed here; none since D4)
         return nlohmann::json{
             {"cube_count", cubeCount},
             {"subcube_count", subcubeCount},
@@ -2667,8 +2562,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     };
 
     m_worldOutliner->onDeleteChunk = [this](const glm::ivec3& chunkCoord) {
-        if (!chunkManager) return;
-        chunkManager->clearChunk(chunkCoord);
+        (void)chunkCoord;   // today's Chunk store went with D4 (the outliner lists no chunk to delete)
     };
 
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
@@ -2983,20 +2877,8 @@ void Application::applyProjectSelection(const std::string& projectPath) {
         // empty for new projects); distant chunks stream in over the next frames
         // (docs/LargeWorldScalePlan.md Phase 2) instead of blocking project open.
         glm::vec3 bootAnchor = camera ? camera->getPosition() : glm::vec3(50.0f);
-        auto loaded = chunkManager->loadChunksNearAndDeferRest(bootAnchor);
-        if (!loaded.empty()) {
-            chunkManager->rebuildAllChunkFaces();
-            chunkManager->initializeAllChunkVoxelMaps();
-            // Build collision + register occupancy grids for the loaded terrain.
-            // Without this, DB-loaded chunks render but have no registered collision,
-            // so characters fall through the world. (Runtime/WorldInitializer path
-            // already does this; the editor project-open path previously skipped it.)
-            chunkManager->buildAllChunkPhysics();
-            // Water renders from what the chunks HOLD (docs/Water.md Â§6 step 2): a saved basin
-            // shows its water at boot with no command, or shows none if none was ever stored.
-            rebuildGroundedWaterFromSpans();
-            LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
-        } else {
+        (void)bootAnchor;   // loading today's DB chunks near the camera went with D4 (the Chunk store)
+        {
             LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
         }
     }
@@ -3460,8 +3342,6 @@ void Application::run() {
         // B1: advance the deferred buffer-reclaim tick and free any old chunk buffers now past
         // MAX_FRAMES_IN_FLIGHT (safe: the frame that may reference them was submitted in render()).
         Graphics::tickDeferredBufferReclaim();
-        // Phase 4.3: arena span-retire clock (same frames-in-flight contract; no-op when off).
-        Graphics::ChunkArenaSystem::instance().tick();
 
         // End frame profiling
         performanceProfiler->endFrame();
@@ -3686,8 +3566,6 @@ void Application::cleanup() {
     if (vulkanDevice) {
         vkDeviceWaitIdle(vulkanDevice->getDevice());
         Graphics::flushDeferredBufferReclaim();
-        // Phase 4.3: release all arena blocks while the device is still alive.
-        Graphics::ChunkArenaSystem::instance().shutdown();
     }
 
     // Clear NPC / story / dialogue subsystems
@@ -4762,7 +4640,7 @@ void Application::update(float deltaTime) {
         // Slow-frame triage timers (streamed worlds hitch in this block; the profiler
         // doesn't cover it). Warn per stage above 100ms so the culprit is attributable.
         auto tChunk0 = std::chrono::steady_clock::now();
-        { PROFILE_SCOPE(*performanceProfiler, "Dirty Chunks"); chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs); }
+        (void)kDirtyChunkBudgetMs;   // the dirty-Chunk flush went with D4
         auto tChunk1 = std::chrono::steady_clock::now();
         // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
@@ -4777,21 +4655,18 @@ void Application::update(float deltaTime) {
             static int s_streamTick = 0;
             // View-cone load priority: what the camera looks at streams first, refreshed
             // every frame so panning dynamically reprioritizes the worker queue.
-            if (camera) chunkManager->setStreamingViewDirection(camera->getFront());
+            // (today's Chunk streaming -- view-cone priority, the pump and its landings -- went with D4)
             // Pump every 2nd frame (was 6th): with the deeper worker queue + higher landing
             // cap (large-world throughput pass), the pump interval was the remaining inflow
             // bottleneck. Still >= frames-in-flight, preserving the frame-deferred-deletion
             // safety contract in unloadDistantChunks.
             // Off frames drain LANDINGS only (no unload â€” its frame-deferred-deletion
             // cadence contract is untouched): doubles finished-chunk inflow on refills.
-            if (++s_streamTick >= 2) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
-            else chunkManager->pumpChunkLanding();
+            if (++s_streamTick >= 2) s_streamTick = 0;
         }
         // Stream-in boot (Phase 2): land deferred DB chunks in the background.
         // No-op once the boot backlog has drained.
-        if (chunkManager->hasDeferredDbLoads() && camera) {
-            chunkManager->pumpDeferredDbLoads(camera->getPosition());
-        }
+        // (today's deferred DB chunk loads went with D4: hasDeferredDbLoads() is always false)
         auto tChunk2 = std::chrono::steady_clock::now();
         // (The CPU debris update that ran here was deleted with the CPU debris path,
         //  DebrisInteractionPlan 1d; dynMs below stays as the slot it used to time.)
@@ -5396,7 +5271,7 @@ void Application::updatePendingSpellHits(float dt) {
             // apply_damage handler uses.
             if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
                 coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
-                dmg.setFragmentManager(&coherentFragmentManager);
+                // (DamageSystem::setFragmentManager -- the coherent collapse over today\'s Chunks -- went with D4)
             }
             dmg.applyDamage(it->center, it->radius, it->energy, "force",
                             glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT,
@@ -7040,10 +6915,7 @@ void Application::autoLoadGameDefinition() {
         // applied, so pass the skip flag through instead of erasing the world block
         // (erasing it silently disabled streaming generation on every project relaunch).
         const bool worldAlreadyInDb =
-            gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty();
-        if (worldAlreadyInDb) {
-            LOG_INFO("Application", "Skipping world generation - {} chunks already loaded from database", chunkManager->chunks.size());
-        }
+            false;   // "today's chunks already loaded from the DB" -- the Chunk store went with D4
 
         Core::GameSubsystems subsystems;
         subsystems.skipTerrainGeneration = worldAlreadyInDb;
@@ -7918,29 +7790,7 @@ static std::vector<Core::VoxelEntry> captureRegionAllLevels(
     const glm::ivec3& maxCorner)
 {
     std::vector<Core::VoxelEntry> voxels;
-    for (int ix = minCorner.x; ix <= maxCorner.x; ++ix) {
-        for (int iy = minCorner.y; iy <= maxCorner.y; ++iy) {
-            for (int iz = minCorner.z; iz <= maxCorner.z; ++iz) {
-                glm::ivec3 worldPos(ix, iy, iz);
-                auto* chunk = chunkManager->getChunkAt(worldPos);
-                if (!chunk) continue;
-                glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-                glm::ivec3 relOffset(ix - minCorner.x, iy - minCorner.y, iz - minCorner.z);
-
-                // Cubes
-                auto* cube = chunk->getCubeAt(localPos);
-                if (cube && cube->isVisible()) {
-                    Core::VoxelEntry entry;
-                    entry.offset = relOffset;
-                    entry.material = cube->getMaterialName();
-                    entry.level = Core::SnapshotVoxelLevel::Cube;
-                    voxels.push_back(entry);
-                }
-
-                // (no subcubes/microcubes in a Chunk since D3c-5)
-            }
-        }
-    }
+    (void)chunkManager; (void)minCorner; (void)maxCorner;   // today's Chunk cubes (none since D4)
     return voxels;
 }
 
@@ -7957,7 +7807,8 @@ static std::pair<int, int> placeVoxelEntries(
         bool ok = false;
         switch (v.level) {
             case Core::SnapshotVoxelLevel::Cube:
-                ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(worldPos, v.material);
+                ok = false;   // today's Chunk store went with D4 (it refused creation while switched)
+                (void)worldPos;
                 break;
             case Core::SnapshotVoxelLevel::Subcube:
             case Core::SnapshotVoxelLevel::Microcube:
@@ -8393,20 +8244,12 @@ static bool handlePlacedObjectCommand(
                 boxes.push_back(b);
             }
             // Material lookup at a world CUBE coordinate (empty string if no cube there).
-            Core::MaterialAt matAt = [cm = chunkManager](int x, int y, int z) -> std::string {
-                if (!cm) return std::string();
-                auto* c = cm->getCubeAt(glm::ivec3(x, y, z));
-                return c ? c->getMaterialName() : std::string();
-            };
+            // These probes read today's Chunk cubes; D4 deleted the Chunk store, and with no Chunk every probe
+            // answered "nothing here" -- as they still do. D4 finding: the validators need the switched world's reads.
+            Core::MaterialAt matAt = [](int, int, int) -> std::string { return std::string(); };
             // Micro-aware predicate: does world cube (x,y,z) contain `mat` at cube/subcube/microcube
             // level? (Chimney/wall Stone are sub/microcubes, invisible to the full-cube lookup.)
-            Core::CubeHasMaterial hasMat = [cm = chunkManager](int x, int y, int z,
-                                                               const std::string& mat) -> bool {
-                if (!cm) return false;
-                glm::ivec3 wc(x, y, z);
-                if (auto* c = cm->getCubeAt(wc)) if (c->getMaterialName() == mat) return true;
-                return false;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
-            };
+            Core::CubeHasMaterial hasMat = [](int, int, int, const std::string&) -> bool { return false; };
             std::vector<Core::PlacedBox> fireplaces;
             for (const auto& b : boxes)
                 if (Core::RealizedWorldValidator::isHearth(b.type)) fireplaces.push_back(b);
@@ -8417,22 +8260,12 @@ static bool handlePlacedObjectCommand(
             rep.merge(Core::RealizedWorldValidator::checkChimneyOverHearth(fireplaces, hasMat));
             rep.merge(Core::RealizedWorldValidator::checkPathUnderFootprint(structs, hasMat));
             // Terrain surface height at a column (highest solid full cube; terrain is full cubes).
-            Core::SurfaceHeight surfaceH = [cm = chunkManager](int x, int z) -> int {
-                if (!cm) return INT_MIN;
-                for (int y = 80; y >= -16; --y)
-                    if (cm->getCubeAt(glm::ivec3(x, y, z))) return y;
-                return INT_MIN;
-            };
+            Core::SurfaceHeight surfaceH = [](int, int) -> int { return INT_MIN; };
             rep.merge(Core::RealizedWorldValidator::checkYardFlatness(structs, surfaceH));
             rep.merge(Core::RealizedWorldValidator::checkFloorFlush(structs, surfaceH));
 
             // Fence posts: count Log micro/subcubes in a world cube (fences are Log micros).
-            auto logCount = [cm = chunkManager](int x, int y, int z) -> int {
-                if (!cm) return 0;
-                if (auto* c = cm->getCubeAt(glm::ivec3(x, y, z)))
-                    if (c->getMaterialName() == "Log") return 27;
-                return 0;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
-            };
+            auto logCount = [](int, int, int) -> int { return 0; };
             std::vector<Core::FencePost> fencePosts;
             const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
             // A fence NEVER runs inside a building â€” it rings the yard on the plot edge. So Log micros
@@ -8540,10 +8373,7 @@ static bool handlePlacedObjectCommand(
                 const glm::ivec3 r(mx - wc.x * 9, my - wc.y * 9, mz - wc.z * 9);   // 0..8 in the cube
                 const glm::ivec3 sp(r.x / 3, r.y / 3, r.z / 3), mp(r.x % 3, r.y % 3, r.z % 3);
                 nlohmann::json cell = {{"x", mx}, {"y", my}, {"z", mz}, {"material", nullptr}, {"level", "air"}};
-                if (auto* cube = chunkManager->getCubeAt(wc)) {
-                    cell["material"] = cube->getMaterialName(); cell["level"] = "cube";
-                }
-                (void)sp; (void)mp;   // a Chunk has no subcubes/microcubes since D3c-5
+                (void)sp; (void)mp; (void)wc;   // today's Chunk cube went with D4: every cell reads air
                 out.push_back(cell);
             }
             response = {{"cells", out}, {"count", out.size()}};
@@ -8567,22 +8397,8 @@ static bool handlePlacedObjectCommand(
             for (int x = lox; x <= hix && budget > 0; ++x)
             for (int y = loy; y <= hiy && budget > 0; ++y)
             for (int z = loz; z <= hiz && budget > 0; ++z) {
-                glm::ivec3 wc(x, y, z);
-                Chunk* chunk = chunkManager->getChunkAt(wc);
-                if (!chunk) continue;
-                // Chunk-local cube position (0..31) via floor-division (world coords can be negative).
-                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
-                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
-                std::map<std::string, int> matc;   // material -> occupied sub/microcube count
-                if (auto* c = chunkManager->getCubeAt(wc)) matc[c->getMaterialName()] += 27;  // a full cube
-                (void)lc;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
-                if (!matc.empty()) {
-                    std::vector<std::string> keys;
-                    for (const auto& kv : matc) keys.push_back(kv.first);
-                    cells.push_back({{"x", x}, {"y", y}, {"z", z},
-                                     {"materials", keys}, {"counts", matc}});
-                    --budget;
-                }
+                // Today's Chunk store went with D4: no cube is ever found (every cell skipped, as with no chunk).
+                if (budget > 0) continue;
             }
             response = {{"cells", cells}, {"count", cells.size()}};
         }
@@ -8645,54 +8461,11 @@ static bool handlePlacedObjectCommand(
             for (const auto& o : placedObjectManager->list()) {
                 if (o.category != "structure") continue;
                 ++checked;
-                auto fdiv32 = [](int a) { return a >= 0 ? a / 32 : (a - 31) / 32; };
-                bool resident = true;
-                for (int cx = fdiv32(o.boundingMin.x); cx <= fdiv32(o.boundingMax.x) && resident; ++cx)
-                    for (int cy = fdiv32(o.boundingMin.y); cy <= fdiv32(o.boundingMax.y) && resident; ++cy)
-                        for (int cz = fdiv32(o.boundingMin.z); cz <= fdiv32(o.boundingMax.z) && resident; ++cz)
-                            if (!chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
-                                resident = false;
-                if (!resident) { unverifiable.push_back(o.id); continue; }
-                bool isGhost;
-                if (o.metadata.contains("assembly_plan") &&
-                    o.metadata["assembly_plan"].contains("origin") &&
-                    o.metadata["assembly_plan"].contains("plan")) {
-                    // v2 structure: probe where the ANATOMY says walls must be â€” precise,
-                    // immune to unrelated content (trees/terrain) inside the bbox.
-                    const auto& m = o.metadata["assembly_plan"];
-                    const glm::ivec3 org(m["origin"][0].get<int>(), m["origin"][1].get<int>(),
-                                         m["origin"][2].get<int>());
-                    const Core::AssemblyPlan plan = Core::AssemblyPlan::fromJson(m["plan"]);
-                    int wallCells = 0, wallHits = 0;
-                    for (const auto& w : plan.walls) {
-                        if (w.type != "exterior") continue;
-                        const glm::ivec3 cell = org + glm::ivec3(w.x0, w.baseY, w.z0);
-                        ++wallCells;
-                        if (chunkManager->hasVoxelAt(cell)) ++wallHits;
-                    }
-                    isGhost = (wallCells > 0 && wallHits == 0);
-                } else {
-                    // Legacy record (no plan): count NON-FLORA voxels in the bbox. A lone
-                    // tree trunk / canopy overlapping the box must not read as a building
-                    // (house_1 false-negative: 19 hero-oak Log voxels in a 567-cell bbox).
-                    auto isFlora = [](const std::string& mat) {
-                        return mat.rfind("Log", 0) == 0 || mat.rfind("Leaf", 0) == 0;
-                    };
-                    int evidence = 0;
-                    for (int x = o.boundingMin.x; x <= o.boundingMax.x && evidence < 8; ++x)
-                        for (int y = o.boundingMin.y; y <= o.boundingMax.y && evidence < 8; ++y)
-                            for (int z = o.boundingMin.z; z <= o.boundingMax.z && evidence < 8; ++z)
-                                if (const auto* c = chunkManager->getCubeAt(glm::ivec3(x, y, z)))
-                                    if (!isFlora(c->getMaterialName())) ++evidence;
-                    isGhost = (evidence < 8);
-                }
-                if (isGhost) {
-                    ghosts.push_back({{"id", o.id}, {"template", o.templateName},
-                                      {"position", {{"x", o.position.x}, {"y", o.position.y},
-                                                    {"z", o.position.z}}}});
-                    if (repair) toRemove.push_back(o.id);
-                }
+                // Residency was today's Chunk map; D4 deleted it and none was ever resident, so every structure
+                // record is reported unverifiable, never a ghost (the ghost probes read today's Chunk cubes).
+                unverifiable.push_back(o.id);
             }
+            (void)repair;
             for (const auto& gid : toRemove) {
                 placedObjectManager->remove(gid);
                 LOG_INFO_FMT("PlacedObjects", "validate: removed ghost record '" << gid << "'");
@@ -8967,46 +8740,8 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             json partialCells = json::array();   // so a camera can be AIMED at a partial cell
             int minFill = 730, maxFill = -1;
             for (const auto& wp : cells) {
-                Chunk* ch = chunkManager
-                          ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
-                          : nullptr;
-                if (!ch) continue;
-                const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-                const auto& grid = ch->getOccupancyGrid();
-                int cpu = 0, gpu = 0, bad = 0;
-                for (int my = 0; my < 9; ++my)
-                for (int mx = 0; mx < 9; ++mx)
-                for (int mz = 0; mz < 9; ++mz) {
-                    const glm::ivec3 sp(mx / 3, my / 3, mz / 3), mp(mx % 3, my % 3, mz % 3);
-                    bool c = false;
-                    if (grid.isCubeFilled(lp)) {
-                        if (!grid.isSubdivided(lp)) c = true;
-                        else if (grid.isSubcubeFilled(lp, sp))
-                            c = !grid.isSubcubeSubdivided(lp, sp) ||
-                                 grid.isMicrocubeFilled(lp, sp, mp);
-                    }
-                    const bool g = renderCoordinator->lightOccupancySolidAt(
-                        {wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz});
-                    if (c) ++cpu;
-                    if (g) ++gpu;
-                    if (c != g) ++bad;
-                }
-                ++audited;
-                minFill = std::min(minFill, cpu);
-                maxFill = std::max(maxFill, cpu);
-                if (cpu == 729) ++fullySolid;
-                else if (cpu == 0) ++empty;
-                else {
-                    ++partial;
-                    if (partialCells.size() < 12)
-                        partialCells.push_back({{"world", {wp.x, wp.y, wp.z}}, {"fill", cpu}});
-                }
-                if (bad > 0) {
-                    ++disagreeing;
-                    if (failures.size() < 5)
-                        failures.push_back({{"world", {wp.x, wp.y, wp.z}},
-                                            {"cpu", cpu}, {"gpu", gpu}, {"bad", bad}});
-                }
+                // The CPU side was today's Chunk occupancy grid; D4 deleted it (no chunk: every cell skipped).
+                (void)wp; continue;
             }
             response["mixed_audit"] = {
                 {"sampled",        cells.size()},
@@ -9027,46 +8762,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
             const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
                                 cmd.params.value("z", 0));
-            Chunk* ch = chunkManager
-                      ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
-                      : nullptr;
-            if (!ch) { response["cell_error"] = "no chunk at cell"; return true; }
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-            const auto& grid = ch->getOccupancyGrid();
-
-            int gpuSolid = 0, cpuSolid = 0, disagree = 0;
-            glm::ivec3 firstBad(-1);
-            for (int my = 0; my < 9; ++my)
-            for (int mx = 0; mx < 9; ++mx)
-            for (int mz = 0; mz < 9; ++mz) {
-                // CPU answer, walking the grid the same way buildLightOccupancy does.
-                const glm::ivec3 sp(mx / 3, my / 3, mz / 3);
-                const glm::ivec3 mp(mx % 3, my % 3, mz % 3);
-                bool cpu = false;
-                if (grid.isCubeFilled(lp)) {
-                    if (!grid.isSubdivided(lp))                    cpu = true;
-                    else if (grid.isSubcubeFilled(lp, sp))
-                        cpu = !grid.isSubcubeSubdivided(lp, sp) ||
-                               grid.isMicrocubeFilled(lp, sp, mp);
-                }
-                const glm::ivec3 worldMicro(wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz);
-                const bool gpu = renderCoordinator->lightOccupancySolidAt(worldMicro);
-                if (cpu) ++cpuSolid;
-                if (gpu) ++gpuSolid;
-                if (cpu != gpu) { if (disagree == 0) firstBad = {mx, my, mz}; ++disagree; }
-            }
-            response["cell"] = {
-                {"world",          {wp.x, wp.y, wp.z}},
-                {"cpu_micro_solid", cpuSolid},          // out of 729
-                {"gpu_micro_solid", gpuSolid},
-                {"disagreements",   disagree},
-                {"agrees",          disagree == 0},
-                // "partial" is the case M1 exists for: a cell that is neither empty nor full,
-                // e.g. a 3-micro floor slab (243) or a 2-micro wall.
-                {"partial",         cpuSolid > 0 && cpuSolid < 729},
-            };
-            if (disagree > 0)
-                response["cell"]["first_disagreement_micro"] = {firstBad.x, firstBad.y, firstBad.z};
+            // The CPU side was today's Chunk occupancy grid; D4 deleted it.
+            response["cell_error"] = "no chunk at cell";
+            (void)wp;
+            return true;
         }
         return true;
     }
@@ -9077,48 +8776,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         // diff instead of a theory about what the character collides with.
         const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
                             cmd.params.value("z", 0));
-        Chunk* ch = chunkManager
-                  ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
-                  : nullptr;
-        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
-        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-        const auto& grid = ch->getOccupancyGrid();
-
-        json g;
-        g["cube_filled"] = grid.isCubeFilled(lp);
-        g["subdivided"]  = grid.isSubdivided(lp);
-        json gs = json::array(), gsd = json::array(), gm = json::array();
-        for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-        for (int sz = 0; sz < 3; ++sz) {
-            const glm::ivec3 sp(sx, sy, sz);
-            if (grid.isSubcubeFilled(lp, sp))     gs.push_back({sx, sy, sz});
-            if (grid.isSubcubeSubdivided(lp, sp)) gsd.push_back({sx, sy, sz});
-            int mc = 0;
-            for (int mx = 0; mx < 3; ++mx)
-            for (int my = 0; my < 3; ++my)
-            for (int mz = 0; mz < 3; ++mz)
-                if (grid.isMicrocubeFilled(lp, sp, {mx, my, mz})) ++mc;
-            if (mc) gm.push_back({{"slot", {sx, sy, sz}}, {"filled", mc}});
-        }
-        g["subcubes_filled"] = gs;
-        g["subcubes_subdivided"] = gsd;
-        g["micro_slots"] = gm;
-
-        json c;
-        if (auto* cube = ch->getCubeAtFast(lp)) {
-            c["cube"] = true;
-            c["cube_material"] = cube->getMaterialName();
-        } else {
-            c["cube"] = false;
-        }
-        json cs = json::array(), cm = json::array();   // always empty since D3c-5
-        c["subcubes"] = cs;
-        c["micro_slots"] = cm;
-
-        response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
+        // Today's Chunk occupancy grid went with D4: there is never a chunk at the cell.
+        (void)wp;
+        response = {{"error", "no chunk at cell"}};
         return true;
-
     } else if (action == "break_voxel") {
         // D3c-4: the 1/9 m test-hook break (a today-store CubeLocation) was removed with its store; the switched
         // world breaks through the destruction override (F7.5 / F8.2: voxfound_preview {"world_break": ...}).
@@ -9380,34 +9041,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("windStrength",   -1.0f),
                 cmd.params.value("cardsPerVoxel",  -1),
                 cmd.params.value("radius",         -1.0f));
-            // Canopy thinning: a MESH-time knob, so changing it must re-bake chunk meshes.
-            if (cmd.params.contains("density")) {
-                Graphics::ChunkRenderManager::setFoliageDensity(
-                    std::clamp(cmd.params["density"].get<float>(), 0.05f, 1.0f));
-                if (chunkManager) {
-                    for (const auto& ch : chunkManager->chunks)
-                        if (ch) chunkManager->markChunkForRemesh(ch.get());
-                }
-            }
+            // "density" (canopy thinning) was a knob of today's Chunk mesher, which D4 deleted; it is ignored, and the
+            // Chunk card census (foliage_instances / foliage_distinct_sprigs) went with the Chunk store.
             response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()},
-                        {"density", Graphics::ChunkRenderManager::getFoliageDensity()}};
-            // Measured card load of the loaded chunks (docs/VoxelFoundationPlan.md F2.3 A/B): every
-            // FoliageInstanceData, and the DISTINCT sprig positions among them (micro leaves of one subcube each
-            // emit an instance at the same subcube centre with the same hash seed: identical, overlapping cards).
-            if (chunkManager) {
-                size_t total = 0;
-                std::set<std::array<int32_t, 4>> distinct;   // chunk origin + position bits (x,y,z,sub)
-                for (const auto& ch : chunkManager->chunks) {
-                    if (!ch) continue;
-                    const glm::ivec3 o = ch->getWorldOrigin();
-                    for (const auto& fi : ch->getFoliageInstances()) {
-                        ++total;
-                        distinct.insert({o.x, o.y, o.z, int32_t(fi.packed & 0x1FFFFFu)});
-                    }
-                }
-                response["foliage_instances"] = total;
-                response["foliage_distinct_sprigs"] = distinct.size();
-            }
+                        {"foliage_instances", 0}, {"foliage_distinct_sprigs", 0}};
         }
         return true;
 
@@ -9576,8 +9213,6 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             response = {{"error", "RenderCoordinator not available"}};
         } else {
             const auto& s = renderCoordinator->getLastFrameStats();
-            // T0: per-chunk mesh (rebuildAllFaces) cost â€” the op we're moving off-thread.
-            const auto mt = Graphics::ChunkRenderManager::getMeshTimingStats();
             // WRv2 M2 deadzone metric: tree instances per 50u annulus, per tier.
             nlohmann::json meshAnnuli = nlohmann::json::array();
             nlohmann::json cardAnnuli = nlohmann::json::array();
@@ -9627,33 +9262,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"far_tiles_resident",       s.farTilesResident},
                 {"far_tiles_drawn",          s.farTilesDrawn},
                 {"far_triangles",            s.farTriangles},
-                {"mesh_timing", {
-                    {"count",   mt.count},
-                    {"last_ms", mt.lastMs},
-                    {"max_ms",  mt.maxMs},
-                    {"avg_ms",  mt.avgMs}
-                }},
-                // B0: distinct chunk-update sub-costs, to localize the ~40ms hitch (mesh vs buffer).
-                {"chunk_update_timing", [](){
-                    using Phyxel::Graphics::getChunkPerf;
-                    using Phyxel::Graphics::ChunkPerfPhase;
-                    auto j = [](Phyxel::Graphics::ChunkPerfStat s){
-                        return nlohmann::json{{"count",s.count},{"last_ms",s.lastMs},{"max_ms",s.maxMs},{"avg_ms",s.avgMs}}; };
-                    return nlohmann::json{
-                        {"buffer_create",  j(getChunkPerf(ChunkPerfPhase::BufferCreate))},
-                        {"buffer_realloc", j(getChunkPerf(ChunkPerfPhase::BufferRealloc))},
-                        {"buffer_upload",  j(getChunkPerf(ChunkPerfPhase::BufferUpload))},
-                        {"dirty_update_total", j(getChunkPerf(ChunkPerfPhase::DirtyUpdateTotal))},
-                        {"load_physics_body", j(getChunkPerf(ChunkPerfPhase::LoadPhysicsBody))},
-                        {"load_occupancy",    j(getChunkPerf(ChunkPerfPhase::LoadOccupancy))},
-                        {"load_faces",        j(getChunkPerf(ChunkPerfPhase::LoadFaces))},
-                        {"load_upload",       j(getChunkPerf(ChunkPerfPhase::LoadUpload))},
-                        {"load_voxel_maps",   j(getChunkPerf(ChunkPerfPhase::LoadVoxelMaps))},
-                        {"load_chunk_init",   j(getChunkPerf(ChunkPerfPhase::LoadChunkInit))},
-                        {"load_db_decode",    j(getChunkPerf(ChunkPerfPhase::LoadDbDecode))},
-                        {"load_gpu_alloc",    j(getChunkPerf(ChunkPerfPhase::LoadGpuAlloc))}
-                    };
-                }()},
+                // (mesh_timing / chunk_update_timing timed today's Chunk mesher and buffers; gone with D4)
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
                 {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
                 {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}
@@ -9663,8 +9272,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
 
     } else if (action == "reset_mesh_timing") {
         // T0/B0: zero the mesh-cost + chunk-update accumulators so a measurement window starts clean.
-        Graphics::ChunkRenderManager::resetMeshTimingStats();
-        Graphics::resetChunkPerf();
+        // (today's Chunk mesher and its timers went with D4: nothing to reset)
         response = {{"success", true}};
         return true;
 
@@ -10047,132 +9655,11 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     // height, and the kerf's blade-hugging bite window then sat entirely in
     // air â€” the live micros-carved=0 whiff pattern. Detection runs every strike
     // frame, so a near-miss frame just retries as the blade sweeps in.)
-    bool hit = false;
-    std::string hitMat;
-    glm::ivec3 hitPos(0);
-    glm::vec3 hitContact = axeHead;
-    {
-        struct Cand { glm::ivec3 wp; float d; glm::vec3 cl; std::string mat; };
-        std::vector<Cand> cands;
-        const glm::ivec3 base(static_cast<int>(std::floor(axeHead.x)),
-                              static_cast<int>(std::floor(axeHead.y)),
-                              static_cast<int>(std::floor(axeHead.z)));
-        for (int dx = -1; dx <= 1; ++dx)
-        for (int dy = -1; dy <= 1; ++dy)
-        for (int dz = -1; dz <= 1; ++dz) {
-            const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
-            // Clamp the blade point to the cell's WOOD content (a flare/notch
-            // cell's wood can start well inside the cell â€” a cell-box clamp
-            // left the bite window mostly in air). Leaf cubes keep the cell box
-            // (leaf contact is feedback-only).
-            glm::vec3 cl(0.0f);
-            std::string mat;
-            if (const auto* cube = chunkManager->getCubeAt(wp)) {
-                if (!isFlora(cube->getMaterialName())) continue;
-                mat = cube->getMaterialName();
-                const glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
-                cl = glm::clamp(axeHead, lo, hi);
-            } else if (!Phyxel::DamageSystem::closestWoodPointInCell(
-                           chunkManager, wp, axeHead, cl, &mat)) {
-                continue;
-            }
-            const float d = glm::distance(axeHead, cl);
-            if (d <= 0.3f) cands.push_back({wp, d, cl, mat});
-        }
-        std::sort(cands.begin(), cands.end(),
-                  [](const Cand& a, const Cand& b) { return a.d < b.d; });
-        if (!cands.empty()) {
-            hit = true;
-            hitMat = cands.front().mat;
-            hitPos = cands.front().wp;
-            hitContact = cands.front().cl;   // blade's nearest point ON the wood
-        }
-    }
-    if (!hit) return false;   // no contact this frame â€” the swing continues
-
-    const glm::vec3 hitCenter = glm::vec3(hitPos) + glm::vec3(0.5f);
-
-    // Wood-chip burst + chop sound at the bite point (both optional/guarded).
-    // Played ONLY when the contact actually does something â€” a puff+thunk on a
-    // swing that removed nothing reads as a broken bite (live user report).
-    auto playImpactFx = [&](bool trunk) {
-        if (renderCoordinator) {
-            if (auto* vfx = renderCoordinator->getVfxSystem()) {
-                VfxBurstParams chips;
-                chips.count      = 14;
-                chips.speed      = 3.0f;  chips.speedVar = 1.5f;
-                chips.upBias     = 0.35f;
-                chips.gravity    = -9.0f; chips.drag     = 1.5f;
-                chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
-                chips.size       = 0.07f; chips.sizeVar  = 0.03f;
-                chips.intensity  = 0.05f; // wood is not emissive
-                chips.color      = trunk ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
-                                         : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
-                chips.shape      = VfxShape::Cone;
-                chips.direction  = -fwd;  // spray back toward the chopper
-                chips.coneAngleDeg = 55.0f;
-                chips.posJitter  = glm::vec3(0.15f);
-                vfx->spawnBurst(hitCenter, chips);
-            }
-        }
-        // Impact audio at the contact point: a solid wood THUNK for trunk
-        // bites, the soft whoosh for leaf swipes â€” catalog events (with
-        // per-play pitch/volume jitter so repeated chops don't machine-gun),
-        // direct-file fallback if the registry isn't up.
-        if (auto* sndReg = runtime ? runtime->getSoundRegistry() : nullptr)
-            sndReg->playEvent(trunk ? "chop.impact.trunk" : "chop.impact.leaves", hitCenter);
-        else if (audioSystem)
-            audioSystem->playSound3D(trunk ? "resources/sounds/axe_chop.wav"
-                                           : "resources/sounds/whoosh.wav",
-                                     hitCenter, Core::AudioChannel::SFX, 0.9f);
-    };
-
-    // Only the trunk (Log*) is chopped; leaves give feedback only (but still
-    // consume the swing's contact so the blade doesn't re-trigger every frame).
-    if (!isTrunk(hitMat)) { playImpactFx(false); return true; }
-
-    // FRACTURE, not blast (Â§5.E): each swing bites a microcube-resolution kerf
-    // one notch deeper at the hit height (carveChopKerf is stateless â€” it carves
-    // from the current notch frontier). The visible notch IS the progress bar;
-    // the support pass inside the carve releases the tree as ONE coherent hinged
-    // body on the swing that cuts through.
-    const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
-    const float kDepthPerChopPoint = 0.06f;   // axe damage 6 â†’ ~0.36 m bite per swing
-
-    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
-    if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
-        coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
-        dmg.setFragmentManager(&coherentFragmentManager);
-    }
-    const auto kerf = dmg.carveChopKerf(hitPos, fwd, chopPower * kDepthPerChopPoint,
-                                        /*coherentFragments=*/true, hitContact);
-    LOG_INFO("Chop", "Axe kerf at ({},{},{}) remaining-depth={} micros-carved={}{}"
-             " | contact=({},{},{}) contactD={} window=[{},{}] nearD={} pocket={}/{}",
-             hitPos.x, hitPos.y, hitPos.z, kerf.fullDepth, kerf.microsRemoved,
-             kerf.severed ? " -> TREE FELLED" : "",
-             hitContact.x, hitContact.y, hitContact.z, kerf.contactD,
-             kerf.dLo, kerf.dHi, kerf.nearD, kerf.pocketChipped, kerf.pocketFound);
-    // A carve that removed nothing must NOT consume the swing: return false so
-    // detection retries next frame as the blade sweeps deeper (the live "puff,
-    // then every swing does nothing" pattern was one whiffed early-contact frame
-    // latching the whole swing).
-    if (!kerf.carved && !kerf.severed) return false;
-    playImpactFx(true);
-    // The bite landed: cut the swing's follow-through â€” the blade stopped in the
-    // wood (per design feedback: contact may stop the animation, the registered
-    // hit is what matters). Also makes repeated chopping snappier.
-    LOG_INFO("Chop", "bite registered at contact ({},{},{}) -> stopping swing",
-             hitContact.x, hitContact.y, hitContact.z);
-    animatedCharacter->setAnimationState(Scene::AnimatedCharacterState::Idle);
-    if (kerf.severed) {
-        if (gameEventLog) gameEventLog->emit("tree_felled", {
-            {"x", hitPos.x}, {"y", hitPos.y}, {"z", hitPos.z}, {"material", hitMat}});
-    } else if (kerf.carved && gameEventLog) {
-        gameEventLog->emit("tree_chop", {
-            {"x", hitPos.x}, {"y", hitPos.y}, {"z", hitPos.z},
-            {"remaining_depth", kerf.fullDepth}});
-    }
-    return true;
+    // The bite probed today's Chunk cubes (and DamageSystem's Chunk wood scan) and carved a kerf in them
+    // (DamageSystem::carveChopKerf). D4 deleted the Chunk store and those paths; with no Chunk the probe found no
+    // wood, so the swing never registered contact -- it still does not (D4 finding: no 1/8 m chop path yet).
+    (void)axeHead; (void)fwd; (void)isTrunk; (void)isFlora; (void)heldDef;
+    return false;
 }
 
 void Application::updateNpcHeldItems() {
@@ -13178,96 +12665,9 @@ void Application::registerWaterCommands() {
             r = {{"error", "this world has a hydrology bake; its water layer comes from the bake"}};
             return;
         }
-        if (chunkManager->chunkMap.empty()) { r = {{"error", "no chunks loaded"}}; return; }
-
-        // World-space bounds of the loaded chunks.
-        glm::ivec3 lo(INT_MAX), hi(INT_MIN);
-        for (const auto& [cc, chunk] : chunkManager->chunkMap) {
-            lo = glm::min(lo, cc); hi = glm::max(hi, cc);
-        }
-        const int minX = lo.x * 32, maxX = hi.x * 32 + 31;
-        const int minZ = lo.z * 32, maxZ = hi.z * 32 + 31;
-        const int minY = lo.y * 32, maxY = hi.y * 32 + 31;
-        const int w = maxX - minX + 1, d = maxZ - minZ + 1;
-        // Editor-scale worlds only: the texture is one texel per voxel column. A streaming world
-        // must come through the bake + span-storage path, not a whole-world texture.
-        if (static_cast<long long>(w) * d > (1 << 21)) {
-            r = {{"error", "world too large for a grounded grid"}, {"columns", (long long)w * d}};
-            return;
-        }
-
-        const float sea = waterManager ? waterManager->seaLevel() : static_cast<float>(Core::kSeaLevelY);
-        // Spans grouped per chunk â€” this command is the EDITOR-WORLD writer of chunk-resident
-        // water (docs/Water.md Â§2 layer 1): un-baked worlds have no generation-time span pass, so
-        // the scan persists its result into the chunks (and from there into the world DB via the
-        // normal blob save). âš‘The RENDER upload happens at the END, derived FROM the chunks â€” the
-        // scan never feeds the renderer directly, so there is exactly one render derivation
-        // (rebuildGroundedWaterFromSpans) whether water arrives by boot-load or by this command.
-        std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> chunkSpans;
-        auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
-        long wet = 0, solidCols = 0;
-        for (int z = 0; z < d; ++z)
-            for (int x = 0; x < w; ++x) {
-                // Topmost solid voxel in the column, scanned within the loaded vertical range.
-                int surfaceY = INT_MIN;
-                for (int y = maxY; y >= minY; --y)
-                    if (chunkManager->hasVoxelAt(glm::ivec3(minX + x, y, minZ + z))) { surfaceY = y; break; }
-                Phyxel::WaterSpan span;
-                bool isWet = false;
-                if (surfaceY != INT_MIN) {
-                    ++solidCols;
-                    isWet = Phyxel::buildOpenWaterSpan(surfaceY, sea, span);
-                }
-                if (!isWet) continue;
-                ++wet;
-                // Clip the world-space span into every vertical chunk it crosses.
-                const int wx = minX + x, wz = minZ + z;
-                const int cx = floorDiv32(wx), czc = floorDiv32(wz);
-                for (int cy = floorDiv32(span.bottomY);
-                     cy <= floorDiv32(static_cast<int>(std::ceil(span.topY)) - 1); ++cy) {
-                    const float bse = static_cast<float>(cy) * 32.0f;
-                    const float lo = std::max(static_cast<float>(span.bottomY), bse);
-                    const float hi = std::min(span.topY, bse + 32.0f);
-                    if (hi <= lo) continue;
-                    chunkSpans[glm::ivec3(cx, cy, czc)].push_back(
-                        {static_cast<uint8_t>(wx - cx * 32), static_cast<uint8_t>(wz - czc * 32),
-                         lo - bse, hi - bse});
-                }
-            }
-
-        // Write-through: every loaded chunk in the scan gets the truth â€” including chunks whose
-        // spans just became EMPTY (a drained basin must not keep stale water in its blob).
-        long spanChunks = 0, spansStored = 0;
-        std::vector<glm::ivec3> holders;   // F7.18: every resident span holder (today's chunks or the store)
-        chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList&) { holders.push_back(cc); });
-        for (const glm::ivec3& cc : holders) {
-            auto it = chunkSpans.find(cc);
-            // Phase D: a runtime span write must survive a dirty-only save (setWaterSpansAt marks the chunk dirty).
-            if (it == chunkSpans.end()) {
-                if (!chunkManager->waterSpansAt(cc)->empty()) chunkManager->setWaterSpansAt(cc, {});
-                continue;
-            }
-            // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order â€” sort to the
-            // storage contract rather than weakening the contract.
-            std::sort(it->second.begin(), it->second.end(),
-                      [](const Chunk::WaterSpanLocal& a, const Chunk::WaterSpanLocal& b) {
-                          const uint32_t ka = (uint32_t(a.x) << 8) | a.z;
-                          const uint32_t kb = (uint32_t(b.x) << 8) | b.z;
-                          return ka != kb ? ka < kb : a.bottom < b.bottom;
-                      });
-            spansStored += static_cast<long>(it->second.size());
-            ++spanChunks;
-            chunkManager->setWaterSpansAt(cc, std::move(it->second));
-        }
-        chunkManager->bumpWaterSpanRevision();
-
-        // Render THROUGH the chunks: the one derivation, shared with the boot-load path.
-        const long boundWet = rebuildGroundedWaterFromSpans();
-        r = {{"success", true}, {"columns", (long long)w * d}, {"solid_columns", solidCols},
-             {"wet_columns", wet}, {"wet_columns_bound", boundWet}, {"sea_level", sea},
-             {"chunks_with_spans", spanChunks}, {"spans_stored", spansStored},
-             {"bounds", {{"minX", minX}, {"maxX", maxX}, {"minZ", minZ}, {"maxZ", maxZ}}},
-             {"mode", "grounded (off-grid dry), rendered from chunk spans"}};
+        // It scanned today's Chunk terrain (the Chunk store went with D4); with no chunk loaded it answered:
+        r = {{"error", "no chunks loaded"}};
+        (void)noWater;
     });
 
     // â”€â”€ water_spans_stored â€” read back the CHUNK-RESIDENT spans (docs/Water.md Â§2 layer 1) â”€â”€â”€
@@ -14258,7 +13658,7 @@ void Application::registerWaterCommands() {
         auto columnRuns = [&](int x, int z, std::vector<std::pair<float, float>>& out) {
             out.clear();
             const int cx = floorDiv32(x), cz = floorDiv32(z);
-            std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+            std::map<int, const std::vector<WaterSpanLocal>*> have;
             chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {   // F7.18
                 if (cc.x == cx && cc.z == cz) have[cc.y] = &l;
             });
@@ -15430,7 +14830,7 @@ void Application::registerWorldForgeCommands() {
              {"sites", plan ? static_cast<int>(plan->sites().size()) : 0},
              {"roads", plan ? static_cast<int>(plan->roads().size()) : 0}};
         if (live) {
-            const size_t evictedChunks = chunkManager->restreamWorldLive();
+            const size_t evictedChunks = 0;   // today's Chunk re-stream went with D4 (no chunk to evict)
             if (renderCoordinator) {
                 if (auto* ft = renderCoordinator->getFarTerrainManager()) {
                     // The far mesher samples through its own private generator copy â€”
@@ -15549,7 +14949,8 @@ void Application::registerWorldForgeCommands() {
             if (!gen) return false;
             auto resident = [&](int wx, int wz) {
                 const int sy = gen->sampleSurface(wx, wz).surfaceY;
-                return chunkManager->getChunkAtFast(glm::ivec3(wx, sy, wz)) != nullptr;
+                (void)sy; (void)wx; (void)wz;   // today's Chunk residency (none since D4 -- see the D4 report)
+                return false;
             };
             const int hw = site.width / 2, hd = site.depth / 2;
             return resident(site.pos.x, site.pos.y) &&
@@ -15572,7 +14973,7 @@ void Application::registerWorldForgeCommands() {
         // leave ghost voxels without assembly_plan records on reload; locations are what
         // make the site's residents respawnable).
         d.checkpointWorld = [this] {
-            chunkManager->saveAllChunks();
+            // (today's Chunk save went with D4)
             saveWaterMeta();   // 35: the water's records ride every chunk save
             if (auto* ws = chunkManager->m_streamingManager.getWorldStorage()) {
                 if (placedObjectManager) placedObjectManager->saveToDb(ws->getDb());
@@ -15970,7 +15371,7 @@ void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
     if (waterCore->volumeOwns(x, y, z)) return;
     auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
     const int cx = floorDiv32(x), cz = floorDiv32(z);
-    std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+    std::map<int, const std::vector<WaterSpanLocal>*> have;
     chunkManager->forEachWaterSpans([&](const glm::ivec3& cc, const ChunkManager::WaterSpanList& l) {   // F7.18
         if (cc.x == cx && cc.z == cz) have[cc.y] = &l;
     });
@@ -15984,7 +15385,7 @@ void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
     if (!r.changed) return;
     int cyMin = INT_MAX, cyMax = INT_MIN;
     for (const auto& [cy, l] : have) { cyMin = std::min(cyMin, cy); cyMax = std::max(cyMax, cy); }
-    std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+    std::map<int, std::vector<WaterSpanLocal>> clips;
     clipSpansToChunks(spans, cx, cz, cyMin, cyMax, clips);
     for (auto& [cy, list] : clips) {
         if (!have.count(cy)) continue;
@@ -16212,12 +15613,7 @@ void Application::registerSnapshotCommands() {
                     glm::ivec3 wp(ix, iy, iz);
                     chunkBatches[ChunkManager::worldToChunkCoord(wp)].push_back(ChunkManager::worldToLocalCoord(wp));
                 }
-        for (auto& [cc, positions] : chunkBatches) {
-            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-            if (!chunk) continue;
-            cleared += chunk->removeCubesBatch(positions);
-            for (const auto& p : positions) applyWaterSpanEdit(cc.x * 32 + p.x, cc.y * 32 + p.y, cc.z * 32 + p.z, false);   // Phase D2: a bulk clear is an edit per cell
-        }
+        // (today's Chunk cells were cleared here; the Chunk store went with D4 -- no chunk, nothing cleared)
         return cleared;
     };
 
@@ -16438,23 +15834,12 @@ void Application::registerEffectsCommands() {
     // mask bit1 = skylight forced uniform 15, bit2 = block light forced 0. Re-bakes on change.
     // Exists so "which system owns this artifact" is answered by switching a system OFF rather
     // than by reasoning about screenshots.
-    reg.on("set_flood_bypass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("mask"))
-            Graphics::ChunkRenderManager::setFloodBypass(
-                std::clamp(cmd.params["mask"].get<int>(), 0, 3));
-        if (chunkManager) chunkManager->rebuildAllChunkLighting();
-        r = {{"success", true}, {"mask", Graphics::ChunkRenderManager::getFloodBypass()},
-             {"note", "bit1=uniform skylight, bit2=no block light"}};
+    reg.on("set_flood_bypass", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "flood bypass: went with D4 (it was read only by today's Chunk mesher)"}};
     });
 
-    reg.on("set_smooth_lighting", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("enabled"))
-            Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
-        if (cmd.params.contains("tolerance"))
-            Graphics::ChunkRenderManager::setMergeTolerance(cmd.params["tolerance"].get<int>());
-        if (chunkManager) chunkManager->rebuildAllChunkLighting();
-        r = {{"success", true}, {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
-             {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
+    reg.on("set_smooth_lighting", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "smooth lighting / merge tolerance: went with D4 (it was read only by today's Chunk mesher)"}};
     });
 
     // Exposure + tone curve. Live because the atmosphere returns physical RADIANCE, so exposure is a
@@ -16541,46 +15926,8 @@ void Application::registerEffectsCommands() {
     reg.on("chunk_faces", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
         const glm::ivec3 cc(cmd.params.value("cx", 0), cmd.params.value("cy", 0), cmd.params.value("cz", 0));
-        Chunk* c = chunkManager->getChunkAtCoord(cc);
-        if (!c) { r = {{"error", "chunk not loaded"}, {"chunk", {cc.x, cc.y, cc.z}}}; return; }
-        const bool boxed = cmd.params.contains("x1") && cmd.params.contains("x2") &&
-                           cmd.params.contains("y1") && cmd.params.contains("y2") &&
-                           cmd.params.contains("z1") && cmd.params.contains("z2");
-        const glm::ivec3 lo = boxed ? glm::ivec3(std::min(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
-                                                 std::min(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
-                                                 std::min(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
-                                    : glm::ivec3(0);
-        const glm::ivec3 hi = boxed ? glm::ivec3(std::max(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
-                                                 std::max(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
-                                                 std::max(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
-                                    : glm::ivec3(0);
-        const glm::ivec3 originMicro = c->getWorldOrigin() * 9;
-        int64_t byDir[2][6] = {};   // [opaque, transparent][faceID]
-        int64_t total = 0;
-        for (const auto& u : Graphics::expandCoveredUnitFaces(c->getFaces())) {
-            if (boxed) {
-                const glm::ivec3 w = originMicro + glm::ivec3(u.x, u.y, u.z);
-                const glm::ivec3 cell(static_cast<int>(std::floor(w.x / 9.0)),
-                                      static_cast<int>(std::floor(w.y / 9.0)),
-                                      static_cast<int>(std::floor(w.z / 9.0)));
-                if (cell.x < lo.x || cell.x > hi.x || cell.y < lo.y || cell.y > hi.y ||
-                    cell.z < lo.z || cell.z > hi.z) continue;
-            }
-            ++byDir[u.transparent ? 1 : 0][u.faceID];
-            ++total;
-        }
-        auto dirs = [&](int cls) {
-            return nlohmann::json{{"+Z", byDir[cls][0]}, {"-Z", byDir[cls][1]}, {"+X", byDir[cls][2]},
-                                  {"-X", byDir[cls][3]}, {"+Y", byDir[cls][4]}, {"-Y", byDir[cls][5]}};
-        };
-        r = {{"chunk", {cc.x, cc.y, cc.z}},
-             {"rebuilds", c->rebuildCount()},
-             {"quads", static_cast<int64_t>(c->getFaces().size())},
-             {"covered_unit_faces", total},
-             {"covered_cube_faces", static_cast<double>(total) / 81.0},
-             {"opaque", dirs(0)},
-             {"transparent", dirs(1)}};
-        if (boxed) r["box"] = {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}};
+        // Today's Chunk faces went with D4: no chunk is ever loaded.
+        r = {{"error", "chunk not loaded"}, {"chunk", {cc.x, cc.y, cc.z}}};
     });
 
     // Fine (sub/microcube) greedy-merge toggle â€” live A/B for docs/BinaryGreedyMeshingPlan.md.
@@ -16652,46 +15999,25 @@ void Application::registerEffectsCommands() {
 
     // L1 duplicate-emitter merge A/B (docs/PerfProgram2026-09.md). The re-mesh rebuilds each chunk's
     // emissive list; the light count updates on the next updateVfx reconcile.
-    reg.on("set_emitter_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("enabled")) {
-            if (!cmd.params["enabled"].is_boolean()) {
-                r = {{"success", false}, {"error", "'enabled' must be a boolean"}};
-                return;
-            }
-            Graphics::ChunkRenderManager::s_mergeEmitters = cmd.params["enabled"].get<bool>();
-            if (chunkManager) chunkManager->rebuildAllChunkLighting();
-        }
-        r = {{"success", true}, {"emitter_merge", Graphics::ChunkRenderManager::s_mergeEmitters},
-             {"note", "light count updates on the next frame's emissive reconcile; read /api/debug/light_stats"}};
+    reg.on("set_emitter_merge", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "emitter merge: went with D4 (it was read only by today's Chunk mesher)"}};
     });
 
-    reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("enabled"))
-            Graphics::ChunkRenderManager::setFineGreedyMerge(cmd.params["enabled"].get<bool>());
-        if (chunkManager) chunkManager->rebuildAllChunkLighting();
-        r = {{"success", true}, {"fine_merge", Graphics::ChunkRenderManager::getFineGreedyMerge()}};
+    reg.on("set_fine_merge", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "fine greedy merge: went with D4 (it was read only by today's Chunk mesher)"}};
     });
 
     // B1 deferred buffer-free toggle â€” live A/B for docs/ChunkUpdateHitchPlan.md. OFF = the old
     // inline free (the in-flight use-after-free + realloc stall). Affects future reallocs only.
-    reg.on("set_defer_buffer_free", [](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("enabled"))
-            Graphics::ChunkRenderBuffer::s_deferBufferFree = cmd.params["enabled"].get<bool>();
-        r = {{"success", true}, {"defer_buffer_free", Graphics::ChunkRenderBuffer::s_deferBufferFree}};
+    reg.on("set_defer_buffer_free", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "deferred chunk buffer free (ChunkRenderBuffer): went with D4 (it governed only today's Chunk buffers)"}};
     });
 
     // Phase 4.3 region-arena toggle â€” live A/B for docs/RegionArenaPlan.md (A2 gate).
     // Affects future buffer CREATES only: reload the world after toggling so every chunk
     // recreates its buffers in the selected mode (mixed mode is safe but not a clean A/B).
-    reg.on("set_region_arenas", [](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (cmd.params.contains("enabled"))
-            Graphics::ChunkRenderBuffer::s_regionArenas = cmd.params["enabled"].get<bool>();
-        auto& arena = Graphics::ChunkArenaSystem::instance();
-        r = {{"success", true},
-             {"region_arenas", Graphics::ChunkRenderBuffer::s_regionArenas},
-             {"arena_blocks", arena.initialized() ? arena.allocator()->liveBlocks() : 0},
-             {"arena_spans", arena.initialized() ? arena.allocator()->liveSpans() : 0},
-             {"arena_bytes_used", arena.initialized() ? arena.allocator()->bytesUsed() : 0}};
+    reg.on("set_region_arenas", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"success", false}, {"error", "region arenas (ChunkRenderBuffer / ChunkArenaSystem): went with D4 (it governed only today's Chunk buffers)"}};
     });
 
     // D1 6-index quad-draw toggle â€” live A/B for docs/RenderDensityPlan.md. ON = draw each chunk
@@ -16712,9 +16038,6 @@ void Application::registerEffectsCommands() {
     // I7: CPU render-path scopes + mesh phase timing.
     reg.on("get_cpu_timing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         r = Core::PerfApi::cpuTiming(renderCoordinator.get(), cmd.params);
-    });
-    reg.on("get_mesh_timing", [](const Core::APICommand& cmd, nlohmann::json& r) {
-        r = Core::PerfApi::meshTiming(cmd.params);
     });
 
     // I5: voxel tier census; I6: per-tier draw masks.
@@ -16769,13 +16092,7 @@ void Application::registerEffectsCommands() {
             Graphics::RenderCoordinator::s_lodRebuildBudgetPerFrame = cmd.params["budget"].get<int>();
         std::map<int, int> hist;
         size_t faces = 0;
-        if (chunkManager) {
-            for (const auto& c : chunkManager->chunks) {
-                if (!c) continue;
-                hist[c->getLodLevel()]++;
-                faces += c->getFaces().size();
-            }
-        }
+        // (today's Chunk LOD histogram went with D4: no chunk, empty)
         nlohmann::json levels = nlohmann::json::object();
         for (const auto& kv : hist) levels[std::to_string(kv.first)] = kv.second;
         r = {{"success", true},
@@ -16794,21 +16111,18 @@ void Application::registerEffectsCommands() {
             Graphics::RenderCoordinator::s_farLodBudgetPerFrame =
                 std::max(1, cmd.params["budget"].get<int>());
         // Quarantined default-off (floating coarse-tree cells) â€” opt-in for look-fix iteration.
-        if (cmd.params.contains("eviction_cache"))
-            Core::EvictedLodCache::s_evictionFeedEnabled =
-                cmd.params["eviction_cache"].get<bool>();
+        // (eviction_cache: the EvictedLodCache over today's Chunks went with D4; the param is ignored)
         r = {{"success", true},
              {"far_lod", Graphics::RenderCoordinator::s_farLodChunks},
-             {"eviction_cache", Core::EvictedLodCache::s_evictionFeedEnabled},
+             {"eviction_cache", false},
              {"budget", Graphics::RenderCoordinator::s_farLodBudgetPerFrame}};
         if (renderCoordinator) {
             r["far_chunks"] = renderCoordinator->farLodChunkCount();
             r["far_instances"] = renderCoordinator->farLodInstanceCount();
         }
-        if (chunkManager) {
-            // World-look A1/A2: the in-memory evicted-LOD source feeding the far tier.
-            r["evicted_cache_chunks"] = chunkManager->getEvictedLodCache().chunkCount();
-            r["evicted_cache_bytes"] = chunkManager->getEvictedLodCache().totalBytes();
+        if (chunkManager) {   // (the evicted-LOD cache over today's Chunks went with D4)
+            r["evicted_cache_chunks"] = 0;
+            r["evicted_cache_bytes"] = 0;
         }
     });
 
@@ -16847,13 +16161,7 @@ void Application::registerEffectsCommands() {
             // The count is baked into the merge key AND the instance word, so a change is only
             // visible after every loaded chunk is re-meshed. Without this the knob appears to
             // do nothing until something else happens to dirty a chunk.
-            if (chunkManager) {
-                for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-                    chunkManager->markChunkForRemesh(chunkManager->chunks[i].get());
-                    ++remeshed;
-                }
-                chunkManager->updateDirtyChunks();
-            }
+            // (today's Chunks were re-meshed here; none since D4)
         }
         // Echo what was APPLIED (not what was asked) plus the rebuild count, so a caller can
         // assert the knob took effect rather than trusting a stale binary.
@@ -16960,22 +16268,8 @@ void Application::registerEffectsCommands() {
     reg.on("set_lod_level", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
         const int level = cmd.params.value("level", 0);
-        Core::SquashConfig cfg;   // default: OrWithOpeningMask + SurfaceAreaMajority
+        // Re-meshed today's Chunks at the chosen LOD level (LodChunkMesh); both went with D4: nothing is touched.
         size_t chunksTouched = 0, facesBefore = 0, facesAfter = 0;
-        for (const auto& chunk : chunkManager->chunks) {
-            if (!chunk) continue;
-            facesBefore += chunk->getFaces().size();
-            if (level <= 0) {
-                chunk->rebuildFaces();
-            } else {
-                std::vector<Phyxel::InstanceData> faces;
-                Core::LodChunkMesh::buildForLevel(*chunk, level, cfg, faces);
-                chunk->setLodFaces(std::move(faces), level);
-            }
-            chunk->updateVulkanBuffer();
-            facesAfter += chunk->getFaces().size();
-            ++chunksTouched;
-        }
         r = {{"success", true}, {"level", level}, {"chunks", chunksTouched},
              {"faces_before", facesBefore}, {"faces_after", facesAfter}};
     });
@@ -17022,9 +16316,7 @@ void Application::registerEffectsCommands() {
         if (chunkManager) {
             out["residency"] = {{"load_distance", chunkManager->loadDistance},
                                 {"unload_distance", chunkManager->unloadDistance}};
-            std::map<int, int> byLevel;
-            for (const auto& c : chunkManager->chunks)
-                if (c) ++byLevel[c->getLodLevel()];
+            std::map<int, int> byLevel;   // today's Chunks by LOD level (none since D4)
             nlohmann::json lv = nlohmann::json::object();
             for (const auto& [l, n] : byLevel) lv[std::to_string(l)] = n;
             out["chunk_lod"] = {
@@ -17126,24 +16418,10 @@ void Application::registerEffectsCommands() {
         size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0, ghosts = 0;
         if (chunkManager) {
             genPending = chunkManager->streamingManagerRO().pendingGenerationCount();
-            dirty = chunkManager->dirtyTracker().getDirtyCount();
-            idle = chunkManager->dirtyTracker().getIdleCount();
-            for (const auto& c : chunkManager->chunks) {
-                if (!c) continue;
-                ++resident;
-                if (c->getNumInstances() == 0) ++unmeshed;   // air OR not-yet-meshed
-                // GHOST detector: a vector entry whose coord maps to a DIFFERENT object
-                // renders forever but is unreachable by every voxel query (the
-                // "terraces poking out of the meadow" / lingering-Outliner bug). Must
-                // always read 0 â€” the one-object-per-coord guard in
-                // generateOrLoadChunk enforces it at the source.
-                const glm::ivec3 cc =
-                    Utils::CoordinateUtils::worldToChunkCoord(c->getWorldOrigin());
-                if (chunkManager->getChunkAtCoord(cc) != c.get()) ++ghosts;
-            }
+            // (today's dirty-Chunk tracker and resident Chunks went with D4: every count reads 0)
         }
         out["chunks"] = {{"resident", resident},
-                         {"chunk_map", chunkManager ? chunkManager->chunkMap.size() : 0},
+                         {"chunk_map", 0},
                          {"ghosts", ghosts},
                          {"generation_pending", genPending},
                          {"remesh_pending", dirty},
@@ -17229,10 +16507,8 @@ void Application::registerEffectsCommands() {
             out["shadow_reach"] = dist < th.shadowDistance;
         }
         if (chunkManager) {
-            const auto* c = chunkManager->getChunkAtFast(glm::ivec3(glm::floor(p)));
-            out["resident_chunk"] = {{"exists", c != nullptr},
-                                     {"meshed", c && c->getNumInstances() > 0},
-                                     {"lod_level", c ? c->getLodLevel() : -1}};
+            // today's Chunk at the point (the Chunk store went with D4: never one)
+            out["resident_chunk"] = {{"exists", false}, {"meshed", false}, {"lod_level", -1}};
         }
         r = out;
     });
@@ -17748,7 +17024,7 @@ void Application::processAPICommands() {
                             // spell-hits path). Lazy fragment-manager wiring.
                             if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
                                 coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
-                                dmg.setFragmentManager(&coherentFragmentManager);
+                                // (DamageSystem::setFragmentManager -- the coherent collapse over today\'s Chunks -- went with D4)
                             }
                             dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster),
                                             Phyxel::DamageSystem::NO_SUPPORT,
@@ -18162,33 +17438,15 @@ void Application::processAPICommands() {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
-                    size_t chunkCount = chunkManager->chunks.size();
-                    auto stats = chunkManager->getPerformanceStats();
-
-                    // Collect chunk positions and bounds
-                    nlohmann::json chunkArr = nlohmann::json::array();
-                    for (const auto& chunk : chunkManager->chunks) {
-                        if (!chunk) continue;
-                        auto pos = chunk->getWorldOrigin();
-                        auto cubeCount = chunk->getCubeCount();
-                        // Sub/micro counts let a persistence check locate WHICH chunk
-                        // changed across a save/reload (PerfProgram 2026-09 Â§16.1).
-                        chunkArr.push_back({
-                            {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                            {"cubeCount", cubeCount},
-                            {"subcubeCount", 0},     // a Chunk has no 1/9 m store since D3c-5
-                            {"microcubeCount", 0}
-                        });
-                    }
-
+                    // Today's Chunk store went with D4: no chunk, every count 0.
                     response = {
-                        {"chunkCount", chunkCount},
-                        {"chunks", chunkArr},
+                        {"chunkCount", 0},
+                        {"chunks", nlohmann::json::array()},
                         {"stats", {
-                            {"totalVertices", stats.totalVertices},
-                            {"totalVisibleFaces", stats.totalVisibleFaces},
-                            {"totalHiddenFaces", stats.totalHiddenFaces},
-                            {"fullyOccludedCubes", stats.fullyOccludedCubes}
+                            {"totalVertices", 0},
+                            {"totalVisibleFaces", 0},
+                            {"totalHiddenFaces", 0},
+                            {"fullyOccludedCubes", 0}
                         }}
                     };
                 }
@@ -18210,18 +17468,7 @@ void Application::processAPICommands() {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
-                    int rebuilt = 0;
-                    if (cmd.params.contains("chunk")) {
-                        int cx = cmd.params["chunk"].value("x", 0);
-                        int cy = cmd.params["chunk"].value("y", 0);
-                        int cz = cmd.params["chunk"].value("z", 0);
-                        Chunk* chunk = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
-                        if (chunk) { chunk->forcePhysicsRebuild(); rebuilt = 1; }
-                    } else {
-                        for (auto& chunk : chunkManager->chunks) {
-                            if (chunk) { chunk->forcePhysicsRebuild(); ++rebuilt; }
-                        }
-                    }
+                    int rebuilt = 0;   // today's Chunk collision rebuild went with D4 (no chunk: 0 rebuilt)
                     response = {{"success", true}, {"chunks_rebuilt", rebuilt}};
                 }
 
@@ -18362,10 +17609,9 @@ void Application::processAPICommands() {
                 } else {
                     bool saveAll = cmd.params.value("all", false);
                     bool ok = false;
-                    if (saveAll) {
-                        ok = chunkManager->saveAllChunks();
-                    } else {
-                        ok = chunkManager->saveDirtyChunks();
+                    {   // today's Chunk save went with D4: with no chunk it answered "storage is open"
+                        auto* ws = chunkManager->getWorldStorage();
+                        ok = saveAll ? ws != nullptr : (ws != nullptr && ws->getDb() != nullptr);
                     }
                     // D3c-1: a switched world has no today chunks (the save count is 0) -- success is the region's save
                     if (vfw->voxFoundWorldReads) ok = true;
@@ -19058,11 +18304,7 @@ void Application::processAPICommands() {
                                         chunkBatches[ChunkManager::worldToChunkCoord(wp)]
                                             .push_back(ChunkManager::worldToLocalCoord(wp));
                                     }
-                            for (auto& [cc, positions] : chunkBatches) {
-                                Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                                if (!chunk) continue;
-                                cleared += chunk->removeCubesBatch(positions);
-                            }
+                            // (today's Chunk cells were cleared here; none since D4)
                         }
 
                         // 3. Apply rotation
@@ -20258,7 +19500,7 @@ void Application::processAPICommands() {
                                             return {{"success", false}, {"cancelled", true}, {"removed", removed}};
                                         }
                                         glm::ivec3 worldPos(ix, iy, iz);
-                                        if (cmClear->removeCubeFast(worldPos)) ++removed;
+                                        (void)worldPos;   // today's Chunk cube removal went with D4
                                         ++count;
                                         if (count % 1000 == 0) {
                                             ctx.setProgress(static_cast<float>(count) / volume, "Removing voxels...");
@@ -20305,7 +19547,9 @@ void Application::processAPICommands() {
                         desc.backgroundWork = [cmSave, dirtyOnly](Core::JobContext& ctx) -> nlohmann::json {
                             ctx.setProgress(0.0f, "Saving world...");
                             auto lock = cmSave->acquireReadLock();
-                            bool ok = dirtyOnly ? cmSave->saveDirtyChunks() : cmSave->saveAllChunks();
+                            // today's Chunk save went with D4: with no chunk it answered "storage is open"
+                            auto* ws = cmSave->getWorldStorage();
+                            bool ok = dirtyOnly ? (ws != nullptr && ws->getDb() != nullptr) : ws != nullptr;
                             ctx.setProgress(1.0f, "Save complete");
                             return {{"success", ok}, {"dirty_only", dirtyOnly}};
                         };
@@ -22969,9 +22213,6 @@ void Application::initInteractionEditorScene() {
         vfwBind();
         LOG_INFO("Application", "initInteractionEditorScene: switched stage " + vfw->buildEditorStage().dump());
     }
-    chunkManager->rebuildAllChunkFaces();
-    chunkManager->initializeAllChunkVoxelMaps();
-
     // Protect floor from breaking
     if (voxelInteractionSystem) {
         voxelInteractionSystem->setMinBreakableY(15);

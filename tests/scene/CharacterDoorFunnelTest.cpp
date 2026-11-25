@@ -7,14 +7,12 @@
 #include <cmath>
 #include <filesystem>
 
-#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "scene/AnimatedVoxelCharacter.h"
 
-using Phyxel::Chunk;
 using Phyxel::ChunkManager;
 using Phyxel::Scene::AnimatedVoxelCharacter;
 
@@ -43,10 +41,6 @@ struct DoorWorld {
         physics = std::make_unique<Phyxel::Physics::PhysicsWorld>();
         physics->initialize();
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto owned = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-        owned->initializeForLoading();
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-        cm.chunks.push_back(std::move(owned));
 
         auto g = std::make_unique<Phyxel::Physics::VoxelOccupancyGrid>();
         g->setChunkOrigin(glm::ivec3(0, 0, 0));
@@ -256,40 +250,6 @@ TEST(CharacterStandingTest, DrawnFeetMeetTheFloorForEveryShippedRig) {
 }
 
 // ============================================================================
-// A `fill` structure placed AFTER a chunk's physics body exists (every Ravenmere
-// cellar/barrow floor is one) must be solid to a character. The manual test of
-// 2026-09-11 saw every character in the barrow standing IN the StoneTiles floor -
-// consistent with the fill's cubes never reaching the collision grid, so the
-// controller grounds on the generated terrain one cube below. This drives the REAL
-// path (ChunkManager::addCubeWithMaterial -> chunk -> occupancy grid), not a hand-
-// built grid.
-// ============================================================================
-TEST(CharacterStandingTest, AFillLaidAfterPhysicsBuildIsSolidGround) {
-    Phyxel::Physics::PhysicsWorld physics;
-    ASSERT_TRUE(physics.initialize());
-    ChunkManager cm;
-    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    cm.setPhysicsWorld(&physics);
-    // "terrain": a solid layer at y = 15 (top 16.0), then the chunk's physics body.
-    for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z) cm.addCubeWithMaterial(glm::ivec3(x, 15, z), "Stone");
-    Chunk* c = cm.getChunkAtCoord(glm::ivec3(0, 0, 0));
-    ASSERT_NE(c, nullptr);
-    c->setPhysicsWorld(&physics);
-    c->createChunkPhysicsBody();
-    // the loader's "fill": a StoneTiles floor one cube higher, laid after the body exists
-    for (int x = 8; x < 24; ++x)
-        for (int z = 8; z < 24; ++z) ASSERT_TRUE(cm.addCubeWithMaterial(glm::ivec3(x, 16, z), "StoneTiles"));
-    auto ch = std::make_unique<AnimatedVoxelCharacter>(&physics, glm::vec3(16.0f, 17.5f, 16.0f));
-    ASSERT_TRUE(ch->loadModel("resources/animated_characters/humanoid.anim"));
-    ch->setChunkManager(&cm);
-    ch->setMoveVelocity(glm::vec3(0.0f));
-    for (int i = 0; i < 90; ++i) ch->update(1.0f / 60.0f);
-    EXPECT_NEAR(ch->getPosition().y, 17.0f, 0.02f)
-        << "the character must stand on the filled floor (top 17.0), not sink to the terrain under it";
-}
-
-// ============================================================================
 // The SHIPPED shape (GameShell + SceneManager for a scene with an inline `world`
 // block): chunks come from ChunkManager::createChunk, the generator fills them, the
 // loader finalizes each with forcePhysicsRebuild - and NOBODY calls the bulk pass
@@ -300,70 +260,6 @@ TEST(CharacterStandingTest, AFillLaidAfterPhysicsBuildIsSolidGround) {
 // mode / the fill updates the registered grid.
 // ============================================================================
 #include "core/WorldGenerator.h"
-TEST(CharacterStandingTest, GeneratedSceneFillIsSolidGroundLikeTheShippedGame) {
-    Phyxel::Physics::PhysicsWorld physics;
-    ASSERT_TRUE(physics.initialize());
-    ChunkManager cm;
-    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    cm.setPhysicsWorld(&physics);                  // WorldInitializer does this at boot
-    const glm::ivec3 cc(0, 0, 0);
-    cm.createChunk(cc * 32, false);                // GameDefinitionLoader::loadWorld
-    Chunk* chunk = cm.getChunkAtCoord(cc);
-    ASSERT_NE(chunk, nullptr);
-    Phyxel::WorldGenerator gen(Phyxel::WorldGenerator::GenerationType::Flat, 13);
-    gen.generateChunk(*chunk, cc);                 // Flat: solid below y = 16 -> top 16.0
-    chunk->rebuildFaces();
-    chunk->updateVulkanBuffer();
-    chunk->forcePhysicsRebuild();                  // the loader's per-chunk finalize
-    // the barrow's `fill` floor: StoneTiles at y = 16 (top 17.0), laid AFTER the finalize
-    // exactly the loader's `fill` with replace:true - remove what is there, then add
-    for (int x = 8; x < 24; ++x)
-        for (int z = 8; z < 24; ++z) {
-            const glm::ivec3 pos(x, 16, z);
-            if (cm.hasVoxelAt(pos)) cm.removeCubeFast(pos);
-            ASSERT_TRUE(cm.m_voxelModificationSystem.addCubeWithMaterial(pos, "StoneTiles")) << pos.x << "," << pos.z;
-        }
-    auto ch = std::make_unique<AnimatedVoxelCharacter>(&physics, glm::vec3(16.0f, 18.0f, 16.0f));
-    ASSERT_TRUE(ch->loadModel("resources/animated_characters/humanoid.anim"));
-    ch->setChunkManager(&cm);
-    ch->setMoveVelocity(glm::vec3(0.0f));
-    for (int i = 0; i < 120; ++i) ch->update(1.0f / 60.0f);
-    EXPECT_NEAR(ch->getPosition().y, 17.0f, 0.02f)
-        << "the character stands INSIDE the filled floor: the fill never reached the collision grid (shipped barrow: y 16.0)";
-}
-
-// A chunk that is (still) in physics BULK mode when a replace-fill runs: the remove
-// side of the write reaches collision unconditionally, the add side is gated on bulk
-// (ChunkVoxelManager: m_removeCollision always, m_addCollision only when not bulk).
-// Result: a collision HOLE where the new floor is. Prediction: RED at 16.0.
-TEST(CharacterStandingTest, ReplaceFillOnABulkModeChunkMustNotLeaveACollisionHole) {
-    Phyxel::Physics::PhysicsWorld physics;
-    ASSERT_TRUE(physics.initialize());
-    ChunkManager cm;
-    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    cm.setPhysicsWorld(&physics);
-    const glm::ivec3 cc(0, 0, 0);
-    cm.createChunk(cc * 32, false);
-    Chunk* chunk = cm.getChunkAtCoord(cc);
-    ASSERT_NE(chunk, nullptr);
-    Phyxel::WorldGenerator gen(Phyxel::WorldGenerator::GenerationType::Flat, 13);
-    gen.generateChunk(*chunk, cc);
-    chunk->rebuildFaces(); chunk->updateVulkanBuffer(); chunk->forcePhysicsRebuild();
-    chunk->setPhysicsBulkMode(true);              // whatever left it on (flora decoration, a template spawn...)
-    for (int x = 8; x < 24; ++x)
-        for (int z = 8; z < 24; ++z) {
-            const glm::ivec3 pos(x, 16, z);
-            if (cm.hasVoxelAt(pos)) cm.removeCubeFast(pos);
-            ASSERT_TRUE(cm.m_voxelModificationSystem.addCubeWithMaterial(pos, "StoneTiles"));
-        }
-    auto ch = std::make_unique<AnimatedVoxelCharacter>(&physics, glm::vec3(16.0f, 18.0f, 16.0f));
-    ASSERT_TRUE(ch->loadModel("resources/animated_characters/humanoid.anim"));
-    ch->setChunkManager(&cm);
-    ch->setMoveVelocity(glm::vec3(0.0f));
-    for (int i = 0; i < 120; ++i) ch->update(1.0f / 60.0f);
-    EXPECT_NEAR(ch->getPosition().y, 17.0f, 0.02f)
-        << "replace-fill on a bulk-mode chunk left a collision hole: the character stands INSIDE the new floor";
-}
 
 // ============================================================================
 // THE REAL BARROW through the REAL loader (GameDefinitionLoader::load on Ravenmere's
@@ -401,46 +297,4 @@ TEST(CharacterStandingTest, TheShippedBarrowFloorIsSolidThroughTheRealLoader) {
     for (int i = 0; i < 120; ++i) ch->update(1.0f / 60.0f);
     EXPECT_NEAR(ch->getPosition().y, 17.0f, 0.02f)
         << "shipped barrow: the character stands one cube INSIDE the StoneTiles floor";
-}
-
-// ============================================================================
-// THE SHIPPED PATH, REVISITED SCENE: the barrow's chunks come from barrow.db (saved on
-// the first visit), loaded through ChunkManager::loadChunk -> Chunk::initializeForLoading
-// (physics BULK mode ON) -> finalizeLoadedChunk. Then the definition's replace-fill runs
-// on chunks still in bulk mode: remove reaches collision, add is skipped -> a collision
-// hole the size of the floor. Shipped instance 2026-09-11: every character at y 16.0.
-// Prediction: RED until finalizeLoadedChunk takes the chunk out of bulk mode.
-// ============================================================================
-TEST(CharacterStandingTest, ReplaceFillOnADbLoadedChunkIsSolidGround) {
-    const std::string db = (std::filesystem::temp_directory_path() / "standing_dbload.db").string();
-    { std::error_code ec; std::filesystem::remove(db, ec); }
-    const glm::ivec3 cc(0, 0, 0);
-    {   // first visit: generate + save
-        ChunkManager cm; cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        ASSERT_TRUE(cm.initializeWorldStorage(db));
-        cm.createChunk(cc * 32, false);
-        Phyxel::WorldGenerator gen(Phyxel::WorldGenerator::GenerationType::Flat, 13);
-        gen.generateChunk(*cm.getChunkAtCoord(cc), cc);
-        ASSERT_TRUE(cm.saveAllChunks()); cm.disconnectWorldStorage();
-    }
-    // second visit: the chunk comes from the DB
-    Phyxel::Physics::PhysicsWorld physics; ASSERT_TRUE(physics.initialize());
-    ChunkManager cm; cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE); cm.setPhysicsWorld(&physics);
-    ASSERT_TRUE(cm.initializeWorldStorage(db));
-    ASSERT_TRUE(cm.loadChunk(cc));
-    Chunk* chunk = cm.getChunkAtCoord(cc); ASSERT_NE(chunk, nullptr);
-    cm.finalizeLoadedChunk(*chunk, /*syncMesh=*/true);     // what the refused path / createChunk-load do
-    for (int x = 8; x < 24; ++x)                          // the definition's replace-fill floor
-        for (int z = 8; z < 24; ++z) {
-            const glm::ivec3 pos(x, 16, z);
-            if (cm.hasVoxelAt(pos)) cm.removeCubeFast(pos);
-            ASSERT_TRUE(cm.m_voxelModificationSystem.addCubeWithMaterial(pos, "StoneTiles"));
-        }
-    auto ch = std::make_unique<AnimatedVoxelCharacter>(&physics, glm::vec3(16.0f, 18.0f, 16.0f));
-    ASSERT_TRUE(ch->loadModel("resources/animated_characters/humanoid.anim"));
-    ch->setChunkManager(&cm); ch->setMoveVelocity(glm::vec3(0.0f));
-    for (int i = 0; i < 120; ++i) ch->update(1.0f / 60.0f);
-    EXPECT_NEAR(ch->getPosition().y, 17.0f, 0.02f)
-        << "DB-loaded chunk + replace-fill: the character stands INSIDE the new floor (bulk mode never ended)";
-    std::error_code ec; std::filesystem::remove(db, ec);
 }

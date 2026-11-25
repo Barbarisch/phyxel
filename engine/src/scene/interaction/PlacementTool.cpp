@@ -46,40 +46,6 @@ glm::ivec3 PlacementTool::calculateSubcubePositionFromHitPoint(const glm::vec3& 
     return subcubePos;
 }
 
-PlacementTool::PlacementTool(VoxelManipulationSystem* manipulator)
-    : m_manipulator(manipulator) {}
-
-bool PlacementTool::placeVoxel(const InteractionContext& context) {
-    if (!context.isValid()) {
-        LOG_DEBUG("PlacementTool", "[PLACE VOXEL] No voxel is currently hovered");
-        return false;
-    }
-
-    LOG_INFO_FMT("PlacementTool", "[PLACE VOXEL] Input: worldPos=(" 
-              << context.hoveredLocation.worldPos.x << "," 
-              << context.hoveredLocation.worldPos.y << "," 
-              << context.hoveredLocation.worldPos.z << ") hitFace=" 
-              << context.hoveredLocation.hitFace);
-
-    // Calculate placement position based on hit face
-    glm::ivec3 placementPos = context.hoveredLocation.getAdjacentPlacementPosition();
-    
-    LOG_INFO_FMT("PlacementTool", "[PLACE VOXEL] Output: placementPos=(" 
-              << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
-    
-    // Get default placement color (greenish)
-    glm::vec3 color(0.2f, 0.7f, 0.2f);
-    
-    // Place the cube
-    bool success = m_manipulator->placeCube(placementPos, color);
-    
-    if (success) {
-        LOG_INFO_FMT("PlacementTool", "[PLACE VOXEL] Placed cube at (" 
-                  << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
-    }
-    return success;
-}
-
 PlacementTool::PlacementResult PlacementTool::calculatePlacement(const glm::vec3& hitPoint, const glm::vec3& hitNormal, const glm::ivec3& hitCubePos) {
     // Use a small epsilon to push the point into the target voxel
     glm::vec3 targetPoint = hitPoint + hitNormal * 0.001f;

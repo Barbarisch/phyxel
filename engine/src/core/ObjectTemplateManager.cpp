@@ -525,54 +525,6 @@ uint32_t posHash(int x, int z, uint32_t salt) {
 }
 }  // namespace
 
-void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkCoord,
-                                          WorldGenerator& generator) {
-    constexpr int CS = 32;
-    const int wx0 = chunkCoord.x * CS, wy0 = chunkCoord.y * CS, wz0 = chunkCoord.z * CS;
-    const int wx1 = wx0 + CS - 1, wy1 = wy0 + CS - 1, wz1 = wz0 + CS - 1;
-    // Inflate by the widest loaded template's half-footprint (not a fixed 12) so a plant rooted
-    // in a neighbor chunk still contributes its overhang here — no silent seam clip of wide canopies.
-    const int margin = m_floraMarginColumns;
-
-    // planFlora is order-independent, so the placements whose footprint reaches this chunk are
-    // identical to those a whole-region pass (or a neighbor chunk) would compute.
-    auto placements = generator.planFlora(wx0 - margin, wz0 - margin, wx1 + margin, wz1 + margin, 0);
-    if (placements.empty()) return;
-    const uint32_t worldSeed = generator.getSeed();
-
-    auto inChunk = [&](const glm::ivec3& w) {
-        return w.x >= wx0 && w.x <= wx1 && w.y >= wy0 && w.y <= wy1 && w.z >= wz0 && w.z <= wz1;
-    };
-    // Clip-stamp a template's voxels into just this chunk (its footprint centered on the column).
-    auto stamp = [&](const VoxelTemplate& t, int worldX, int surfaceY, int worldZ) {
-        glm::ivec3 mx(0);
-        for (const auto& c : t.cubes)      mx = glm::max(mx, c.relativePos);
-        for (const auto& s : t.subcubes)   mx = glm::max(mx, s.parentRelativePos);
-        for (const auto& m : t.microcubes) mx = glm::max(mx, m.parentRelativePos);
-        const glm::ivec3 base(worldX - mx.x / 2, surfaceY + 1, worldZ - mx.z / 2);
-        for (const auto& c : t.cubes) {
-            glm::ivec3 w = base + c.relativePos;
-            if (inChunk(w)) chunk.addCube(Utils::CoordinateUtils::worldToLocalCoord(w), c.material);
-        }
-        // (template subcubes/microcubes are not stamped: a Chunk has no 1/9 m store since D3c-5)
-    };
-
-    for (const auto& p : placements) {
-        if (p.procedural) {
-            // Generate a unique tree deterministically from (position, world seed) so every chunk
-            // that clips this tree produces the identical voxels (seamless).
-            TreeTypeInfo info = treeTypeInfo(p.templateName);
-            const uint32_t treeSeed = posHash(p.worldX, p.worldZ, worldSeed);
-            int height = info.baseHeight + static_cast<int>(posHash(p.worldX, p.worldZ, worldSeed ^ 0x55u) % 5) - 2;
-            VoxelTemplate gen = ProceduralTree::generate(p.templateName, std::max(2, height),
-                                                         p.fullness, treeSeed, info.log, info.leaf);
-            if (!gen.cubes.empty() || !gen.subcubes.empty()) stamp(gen, p.worldX, p.surfaceY, p.worldZ);
-        } else if (const VoxelTemplate* t = getTemplate(p.templateName)) {
-            stamp(*t, p.worldX, p.surfaceY, p.worldZ);
-        }
-    }
-}
-
 const VoxelTemplate* ObjectTemplateManager::getTemplate(const std::string& name) const {
     auto it = m_templates.find(name);
     if (it != m_templates.end()) {
@@ -674,25 +626,6 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     };
 
     glm::ivec3 basePos = glm::round(worldPos);
-    std::unordered_set<Chunk*> modifiedChunks;
-
-    // Helper: get-or-create chunk and enable bulk physics mode on first touch
-    auto getOrCreateChunk = [&](const glm::ivec3& worldBlockPos) -> Chunk* {
-        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldBlockPos);
-        auto it = m_chunkManager->chunkMap.find(chunkCoord);
-        if (it == m_chunkManager->chunkMap.end()) {
-            glm::ivec3 origin = chunkCoord * 32;
-            m_chunkManager->createChunk(origin, false);
-            it = m_chunkManager->chunkMap.find(chunkCoord);
-        }
-        if (it == m_chunkManager->chunkMap.end()) return nullptr;
-        Chunk* chunk = it->second;
-        if (modifiedChunks.insert(chunk).second) {
-            chunk->setPhysicsBulkMode(true);
-        }
-        return chunk;
-    };
-
     // Phase C0b: voxels belonging to movable parts get collected here, keyed
     // by partId, in template-local *unrotated* float coordinates (the centers
     // of each voxel in cube units). Hinge resolution happens after the gather.
@@ -734,10 +667,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             for (const auto& v : vfTmp) vfCells.push_back({v, tCube.material});
             continue;
         }
-        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
-        if (Chunk* chunk = getOrCreateChunk(pos)) {
-            chunk->addCube(localPos, tCube.material);
-        }
+        // (no fallback: today's Chunk store, which a cube went into without the write hook, went with D4)
     }
 
     // Spawn Subcubes
@@ -796,19 +726,6 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         // (no Chunk write: the Chunk 1/9 m microcube store was deleted in D3c-5)
     }
     if (vfWrite && !vfCells.empty()) m_chunkManager->voxFoundWrite()(vfCells, "spawn_template:" + name);   // F7.15
-
-    // Finalise all modified chunks: flush deferred collisions, rebuild faces
-    for (Chunk* chunk : modifiedChunks) {
-        chunk->batchUpdateCollisions();
-        chunk->setPhysicsBulkMode(false);
-        chunk->rebuildFaces();
-        chunk->updateVulkanBuffer();
-        // The rebuild above has no neighbour lookup (instant feedback only). The MANAGED re-mesh
-        // gives this chunk its cross-chunk culling and delivers its border changes to the
-        // neighbours (docs/GlassTransparency.md §6): without it a stamp on a chunk border
-        // left the neighbour's facing faces stale, e.g. a hole, or a doubled glass layer.
-        m_chunkManager->markChunkForRemesh(chunk);
-    }
 
     // --------------------------------------------------------------------
     // Phase C0b: emit movable parts as KinematicVoxelObjects.
@@ -998,13 +915,9 @@ int ObjectTemplateManager::countTemplateMicroPresent(const std::string& name, co
         const glm::ivec3 cube(floorDiv(gm.x, 9), floorDiv(gm.y, 9), floorDiv(gm.z, 9));
         const glm::ivec3 rem(floorMod(gm.x, 9), floorMod(gm.y, 9), floorMod(gm.z, 9));
         const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3), mic(rem.x % 3, rem.y % 3, rem.z % 3);
-        auto it = m_chunkManager->chunkMap.find(Utils::CoordinateUtils::worldToChunkCoord(cube));
-        if (it == m_chunkManager->chunkMap.end() || !it->second) continue;
-        const Chunk* chunk = it->second;
-        const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
+        // Today's Chunk store (the only reader of a cell's material here) went with D4: nothing reads as present.
+        (void)sub; (void)mic; (void)cube;
         const std::string* have = nullptr;
-        (void)sub; (void)mic;   // cube-only since D3c-5 (no 1/9 m store in a Chunk)
-        if (const Cube* cb = chunk->getCubeAt(lp)) have = &cb->getMaterialName();
         if (have && *have == *c.mat) ++present;
     }
     if (total) *total = static_cast<int>(cells.size());
@@ -1062,7 +975,6 @@ bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm
     auto floorDiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
     auto floorMod = [&](int a, int b) { return a - floorDiv(a, b) * b; };
 
-    std::unordered_set<Chunk*> modifiedChunks;   // stays empty: a Chunk has no 1/9 m store (D3c-5)
     const bool vfWriteM = m_chunkManager && static_cast<bool>(m_chunkManager->voxFoundWrite());   // F7.15
     std::vector<std::pair<glm::ivec3, std::string>> vfCellsM;
     std::vector<glm::ivec3> vfTmpM;
@@ -1082,16 +994,6 @@ bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm
     }
     if (vfWriteM && !vfCellsM.empty()) m_chunkManager->voxFoundWrite()(vfCellsM, "spawn_template_micro:" + name);
 
-    for (Chunk* chunk : modifiedChunks) {
-        chunk->batchUpdateCollisions();
-        chunk->setPhysicsBulkMode(false);
-        // [no-frozen-engine] MARK DIRTY instead of the old synchronous rebuildFaces()+
-        // updateVulkanBuffer() per touched chunk: the sync remesh made EVERY fixture spawn
-        // pay full chunk remeshes + GPU uploads (~150-300 ms Debug each) — 76% of a
-        // building's cost (measured: fixtures=11818 ms of TOTAL=15450). The budgeted
-        // DirtyChunkTracker (6 ms/frame) remeshes within a few frames instead.
-        m_chunkManager->markChunkDirty(chunk);
-    }
     return true;
 }
 
@@ -1131,45 +1033,13 @@ void ObjectTemplateManager::update(float deltaTime) {
         return;
     }
 
-    glm::ivec3 basePos = glm::round(spawn.worldPos);
-    std::unordered_set<Chunk*> modifiedChunks;
     int processedVoxels = 0;
 
     // ---------------------------------------------------------
     // Process Cubes Batch
     // ---------------------------------------------------------
     while (spawn.currentCubeIndex < tmpl->cubes.size() && processedVoxels < m_voxelsPerFrame) {
-        const auto& tCube = tmpl->cubes[spawn.currentCubeIndex];
-        glm::ivec3 pos = basePos + tCube.relativePos;
-        
-        if (spawn.isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(pos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
-
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                // AUTO-CREATE CHUNK:
-                // If the template extends into a chunk that doesn't exist yet (e.g. high in the air),
-                // we must create it to avoid losing voxels.
-                glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false);
-
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            if (chunk) {
-                if (chunk->addCube(localPos)) {
-                    modifiedChunks.insert(chunk);
-                }
-            }
-        }
-
+        // (no Chunk write: today's Chunk store went with D4)
         spawn.currentCubeIndex++;
         processedVoxels++;
     }
@@ -1190,13 +1060,6 @@ void ObjectTemplateManager::update(float deltaTime) {
         // (no Chunk write: the Chunk 1/9 m microcube store was deleted in D3c-5)
         spawn.currentMicrocubeIndex++;
         processedVoxels++;
-    }
-
-    // Update modified chunks immediately so the user sees the progress
-    for (Chunk* chunk : modifiedChunks) {
-        chunk->rebuildFaces();
-        chunk->updateVulkanBuffer();
-        m_chunkManager->markChunkForRemesh(chunk);   // managed re-mesh: see the stamp above (GlassTransparency.md §6)
     }
 
     // Check if done

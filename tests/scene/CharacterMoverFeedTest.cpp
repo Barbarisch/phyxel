@@ -13,7 +13,6 @@
 
 #include <cmath>
 
-#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"

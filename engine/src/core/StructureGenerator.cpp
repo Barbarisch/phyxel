@@ -1,7 +1,6 @@
 #include "core/voxfound/PlacementToVoxels.h"
 #include "core/StructureGenerator.h"
 #include "core/ChunkManager.h"
-#include "core/Chunk.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
 #include <algorithm>
@@ -812,77 +811,9 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         return result;
     }
 
-    // Build the structure up in bounded steps instead of all-or-nothing. A large
-    // structure (e.g. a multi-story tower) legitimately runs to hundreds of thousands
-    // of micro-voxels; the old hard 100k cap silently dropped the WHOLE structure,
-    // leaving a wall-less "ghost" (a registered bbox + furniture with no voxels). We
-    // now place every voxel in steps and report the true placed/failed counts. Runaway
-    // protection belongs upstream in BuildingProgramValidator (footprint/story gates),
-    // not in a silent placement drop here.
-    const size_t total = structure.voxels.size();
-    constexpr size_t kPlacementStep = 25000;   // voxels per step (progress granularity)
-    if (total > kPlacementStep) {
-        LOG_INFO("StructureGenerator", "Placing " + std::to_string(total) + " voxels in " +
-                 std::to_string((total + kPlacementStep - 1) / kPlacementStep) + " steps");
-    }
-
-    // BATCH placement: write each voxel STRAIGHT to its chunk, bypassing the per-voxel mod-system
-    // wrappers. Those wrappers run, per call, a discarded LOG_DEBUG_FMT (builds an ostringstream) +
-    // FaceUpdateCoordinator::updateAfterCubePlace (allocates a vector + a std::set + neighbour
-    // lookups). At tens of thousands of voxels that per-voxel STL churn dominated — ~14 s for a 65k-
-    // voxel tavern in a Debug build. Here we mark each TOUCHED chunk dirty exactly ONCE at the end
-    // (same dirty/neighbour semantics, O(chunks) not O(voxels)); the mesh rebuilds once per chunk at
-    // render, so the visual result is identical.
-    std::map<Chunk*, glm::ivec3> touched;   // chunk -> a representative world pos (for the single update)
-    for (size_t i = 0; i < total; ++i) {
-        const auto& voxel = structure.voxels[i];
-        // A tall structure spans multiple vertical chunks; materialize the owning chunk first so the
-        // structure crosses every vertical seam (KI-3). Existing chunks are a cheap lookup.
-        chunkManager->ensureChunkAt(voxel.position);
-        Chunk* chunk = chunkManager->getChunkAtFast(voxel.position);
-        if (!chunk) { result.failed++; continue; }
-        auto ins = touched.emplace(chunk, voxel.position);
-        if (ins.second) chunk->beginBulkOperation();   // first touch: defer per-voxel collision
-        const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(voxel.position);
-        // DESTRUCTIVE-WRITE ACCOUNTING: is this cell already occupied by something
-        // coarser (or by another fine cell)? Writing over it does not fail — it
-        // REPLACES — so without this count the damage is invisible to every caller.
-        {
-            const bool occupied = chunk->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);
-            if (occupied) {
-                ++result.displaced;
-                if (result.displacedSample.size() < 32)
-                    result.displacedSample.push_back(voxel.position);
-            }
-        }
-        bool ok = false;
-        switch (voxel.level) {
-        case VoxelLevel::Subcube:
-        case VoxelLevel::Microcube:
-            ok = false;   // a Chunk has no 1/9 m subcube/microcube store since D3c-5: counted as failed
-            break;
-        default: // Cube
-            ok = voxel.material.empty() ? chunk->addCube(lp) : chunk->addCube(lp, voxel.material);
-            break;
-        }
-        if (ok) { result.placed++; touched[chunk] = voxel.position; }
-        else result.failed++;
-
-        if (total > kPlacementStep && (i + 1) % kPlacementStep == 0) {
-            LOG_INFO("StructureGenerator", "  step " + std::to_string((i + 1) / kPlacementStep) + ": " +
-                     std::to_string(i + 1) + "/" + std::to_string(total) + " (" +
-                     std::to_string(result.placed) + " placed, " +
-                     std::to_string(result.failed) + " failed)");
-        }
-    }
-
-    // Per touched chunk, ONCE: rebuild all collision shapes (endBulkOperation) + mark faces dirty.
-    // Replaces the per-voxel collision add + face update that made a 65k-voxel build freeze ~14 s.
-    for (const auto& entry : touched) {
-        entry.first->endBulkOperation();
-        chunkManager->updateAfterCubePlace(entry.second);
-    }
-
+    // Without the switched world's write hook there is nowhere to place: today's Chunk store went with D4
+    // (it was already refusing chunk creation while switched, so every voxel counted as failed).
+    result.failed = static_cast<int>(structure.voxels.size());
     return result;
 }
 
@@ -895,23 +826,7 @@ int StructureGenerator::removeVoxels(ChunkManager* chunkManager, const std::vect
         return static_cast<int>(chunkManager->voxFoundWrite()(voxels, "structure_remove"));
     }
 
-    // [no-frozen-engine] bulk-defer per-voxel collision exactly like place(): the naive loop
-    // paid collision work per removed cell (measured: excav=1042 ms for one building's cells).
-    // Each touched chunk enters bulk mode once; collisions rebuild once per chunk at the end.
-    std::map<Chunk*, bool> touched;
-    for (const auto& pos : positions)
-        if (Chunk* c = chunkManager->getChunkAtFast(pos))
-            if (touched.emplace(c, true).second) c->beginBulkOperation();
-
-    int removed = 0;
-    for (const auto& pos : positions) {
-        if (chunkManager->removeCube(pos)) {
-            removed++;
-        }
-    }
-
-    for (auto& [c, _] : touched) c->endBulkOperation();
-    return removed;
+    return 0;   // (today's Chunk removal went with D4)
 }
 
 int StructureGenerator::planPadLevel(std::vector<int> cellTops) {

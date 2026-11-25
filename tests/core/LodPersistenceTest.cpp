@@ -4,10 +4,9 @@
 #include <memory>
 #include <string>
 
-#include "core/Chunk.h"
 #include "core/LodBlobCodec.h"
 #include "core/LodBrick.h"
-#include "core/LodChunkMesh.h"
+#include <vector>
 #include "core/WorldStorage.h"
 
 #include <sqlite3.h>
@@ -17,16 +16,35 @@ using namespace Phyxel::Core;
 
 namespace {
 
-std::unique_ptr<Chunk> terrainChunk() {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
+/// D4: today's Chunk and LodChunkMesh::volumeFromChunk went with the Chunk store. The level-0 volume is built
+/// directly by the rule volumeFromChunk applied: a visible cube is full coverage with bulk = skin = its palette id
+/// (palette[0] == "" is air, materials in first-seen x, y, z order).
+template <class F>
+LodVolume cubeVolume(F&& matAt, std::vector<std::string>* outPalette) {
+    LodVolume v(glm::ivec3(32, 32, 32), 0);
+    std::vector<std::string> palette{""};
     for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z) {
-            const int h = 8 + ((x * 7 + z * 5) % 6);
-            for (int y = 0; y < h; ++y)
-                c->addCube(glm::ivec3(x, y, z), (y == h - 1) ? "Grass" : "Stone");
-        }
-    return c;
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 32; ++z) {
+                const std::string m = matAt(x, y, z);
+                if (m.empty()) continue;
+                uint16_t id = 0;
+                for (size_t i = 0; i < palette.size(); ++i) if (palette[i] == m) id = uint16_t(i);
+                if (!id) { palette.push_back(m); id = uint16_t(palette.size() - 1); }
+                LodCell& c = v.at(x, y, z);
+                c.coverage = LodVolume::kFullCoverage;
+                c.bulkMaterial = c.skinMaterial = id;
+            }
+    if (outPalette) *outPalette = std::move(palette);
+    return v;
+}
+
+/// The terrain chunk the suite used to build (a heightfield, a grass skin), as its level-0 volume.
+LodVolume terrainVolume(std::vector<std::string>* palette) {
+    return cubeVolume([](int x, int y, int z) -> std::string {
+        const int h = 8 + ((x * 7 + z * 5) % 6);
+        return y < h ? (y == h - 1 ? "Grass" : "Stone") : "";
+    }, palette);
 }
 
 } // namespace
@@ -52,9 +70,8 @@ protected:
 };
 
 TEST_F(LodPersistenceTest, RoundTripsAPyramidThroughTheDatabase) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
+        std::vector<std::string> palette;
+    LodVolume v = terrainVolume(&palette);
 
     const glm::ivec3 coord(3, 1, -4);
     std::vector<LodVolume> levels;
@@ -86,9 +103,8 @@ TEST_F(LodPersistenceTest, RoundTripsAPyramidThroughTheDatabase) {
 /// That independence is the entire reason this is its own table keyed (x,y,z,lod) -- a reader
 /// that wants only coarse geometry must never have to pull the full-resolution chunk.
 TEST_F(LodPersistenceTest, LevelsAreIndependentlyAddressable) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
+        std::vector<std::string> palette;
+    LodVolume v = terrainVolume(&palette);
     const glm::ivec3 coord(0, 0, 0);
     for (int lod = 1; lod <= 3; ++lod) {
         v = squash(v, SquashConfig{});
@@ -108,9 +124,8 @@ TEST_F(LodPersistenceTest, LevelsAreIndependentlyAddressable) {
 /// another position -- terrain that looks plausible but is in the wrong place. Negative
 /// coordinates are included deliberately: the world is signed.
 TEST_F(LodPersistenceTest, DistinctChunksDoNotCollide) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = squash(LodChunkMesh::volumeFromChunk(*c, &palette), SquashConfig{});
+        std::vector<std::string> palette;
+    LodVolume v = squash(terrainVolume(&palette), SquashConfig{});
 
     LodVolume other = v;
     other.at(0, 0, 0).coverage = 12345;             // make it distinguishable
@@ -132,9 +147,8 @@ TEST_F(LodPersistenceTest, DistinctChunksDoNotCollide) {
 /// A saved level must be REPLACED, not duplicated, or the pyramid drifts out of sync with the
 /// voxels and distant terrain shows an older world.
 TEST_F(LodPersistenceTest, ResavingALevelReplacesIt) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = squash(LodChunkMesh::volumeFromChunk(*c, &palette), SquashConfig{});
+        std::vector<std::string> palette;
+    LodVolume v = squash(terrainVolume(&palette), SquashConfig{});
     const glm::ivec3 coord(5, 0, 5);
     ASSERT_TRUE(storage->saveLodBlob(coord, 1, LodBlobCodec::encode(v, palette)));
 
@@ -154,9 +168,8 @@ TEST_F(LodPersistenceTest, ResavingALevelReplacesIt) {
 /// pyramid renders the pre-edit world at distance -- the bug that reads as "the world does not
 /// update until I walk up to it".
 TEST_F(LodPersistenceTest, DeleteDropsEveryLevelForThatChunkOnly) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
+        std::vector<std::string> palette;
+    LodVolume v = terrainVolume(&palette);
     const glm::ivec3 doomed(2, 0, 2), keep(9, 0, 9);
     for (int lod = 1; lod <= 4; ++lod) {
         v = squash(v, SquashConfig{});
@@ -172,9 +185,8 @@ TEST_F(LodPersistenceTest, DeleteDropsEveryLevelForThatChunkOnly) {
 
 /// Persisted geometry must survive a close/reopen, or none of this helps across sessions.
 TEST_F(LodPersistenceTest, SurvivesReopeningTheDatabase) {
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = squash(LodChunkMesh::volumeFromChunk(*c, &palette), SquashConfig{});
+        std::vector<std::string> palette;
+    LodVolume v = squash(terrainVolume(&palette), SquashConfig{});
     const glm::ivec3 coord(7, 3, 1);
     ASSERT_TRUE(storage->saveLodBlob(coord, 2, LodBlobCodec::encode(v, palette)));
 
@@ -200,9 +212,8 @@ TEST_F(LodPersistenceTest, AddsTheLodTableToADatabaseThatPredatesIt) {
         << (err ? err : "drop failed");
 
     // Sanity: with the table gone the write path must fail rather than pretend to succeed.
-    auto c = terrainChunk();
-    std::vector<std::string> palette;
-    LodVolume v = squash(LodChunkMesh::volumeFromChunk(*c, &palette), SquashConfig{});
+        std::vector<std::string> palette;
+    LodVolume v = squash(terrainVolume(&palette), SquashConfig{});
     const glm::ivec3 coord(4, 4, 4);
     EXPECT_FALSE(storage->saveLodBlob(coord, 1, LodBlobCodec::encode(v, palette)))
         << "reported success writing to a table that does not exist";

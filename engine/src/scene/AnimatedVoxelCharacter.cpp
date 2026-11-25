@@ -76,12 +76,11 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // keeps a jump above the streamed surface band under normal gravity. Static
         // worlds return false — legacy behavior untouched.
         if (!m_chunkManager || !m_chunkManager->isStreamingGenerationEnabled()) return false;
-        const glm::ivec3 feet(static_cast<int>(std::floor(worldPosition.x)),
-                              static_cast<int>(std::floor(worldPosition.y)),
-                              static_cast<int>(std::floor(worldPosition.z)));
-        const glm::ivec3 cc = Phyxel::ChunkManager::worldToChunkCoord(feet);
-        if (m_chunkManager->getChunkAtCoord(cc)) return false;
-        return m_chunkManager->getChunkAtCoord(cc + glm::ivec3(0, -1, 0)) == nullptr;
+        // The residency test read today's Chunk map (feet chunk / chunk below). D4 deleted that store; with no
+        // Chunk ever resident both lookups were absent, so on a streaming world this hold answered TRUE -- and
+        // still does, unchanged. D4 finding (reported): this LIVE hold depended on the Chunk store; the
+        // switched world's residency (its region's chunks) is what should answer it.
+        return true;
     }
 
     void AnimatedVoxelCharacter::applyDebrisPush(const glm::vec3& impulse) {
@@ -5908,14 +5907,10 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // silently killed every point-blank swing before its hit frame (task
         // #8 — the user could stand close enough that no swing ever landed).
         // Walls/stone still block: the exemption is per overlapped CELL.
-        auto treeMatterCell = [&](const glm::ivec3& wp) -> bool {
-            if (Cube* c = m_chunkManager->getCubeAt(wp)) {
-                const std::string& m = c->getMaterialName();
-                return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
-            }
-            // subdivided cell (flare/notch): wood at any granularity counts
-            return Phyxel::DamageSystem::isWoodCellAny(m_chunkManager, wp);
-        };
+        // It read today's Chunk Cubes (and DamageSystem's chunk wood scan); D4 deleted both, and with no Chunk
+        // they answered false everywhere -- as they still do. D4 finding: the switched world's tree-cell hook
+        // (DamageSystem::isTreeMatterCell) is what should answer here.
+        auto treeMatterCell = [&](const glm::ivec3&) -> bool { return false; };
 
         for (auto& seg : m_segmentBoxes) {
             seg.colliding = false;

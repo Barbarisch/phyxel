@@ -99,15 +99,17 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
 
     // Expose ChunkManager
     py::class_<ChunkManager>(m, "ChunkManager")
-        .def("add_cube", [](ChunkManager& cm, int x, int y, int z) {
-            return cm.addCube(glm::ivec3(x, y, z));
-        }, "Add a cube at the specified world coordinates")
-        .def("add_cube_with_material", [](ChunkManager& cm, int x, int y, int z, const std::string& material) {
-            return cm.m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(x, y, z), material);
-        }, "Add a cube with specific material at the specified world coordinates")
-        .def("remove_cube", [](ChunkManager& cm, int x, int y, int z) {
-            return cm.removeCube(glm::ivec3(x, y, z));
-        }, "Remove a cube at the specified world coordinates");
+        // Today's Chunk store went with D4. These wrote into it (and it refused chunk creation while switched, so
+        // they returned false); they keep their names and still return false.
+        .def("add_cube", [](ChunkManager&, int, int, int) {
+            return false;
+        }, "Removed with today's Chunk store (D4): always False")
+        .def("add_cube_with_material", [](ChunkManager&, int, int, int, const std::string&) {
+            return false;
+        }, "Removed with today's Chunk store (D4): always False")
+        .def("remove_cube", [](ChunkManager&, int, int, int) {
+            return false;
+        }, "Removed with today's Chunk store (D4): always False");
 
     // Expose ObjectTemplateManager
     py::class_<ObjectTemplateManager>(m, "ObjectTemplateManager")

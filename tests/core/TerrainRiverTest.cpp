@@ -3,8 +3,6 @@
 #include "core/WorldGenerator.h"
 #include "core/FlowField.h"
 #include "core/HydrologyMap.h"
-#include "core/Chunk.h"
-#include "core/ChunkVoxelManager.h"
 
 #include <algorithm>
 #include <cmath>

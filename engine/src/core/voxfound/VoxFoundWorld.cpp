@@ -19,9 +19,7 @@
 #include "graphics/GrassRenderPipeline.h"
 #include "graphics/WaterSurfaceRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
-#include "graphics/ChunkUpdatePerf.h"
 #include "graphics/DeferredBufferReclaim.h"
-#include "graphics/ChunkArenaSystem.h"
 #include "core/MaterialRegistry.h"
 #include "core/PerfApi.h"
 #include "core/TraversalProbe.h"
@@ -69,8 +67,6 @@
 #include "ai/LLMClient.h"
 #include "ai/TTSService.h"
 #include "core/WorldStorage.h"
-#include "core/Chunk.h"
-#include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldForgeBuildService.h"
 #include "core/WorldForgeLedger.h"
@@ -416,13 +412,8 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
             return;
         }
         if (cmd.params.value("today_census", false) && chunkManager) {   // F7.27 (tests): today's volume per material
-            std::map<std::string, double> vol;
-            for (const auto& [cc, ch] : chunkManager->chunkMap) {
-                if (!ch) continue;
-                const auto& st = ch->getVoxelStore();
-                for (size_t i = 0; i < 32768; ++i) if (st.solid(i)) vol[st.material(i)] += 512.0;
-            }
-            response = {{"today_voxels_by_material", vol}, {"chunks", chunkManager->chunkMap.size()}};
+            std::map<std::string, double> vol;   // today's Chunk store went with D4: no today's voxels
+            response = {{"today_voxels_by_material", vol}, {"chunks", 0}};
             return;
         }
         if (cmd.params.contains("grass_stub")) {   // F7.29 (tests): no grass on the switched world (the red)
@@ -471,7 +462,7 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.value("today_status", false) && chunkManager) {   // D2 (tests)
             response = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
                         {"create_refused", ChunkManager::s_createRefused.load()},
-                        {"today_chunks_resident", chunkManager->chunkMap.size()}};
+                        {"today_chunks_resident", 0}};   // no Chunk store since D4
             return;
         }
         if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
@@ -540,18 +531,12 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
                         ++vsGen;
                         if (firstBad.size() < 5) firstBad.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"vs", "generator"}});
                     }
-                    if (const Chunk* ch = chunkManager->getChunkAtCoord(cc)) {
-                        ++both;
-                        if (!same(l, ch->getWaterSpans())) {
-                            ++vsChunks;
-                            if (firstBad.size() < 5) firstBad.push_back({{"chunk", {cc.x, cc.y, cc.z}}, {"vs", "chunk"}});
-                        }
-                    }
+                    // (the comparison with today's Chunk spans went with D4: no Chunk is ever resident)
                 }
             response = {{"store_on", chunkManager && chunkManager->voxFoundSpansOn()}, {"store_chunks", storeChunks},
                         {"chunks_with_spans", withSpans}, {"spans", spans}, {"resident_in_both", both},
                         {"mismatch_vs_chunks", vsChunks}, {"mismatch_vs_generator", vsGen}, {"first_bad", firstBad},
-                        {"today_chunks_resident", chunkManager ? chunkManager->chunkMap.size() : 0},
+                        {"today_chunks_resident", 0},
                         {"edited_chunks", chunkManager ? chunkManager->voxFoundEditedSpans().size() : 0},
                         {"loaded_edited", voxFoundSpansLoaded}, {"span_edit_cells", voxFoundSpanEditCells}};
             return;
@@ -2077,12 +2062,7 @@ void VoxFoundWorld::voxFoundBoot() {
         }
     }
     const bool fromToday = v.value("source", std::string()) == "today" || !dbFallback.empty();
-    if (fromToday && chunkManager && !chunkManager->chunkMap.empty()) {   // F7.27: the box of today's resident chunks
-        lo = glm::ivec3(std::numeric_limits<int>::max());
-        hi = glm::ivec3(std::numeric_limits<int>::min());
-        for (const auto& [cc, ch] : chunkManager->chunkMap)
-            if (ch) lo = glm::min(lo, cc), hi = glm::max(hi, cc);
-    }
+    (void)fromToday;   // F7.27: the box of today's resident chunks -- none since D4 (the Chunk store was deleted)
     nlohmann::json req = {{"type", w.value("type", std::string("Perlin"))}, {"seed", w.value("seed", 0)},
                           {"flora", w.value("flora", true)}, {"editable", true}, {"hide_world", false},
                           {"flora_window", "open"},
@@ -3511,12 +3491,9 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
             return;
         }
         std::string convErr;
-        rb = forEachStoredChunk([this](glm::ivec3 c, std::vector<uint8_t>& out) {
-                                    const Chunk* ch = chunkManager->getChunkAtCoord(c);
-                                    if (!ch) return false;
-                                    out = Phyxel::ChunkBlobCodec::encode(*ch);
-                                    return !out.empty();
-                                },
+        // Today's resident chunks were encoded here (ChunkBlobCodec::encode); D4 deleted both the Chunk store and
+        // the encoder, so no chunk reads -- the region converts as air, as it did with nothing resident.
+        rb = forEachStoredChunk([](glm::ivec3, std::vector<uint8_t>&) { return false; },
                                 lo, hi, onChunk, &stored, &convErr);
         if (!convErr.empty() && err.empty()) err = convErr;
     } else if (fromWorldDb) {
@@ -3714,7 +3691,7 @@ void VoxFoundWorld::tick(float dt) {
         // F7.27: today's world must have LANDED before it is converted -- no deferred DB loads, no generation pending,
         // and the resident set unchanged since the last frame (VillageChat booted on 27 of its chunks while loading)
         static size_t s_lastResident = 0;
-        const size_t resident = chunkManager->chunkMap.size();
+        const size_t resident = 0;   // today's resident chunks (none since D4)
         if (chunkManager->hasDeferredDbLoads() || chunkManager->streamingManagerRO().pendingGenerationCount() > 0 ||
             resident != s_lastResident)
             voxFoundBootFrames = 0;

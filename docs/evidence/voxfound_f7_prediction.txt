@@ -2004,3 +2004,70 @@ what the switched world calls (WorldStorage open / meta, the generator); WorldSt
   Most likely miss: a live system reads Chunk objects in a way that happens to be harmless with 0 chunks but whose
   replacement matters (lighting / occupancy pool feeds, water span persistence, grass) -- any such find is recorded,
   not papered over.
+
+D4 RESULTS (2026-11-24; the prediction above untouched). The deletion was done by a delegated agent in this checkout;
+I reviewed the switched-path diffs (RenderCoordinator: the switched draws stay in renderVoxFoundPreview under the kept
+`if (chunkManager)` guard), rebuilt Release and ran every gate and both full suites myself.
+  R1 PASS: Chunk.{h,cpp} gone; no `class Chunk` / Chunk* anywhere in engine / editor / tests (2 comments). All six
+     Release targets build. Deleted (65 files): Chunk, ChunkVoxelManager, ChunkVoxelModificationSystem,
+     ChunkVoxelQuerySystem, ChunkInitializer, FaceUpdateCoordinator, DirtyChunkTracker, ChunkPhysicsManager,
+     IChunkManager, ChunkVoxelStore, LodChunkMesh, LodPyramidService, EvictedLodCache, ChunkRenderManager,
+     ChunkRenderBuffer, ChunkArenaSystem, ChunkBlobCodec.cpp (encode AND decode -- convertPxb2 reads the format itself;
+     ChunkBlobCodec.h keeps the format notes), DestructionTool, WorldStorage's chunk save / load family,
+     WorldGenerator::generateChunk, DamageSystem's chunk collapse / kerf, ObjectTemplateManager::decorateChunk.
+     KEPT: ChunkManager as the host (voxfound hooks, read routing, the span store -- WaterSpanLocal moved to its own
+     header --, the generator + hydrology, WorldStorage open / meta + the v1 migration + readChunkBlob, play bounds).
+     No ChunkRenderManager static knob fed the switched world: the six knob routes (smooth lighting, flood bypass,
+     emitter merge, fine merge, defer buffer free, region arenas) answer success:false naming D4; foliage density
+     ignored; mesh timing removed from get_render_stats.
+  R2 PASS: battery G1 {} / {}, 0 lost, max apply 0.388 s; G2 12 / 12, T3 0; G3 both ways; G4 20 / 0; today_status
+     answers (disabled, resident 0, create_refused 0) in all boots. Six projects: all switched, today 0,
+     create_refused 0, stored_check 0 (VillageChat 1, known). D3-scenes C1-C3 pass. Frames draw (forest, town, scenes;
+     VillageChat's magenta floor = the known retired-Cork item).
+  R3 MISS, then PASS: produce_game FAILED at build -- the GENERATED game source (tools/create_project.py) still called
+     `chunkManager->chunks.empty()` (pre-baked check) and `cm->dirtyTracker()` (the G-181 loading-screen settle hold),
+     and 12 of 63 scaffolded projects under PhyxelProjects carry that code in their own .cpp. Neither the engine
+     targets nor the unit suites see generated sources. Fixed two ways: the template no longer emits either (the world
+     section always stays; the hold is >= 0.5 s -- the region is built during the load, no remesh backlog);
+     ChunkManager keeps a documented D4-compatibility shim (`chunks` always empty, a LegacyDirtyTracker answering 0)
+     so already-generated projects still compile -- both answers are the truth on the switched world.
+     Then: the OLD TavernPkg source (shim) -- all stages pass; a FRESH scaffold (template, 0 shim calls in its .cpp) --
+     build / package pass, smoke FAILED once ("no visible chunks/faces": 0 voxfound clusters at the sample, startup
+     41 s) while my probe of the same exe moments later saw 214 clusters: the smoke sampled render stats the instant
+     the API answered, before the switched world's deferred boot. smoke_test_standalone.py now waits (within the same
+     startup deadline) for a drawn world before judging -- the requirement unchanged. Re-run (cold dist): all stages
+     PASS (world_wait 0.047 s -- the race did not recur, so the fix is defensive, not demonstrated). In play: 214
+     clusters, terrain + grass drawn (d4_pkg_play.png). Cold-dist startup ~41-43 s vs 7 s warm (not diagnosed).
+  R4: UNIT 4,412 pass / 2 fail / 14 skip (4,428 ran; D3c-5 4,665 / 3); INTEGRATION 184 / 5 (189 ran; D3c-5 223 / 5).
+     Failures are only the standing ones (AtlasManager, WaterCoupling; the 3 SceneIntegration + 2 water-core rows).
+     RETIRED unit files (164 tests): ChunkVoxelManagerBulk, ChunkVoxelStore, ChunkVoxelStoreUniform, DirtyChunkTracker,
+       EvictedLodCache, LodChunkMesh, LodPyramidService, ChunkRenderFlags, ChunkSealed, ChunkVoxelAuthority,
+       OccupancyCoverage, ChunkRenderBufferArena, ChunkTransparentCulling, FaceDirBucketing, GrassBladeCoverage,
+       GrassEdgeTaper, LightBakeOcclusion, LightWallMatrix, VoxelRaycaster (+ MockChunkManager), ChunkBlobCodec (the
+       format stays guarded by the StorageLab converter + V1Migration tests), FloraMarginTest (the switched store's
+       chunked = whole pin is VoxFoundStorageLab.RegionChunksEqualTheRegionGeneratedWhole; CLAUDE.md repointed),
+       SettlementTerrainPlan, WorldGenerator (all generateChunk), WorldForgeLiveApply.
+     RETIRED unit cases (78): ChunkDataTest 19, ChunkStreamingManager 15, WorldStorage 21 (chunk save / load),
+       CharacterDoorFunnel 4 fill-on-chunk cases, PlayBounds 4 derived-extent cases, RoadFieldSeam 4 generateChunk
+       bridge cases, CharacterResidencyGate 2, VoxelLocation 2, WaterOccupancy 2, GameDefinition 1, LodBlobCodec 1,
+       LodBrickSweep 1, WaterManager 1, NavGraphMicro OverheadPropBoxDoesNotEatDoorHeadroom (a 1/8 m resolution effect:
+       the 17-micro agent needs all 16 voxels of a 2 m door).
+     PORTED: a CubeWorldReads test helper (rig terrain in 1/8 m BlockStores, routed through setVoxFoundReads) for
+       NavObstacle, NpcHeldItems, StructureGrounding, NavGraphMicro door world, WaterManager, TacticalSpace,
+       VegetationGate, NpcTorchPolicy; decoy-Chunk lines dropped from 12 scene / motion rigs; LodBlobCodec 2 +
+       LodPersistence 7 build volumes directly; StorageLab + the WorldStorage migration test read via readChunkBlob +
+       convertPxb2; PlayBounds / PlacedObjectMicroPoints / WorldReads / VoxelLocation trimmed.
+     Integration RETIRED 39: ChunkManagerIntegration 20, VoxelGrazeRemesh 4, CoherentCollapse 7, TreeCollapse 8.
+     Benchmarks: ChunkBenchmarks (10) deleted; stress: ChunkStressTests (10) retired (shell kept).
+  R5 MISS: -24,426 / +756 lines (163 files) -- ~1.6-2.4x the predicted -10k..-15k: the render / LOD / test surface
+     (ChunkRenderManager + arena + LOD pyramid + 24 retired test files) was not in my census.
+  FEATURES WITH NO 1/8 m FEED (each was ALREADY empty on the switched world -- no Chunk was ever resident -- and stays
+  so; recorded as owed, not regressions): axe chop (tryAxeChopOnHitFrame never registers contact); emissive voxel
+  lights (U3.2) and flaming-voxel fire VFX; mirror scan / reflection geometry; glass OIT re-render; structure LOD
+  proxies; far terrain near-field coverage + the far-tree residency mask; the kinematic residency hold (still true on
+  streaming worlds) and WorldForge residencyReady (always false; checkpointWorld saves no chunks); the realized-world
+  validators, validate_placed_objects ("unverifiable"), StructureForge sign-mount probe, light-occupancy CPU audits,
+  occupancy_cell; Python ChunkManager.add_cube / remove_cube (return False); settlement / structure-build clears.
+  Test coverage lost with the store: water-span PXB2 round-trips, generateChunk bridge decks / piers, Chunk-based
+  collapse / chop.
+D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, writers and readers are gone.

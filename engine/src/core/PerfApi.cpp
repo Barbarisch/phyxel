@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "graphics/GiProbeField.h"
 #include "graphics/LightManager.h"
@@ -168,31 +167,6 @@ nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& 
             {"scopes", scopes}};
 }
 
-nlohmann::json meshTiming(const nlohmann::json& params) {
-    using CRM = Graphics::ChunkRenderManager;
-    const auto s = CRM::getMeshPhaseStats();
-    nlohmann::json phases = nlohmann::json::array();
-    for (int i = 0; i < CRM::kMeshPhases; ++i)
-        phases.push_back({{"phase", CRM::meshPhaseName(i)},
-                          {"total_ms", s.phaseTotalMs[i]},
-                          {"mean_ms", s.calls ? s.phaseTotalMs[i] / double(s.calls) : 0.0},
-                          {"max_ms", s.phaseMaxMs[i]}});
-    nlohmann::json buckets = nlohmann::json::array();
-    for (int i = 0; i < CRM::kMicroBuckets; ++i)
-        buckets.push_back({{"microcubes", CRM::microBucketName(i)},
-                           {"rebuilds", s.bucketCalls[i]},
-                           {"mean_ms", s.bucketCalls[i] ? s.bucketTotalMs[i] / double(s.bucketCalls[i]) : 0.0},
-                           {"max_ms", s.bucketMaxMs[i]},
-                           {"mean_microcubes", s.bucketCalls[i] ? double(s.bucketMicrocubes[i]) / double(s.bucketCalls[i]) : 0.0}});
-    const bool reset = paramFlag(params, "reset");
-    if (reset) CRM::resetMeshPhaseStats();
-    return {{"success", true},
-            {"rebuilds", s.calls},
-            {"phases", phases},
-            {"by_microcube_count", buckets},
-            {"reset_after_read", reset}};
-}
-
 nlohmann::json gpuFrameSummary(const GpuProfiler* prof, size_t frames) {
     if (!prof) return nullptr;
     for (const auto& s : prof->getHistory().stats(frames))
@@ -290,35 +264,8 @@ nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, con
     nlohmann::json chunkList = nlohmann::json::array();
     bool truncated = false;
 
-    for (const auto& ch : cm->chunks) {
-        if (!ch) continue;
-        // Cube-only since D3c-5: the 1/9 m sub/micro store was deleted, so those counts are 0.
-        struct { size_t cubes, subcubes, microcubes; } fs{ch->getVoxelStore().solidCount(), 0, 0};
-        storedCubes += fs.cubes;
-        const auto& tf = ch->getTierFaces();
-        const auto& tu = ch->getTierUnitFaces();
-        for (uint32_t t = 0; t < TR::kTiers; ++t) {
-            merged[t] += tf[t];
-            units[t] += tu[t];
-        }
-        if (ch->getNumInstances() > 0) ++chunksMeshed;
-        uint64_t cc = 0, cu = 0;
-        if (wantCovered) {
-            ch->countCoveredCubeFaces(cc, cu);
-            covered += cc;
-            coveredUnknown += cu;
-        }
-        if (perChunk) {
-            if (chunkList.size() >= kMaxChunksListed) { truncated = true; continue; }
-            const glm::ivec3 o = ch->getWorldOrigin();
-            nlohmann::json j = {{"origin", {o.x, o.y, o.z}},
-                                {"stored", {{"cube", fs.cubes}, {"sub", fs.subcubes}, {"micro", fs.microcubes}}},
-                                {"faces_merged", {tf[0], tf[1], tf[2], tf[3]}},
-                                {"unit_faces", {tu[0], tu[1], tu[2], tu[3]}}};
-            if (wantCovered) j["covered_cube_faces"] = {{"covered", cc}, {"unknown", cu}};
-            chunkList.push_back(std::move(j));
-        }
-    }
+    // (The per-chunk census over today's Chunk store went with D4: the stored / merged / unit counts read 0.)
+    (void)kMaxChunksListed; (void)covered; (void)coveredUnknown;
 
     const auto& ds = rc->getTierDrawStats();
     const size_t instanceBytes = sizeof(Phyxel::InstanceData);
@@ -345,7 +292,7 @@ nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, con
     nlohmann::json out = {
         {"success", true},
         {"tiers", tiers},
-        {"chunks_total", cm->chunks.size()},
+        {"chunks_total", 0},
         {"chunks_meshed", chunksMeshed},
         {"main_chunks_unattributed", ds.mainChunksUnattributed},
         {"masked_chunks_skipped", ds.maskedChunksSkipped},

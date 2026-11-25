@@ -84,40 +84,8 @@ bool WorldInitializer::initialize() {
         LOG_WARN("WorldInitializer", "Failed to initialize world storage. Using temporary chunks.");
     }
     
-    // Stream-in boot (docs/LargeWorldScalePlan.md Phase 2): load only the DB chunks
-    // near the initial camera now; the rest arrive in the background via the per-frame
-    // pumpDeferredDbLoads() (DB-only worlds) or on approach (streaming worlds).
-    // Anchor matches the initial camera position set below.
-    std::vector<glm::ivec3> loadedChunks =
-        chunkManager->loadChunksNearAndDeferRest(glm::vec3(50.0f, 50.0f, 50.0f));
-
-    if (loadedChunks.empty()) {
-        // No chunks in database - create initial world
-        // LOG_INFO("WorldInitializer", "No chunks found in database - creating initial world");
-        // auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
-        
-        // for (const auto& origin : origins) {
-        //     glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
-        //     chunkManager->generateOrLoadChunk(chunkCoord);
-        // }
-        LOG_INFO("WorldInitializer", "No chunks found in database - starting with EMPTY world for Python scripting");
-    } else {
-        LOG_INFO_FMT("WorldInitializer", "Loaded " << loadedChunks.size() << " chunks from database");
-    }
-    
-    // Rebuild faces for all chunks AFTER all are loaded (critical for cross-chunk culling)
-    chunkManager->rebuildAllChunkFaces();
-    
-    // Initialize hash maps for optimized O(1) hover detection
-    chunkManager->initializeAllChunkVoxelMaps();
-    
-    // Calculate face culling optimization after chunk creation (DISABLED for now)
-    // chunkManager->calculateChunkFaceCulling();
-    
-    // Cross-chunk occlusion culling is now handled in rebuildAllChunkFaces()
-    // chunkManager->performOcclusionCulling();
-    
-    LOG_INFO_FMT("WorldInitializer", "Created " << chunkManager->chunks.size() << " chunks for testing");
+    // (Today's chunks were loaded, meshed and mapped here; the Chunk store went with D4. The switched world
+    // loads its own region.)
 
     // if (!initializeScene()) {
     //     std::cerr << "Failed to initialize scene!" << std::endl;
@@ -156,13 +124,6 @@ bool WorldInitializer::initialize() {
         return false;
     }
 
-    // Create physics bodies for all chunks AFTER physics world is initialized
-    // Each chunk will be a compound shape made from individual cube collision boxes
-    LOG_INFO("WorldInitializer", "Creating chunk physics bodies...");
-    for (auto& chunk : chunkManager->chunks) {
-        chunk->setPhysicsWorld(physicsWorld);
-        chunk->createChunkPhysicsBody();
-    }
 
     if (!loadAssets()) {
         LOG_ERROR("WorldInitializer", "Failed to load assets!");

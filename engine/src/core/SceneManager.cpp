@@ -300,7 +300,6 @@ void SceneManager::executeLoad() {
             auto* cm = subsystems_->chunkManager;
             if (callbacks_.beforeWorldSave) callbacks_.beforeWorldSave();
             if (callbacks_.switchedWorldSave) callbacks_.switchedWorldSave();   // D3-scenes
-            cm->saveDirtyChunks();
             cm->cleanup();
             cm->disconnectWorldStorage();
             const bool opened = cm->initializeWorldStorage(scene->resolvedWorldPath);
@@ -353,9 +352,7 @@ void SceneManager::executeLoad() {
             auto* ws = cm->m_streamingManager.getWorldStorage();
             if (ws) subsystems_->placedObjectManager->saveToDb(ws->getDb());
         }
-        cm->saveDirtyChunks();
-
-        cm->cleanup();             // Clear all chunk data from memory
+        cm->cleanup();
         cm->disconnectWorldStorage();
         if (subsystems_->placedObjectManager) subsystems_->placedObjectManager->clear();
 
@@ -368,16 +365,7 @@ void SceneManager::executeLoad() {
                 return;
             }
 
-            // If the scene definition has no inline "world" generation,
-            // load pre-baked chunks from the database file.
-            if (!scene->definition.contains("world")) {
-                cm->loadAllChunksFromDatabase();
-                cm->rebuildAllChunkFaces();
-                // Build collision + register occupancy grids for the loaded terrain,
-                // or characters fall through the world after a scene transition (same
-                // footgun the editor open_project path had).
-                cm->buildAllChunkPhysics();
-            }
+            // (Pre-baked chunks were loaded into today's Chunk store here; it went with D4.)
             // Restore the new scene's placed-object records alongside its chunks.
             if (subsystems_->placedObjectManager) {
                 auto* ws = cm->m_streamingManager.getWorldStorage();

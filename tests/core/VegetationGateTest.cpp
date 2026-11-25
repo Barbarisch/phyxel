@@ -1,6 +1,9 @@
+#include <set>
+#include <tuple>
 #include <gtest/gtest.h>
 
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "core/StructureBuildService.h"
 
 using namespace Phyxel;
@@ -33,23 +36,28 @@ nlohmann::json croftParams(int x, int z) {
 TEST(VegetationGateTest, KeepVegetationRefusesBuildOverATree) {
     ChunkManager cm;   // headless (StructureGroundingTest pattern)
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(96, 0, 192));
-    owned->initializeForLoading();
+    // D4: the terrain is in the switched store and the tree cells answer through the tree-cell hook (F7.14) --
+    // today's Chunk (Stone / Log / Leaf cubes) went with D4.
+    Phyxel::Testing::CubeWorldReads terrain;
+    std::set<std::tuple<int, int, int>> tree;
     // 12x10 stone platform at y=15: world (100..111) x (200..209).
     for (int x = 100; x < 112; ++x)
         for (int z = 200; z < 210; ++z)
-            owned->addCube(glm::ivec3(x - 96, 15, z - 192), "Stone");
+            terrain.addCube(glm::ivec3(x, 15, z));
     // A tree ON the platform: 4-cube Log trunk + a 3x3 Leaf canopy layer.
-    for (int y = 16; y <= 19; ++y)
-        owned->addCube(glm::ivec3(106 - 96, y, 204 - 192), "Log");
+    for (int y = 16; y <= 19; ++y) {
+        terrain.addCube(glm::ivec3(106, y, 204));
+        tree.insert({106, y, 204});
+    }
     int canopyCells = 0;
     for (int x = 105; x <= 107; ++x)
         for (int z = 203; z <= 205; ++z) {
-            owned->addCube(glm::ivec3(x - 96, 20, z - 192), "Leaf");
+            terrain.addCube(glm::ivec3(x, 20, z));
+            tree.insert({x, 20, z});
             ++canopyCells;
         }
-    cm.chunkMap[glm::ivec3(3, 0, 6)] = owned.get();
-    cm.chunks.push_back(std::move(owned));
+    terrain.install(cm);
+    cm.setVoxFoundTreeCell([&tree](const glm::ivec3& c) { return tree.count({c.x, c.y, c.z}) > 0; });
     ASSERT_TRUE(cm.hasVoxelAt(glm::ivec3(106, 16, 204))) << "test trunk not visible";
 
     StructureBuildService::Deps deps;

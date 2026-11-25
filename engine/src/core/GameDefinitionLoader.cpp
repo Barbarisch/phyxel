@@ -1,5 +1,4 @@
 #include "core/GameDefinitionLoader.h"
-#include "graphics/ChunkUpdatePerf.h"
 #include <chrono>
 #include "core/PlayBounds.h"
 #include "core/TransitionMarkers.h"
@@ -208,14 +207,6 @@ void GameDefinitionLoader::placeTransitionMarkers(const json& triggers, GameSubs
             boxes.push_back({oid, po.templateName, po.boundingMin, po.boundingMax});
         }
         for (const auto& m : planTransitionMarkers(definition["triggers"])) {
-            // The world may still be loading (DB-backed scenes load chunks lazily):
-            // bring the marker's chunk in before reading or writing voxels there, or
-            // the intact check reads air, the seat scan finds no surface, and (regen
-            // #19) an erase used to create an EMPTY chunk over the saved one.
-            if (subsystems.chunkManager) {
-                subsystems.chunkManager->ensureChunkAt(m.position);
-                subsystems.chunkManager->ensureChunkAt(m.position + glm::ivec3(0, 2, 0));
-            }
             if (const MarkerSiteBox* have = markerAlreadyPlaced(boxes, m)) {
                 // A record whose voxels are gone (the site was rebuilt over it) is
                 // stale: drop it and place afresh; otherwise keep the one we have.
@@ -599,23 +590,6 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
             sg->applyRecipe(recipe);   // streamed chunks use the same per-world tuning
             if (mapData) sg->setHeightmapSource(mapData);  // after applyRecipe (which rebuilds coarse)
         }
-        // Wire per-chunk flora decoration for streamed chunks (clip-stamp; the generator is
-        // fetched lazily so it's valid for the lifetime of streaming).
-        if (sub.templateManager) {
-            ObjectTemplateManager* otm = sub.templateManager;
-            ChunkManager* cm = sub.chunkManager;
-            cm->setFloraDecorator([otm, cm](Chunk& chunk, const glm::ivec3& coord) {
-                if (WorldGenerator* g = cm->getStreamingGenerator())
-                    otm->decorateChunk(chunk, coord, *g);
-            });
-            // Async generation: flora stamps on the WORKER with its private generator
-            // (decorateChunk only reads the preloaded template library and writes the
-            // passed chunk). Dense-forest chunks cost 450-625ms — off the main thread.
-            cm->setWorkerFloraDecorator([otm](Chunk& chunk, const glm::ivec3& coord,
-                                              WorldGenerator& workerGen) {
-                otm->decorateChunk(chunk, coord, workerGen);
-            });
-        }
         if (worldDef.contains("loadRadius"))
             sub.chunkManager->loadDistance = worldDef["loadRadius"].get<float>() * 32.0f;
         if (worldDef.contains("unloadRadius"))
@@ -643,7 +617,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         return;
     }
 
-    // Collect chunk coordinates
+    // Collect chunk coordinates (the region; kept by D4 -- it is world config, not today's Chunk store)
     std::vector<glm::ivec3> chunkCoords;
     if (worldDef.contains("chunks")) {
         for (const auto& c : worldDef["chunks"]) {
@@ -665,8 +639,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         return;
     }
 
-    // The region is the play area (PlayBounds): whether it generates now or loads from the DB
-    // below, and whatever streams in around it, the wall stands at the authored rectangle.
+    // The region is the play area (PlayBounds): whatever streams in around it, the wall stands at the authored rectangle.
     {
         int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
         int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
@@ -680,122 +653,8 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         sub.chunkManager->setRegionChunkCoords(chunkCoords);   // the exact block, all levels (G-181)
     }
 
-    // NEVER regenerate over saved chunks by accident. An inline `world` block on a
-    // scene whose DB already holds those chunks REPLACED a built town with flat
-    // terrain twice (Ravenmere G-48; regen #18, where the following save wrote the
-    // flat world back). The DB is the source of truth once it has the chunks; a
-    // deliberate rebuild says so with `world.regenerate: true`.
-    if (!worldDef.value("regenerate", false) && sub.chunkManager->getWorldStorage()) {
-        size_t saved = 0;
-        for (const auto& cc : chunkCoords)
-            if (sub.chunkManager->getWorldStorage()->chunkExists(cc)) ++saved;
-        if (saved > 0) {
-            LOG_WARN("GameDefinitionLoader", "World: " + std::to_string(saved) + " of " +
-                     std::to_string(chunkCoords.size()) + " chunks are already saved in the world DB - the "
-                     "inline world block is IGNORED (the DB is the source of truth; set "
-                     "world.regenerate=true to overwrite it deliberately)");
-            result.worldGenerationRefused = true;
-            // The region is the DB's now, so LOAD it - the generation path used to bring
-            // every chunk of the range into memory, and nothing else does for a fixed
-            // region (Ravenmere run 49: the second farm visit had 2 of 9 chunks loaded,
-            // the ones a marker check happened to touch; the NavGraph covered two chunks
-            // and the player walked into nothing).
-            int loaded = 0;
-            std::vector<Chunk*> loadedChunks;
-            const Phyxel::Graphics::ChunkPerfPhase kLoadStages[] = {Phyxel::Graphics::ChunkPerfPhase::LoadChunkInit,
-                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadDbDecode,
-                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadGpuAlloc};
-            const char* kLoadStageNames[] = {"db read", "decode (parallel)", "init+insert"};
-            double loadBefore[3];
-            for (int i = 0; i < 3; ++i) { const auto s = Phyxel::Graphics::getChunkPerf(kLoadStages[i]); loadBefore[i] = s.avgMs * static_cast<double>(s.count); }
-            const auto tLoad0 = std::chrono::steady_clock::now();
-            // G-181: the region's chunks decode on worker threads (the town: 30 chunks, 1.8 M
-            // sub/microcubes, 2.2-3.2 s on one thread); the world ends up as loadChunk() one by
-            // one would leave it, in this order.
-            std::vector<glm::ivec3> toLoad;
-            for (const auto& cc : chunkCoords)
-                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc))
-                    toLoad.push_back(cc);
-            loaded = sub.chunkManager->loadChunksParallel(toLoad);
-            for (const auto& cc : toLoad)
-                if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
-            // FINALIZE like generated chunks: the streaming load defers faces and physics to
-            // a bulk pass (buildAllChunkPhysics) that only the no-world-block scene path runs.
-            // Without this the second farm visit had terrain data and NO collision - every
-            // NPC fell to y = -19,000 (editor, 2026-09-10).
-            // Stage totals for the finalize (G-181): the counters are process-global, so take
-            // deltas around this loop.
-            using Phyxel::Graphics::ChunkPerfPhase; using Phyxel::Graphics::getChunkPerf;
-            const ChunkPerfPhase kStages[] = {ChunkPerfPhase::LoadPhysicsBody, ChunkPerfPhase::LoadOccupancy,
-                                              ChunkPerfPhase::LoadFaces, ChunkPerfPhase::LoadUpload,
-                                              ChunkPerfPhase::LoadVoxelMaps};
-            const char* kStageNames[] = {"physics", "occupancy", "faces", "upload", "voxelmaps"};
-            double before[5];
-            for (int i = 0; i < 5; ++i) { const auto s = getChunkPerf(kStages[i]); before[i] = s.avgMs * static_cast<double>(s.count); }
-            const auto tFin0 = std::chrono::steady_clock::now();
-            for (Chunk* chunk : loadedChunks) sub.chunkManager->finalizeLoadedChunk(*chunk, /*syncMesh=*/true);
-            const double finMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tFin0).count();
-            std::string stages;
-            for (int i = 0; i < 5; ++i) {
-                const auto s = getChunkPerf(kStages[i]);
-                const double ms = s.avgMs * static_cast<double>(s.count) - before[i];
-                stages += std::string(i ? ", " : "") + kStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
-            }
-            const double loadMs = std::chrono::duration<double, std::milli>(tFin0 - tLoad0).count();
-            std::string loadStages;
-            for (int i = 0; i < 3; ++i) {
-                const auto s = getChunkPerf(kLoadStages[i]);
-                const double ms = s.avgMs * static_cast<double>(s.count) - loadBefore[i];
-                loadStages += std::string(i ? ", " : "") + kLoadStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
-            }
-            LOG_INFO("GameDefinitionLoader", "World: loaded " + std::to_string(loaded) +
-                     " saved chunks of the region from the DB in " + std::to_string(static_cast<int>(loadMs + 0.5)) +
-                     " ms (" + loadStages + "); faces + physics built in " +
-                     std::to_string(static_cast<int>(finMs + 0.5)) + " ms (" + stages + ")");
-            return;
-        }
-    }
-
-    std::unordered_set<Chunk*> modifiedChunks;
-    for (const auto& cc : chunkCoords) {
-        glm::ivec3 origin = cc * 32;
-        if (!sub.chunkManager->getChunkAtCoord(cc))
-            sub.chunkManager->createChunk(origin, false);
-        Chunk* chunk = sub.chunkManager->getChunkAtCoord(cc);
-        if (chunk) {
-            generator.generateChunk(*chunk, cc);
-            modifiedChunks.insert(chunk);
-            result.chunksGenerated++;
-        }
-    }
-
-    for (Chunk* chunk : modifiedChunks) {
-        chunk->rebuildFaces();
-        chunk->updateVulkanBuffer();
-        chunk->forcePhysicsRebuild();
-    }
-
-    // Flora decoration pass (Phase 5): scatter biome-appropriate vegetation across the
-    // generated region. Every chunk of the region exists now, so a tree's overhang routes
-    // into the correct neighbour chunk (no clipped trees at seams). This runs on the
-    // generate path whether or not the world streams: the up-front region is generated
-    // here, not streamed, so the per-chunk streaming decorator never touches it - with the
-    // old `!streaming` guard a streaming world's own region was the one bare patch in it.
-    // Opt out with world.flora=false.
-    if (sub.templateManager && worldDef.value("flora", true) && !chunkCoords.empty()) {
-        int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
-        int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
-        for (const auto& cc : chunkCoords) {
-            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
-            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
-        }
-        const int colMinX = minCX * 32, colMaxX = maxCX * 32 + 31;
-        const int colMinZ = minCZ * 32, colMaxZ = maxCZ * 32 + 31;
-        sub.templateManager->decorateFlora(generator, colMinX, colMinZ, colMaxX, colMaxZ);
-    }
-
-    LOG_INFO("GameDefinitionLoader", "World: generated " + std::to_string(result.chunksGenerated) +
-             " chunks (" + typeStr + ", seed=" + std::to_string(seed) + ")");
+    // Generating / DB-loading the region into today's Chunk objects went with D4: nothing else loads here.
+    LOG_INFO("GameDefinitionLoader", "World: config applied (today's chunk store was deleted in D4; the switched world loads the terrain)");
 }
 
 // ============================================================================
@@ -843,7 +702,6 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 continue;
             }
 
-            int placed = 0, failed = 0;
             if (ChunkStreamingManager::todayWorldDisabled()) {   // D3c-1: the switched world's fill (cube units)
                 json r;
                 const json p = {{"x1", minX}, {"y1", minY}, {"z1", minZ}, {"x2", maxX}, {"y2", maxY}, {"z2", maxZ},
@@ -855,40 +713,9 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                          (ok ? "placed " + std::to_string(r.value("placed", size_t(0))) + " voxels" : "FAILED " + r.dump()));
                 continue;
             }
-            for (int ix = minX; ix <= maxX; ++ix) {
-                for (int iy = minY; iy <= maxY; ++iy) {
-                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                        if (hollow && ix > minX && ix < maxX &&
-                            iy > minY && iy < maxY && iz > minZ && iz < maxZ) {
-                            continue;
-                        }
-                        const glm::ivec3 pos(ix, iy, iz);
-                        if (replace && sub.chunkManager->hasVoxelAt(pos)) {
-                            // removeCubeFast defers the re-mesh (chunk marked
-                            // dirty; per-frame updateDirtyChunks rebuilds once).
-                            sub.chunkManager->removeCubeFast(pos);
-                        }
-                        bool ok = false;
-                        if (!material.empty()) {
-                            ok = sub.chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                                pos, material);
-                        } else {
-                            ok = sub.chunkManager->addCube(pos);
-                        }
-                        if (ok) placed++; else failed++;
-                    }
-                }
-            }
-            result.structuresPlaced++;
-            // INFO so silent collisions are visible in any load log. failed>0 on
-            // a non-replace fill almost always means it overlapped terrain or an
-            // earlier fill — author wants "replace": true or different coords.
-            LOG_INFO("GameDefinitionLoader", "Fill " + (material.empty() ? std::string("(default)") : material) +
-                     " [" + std::to_string(minX) + "," + std::to_string(minY) + "," + std::to_string(minZ) +
-                     "]..[" + std::to_string(maxX) + "," + std::to_string(maxY) + "," + std::to_string(maxZ) +
-                     "]: placed " + std::to_string(placed) + ", failed " + std::to_string(failed) +
-                     (failed > 0 && !replace ? " (occupied voxels skipped — add \"replace\": true to overwrite)" : ""));
-
+            // (Today's Chunk fill went with D4: only the switched world above places voxels.)
+            LOG_WARN("GameDefinitionLoader", "Fill structure skipped: the switched world is not active (today's chunk store was deleted in D4)");
+            continue;
         } else if (stype == "template") {
             if (!sub.templateManager) {
                 LOG_WARN("GameDefinitionLoader", "Skipping template structure: ObjectTemplateManager not available");
@@ -1023,17 +850,8 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 if (ok) result.structuresPlaced++;
                 continue;
             }
-            if (subcubeType == "sub" || subcubeType == "micro") {
-                ok = false;   // the Chunk 1/9 m subcube/microcube store was deleted (D3c-5)
-            } else {
-                if (!material.empty() && material != "Default") {
-                    ok = sub.chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                        glm::ivec3(x, y, z), material);
-                } else {
-                    ok = sub.chunkManager->addCube(glm::ivec3(x, y, z));
-                }
-            }
-            if (ok) result.structuresPlaced++;
+            // (Today's Chunk placement went with D4: only the switched world above places voxels.)
+            LOG_WARN("GameDefinitionLoader", "place_voxel structure skipped: the switched world is not active");
         } else {
             LOG_WARN("GameDefinitionLoader", "Unknown structure type: " + stype);
         }

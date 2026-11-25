@@ -7,9 +7,6 @@
 namespace Phyxel {
 
 // Forward declarations
-class IChunkManager;
-class ChunkManager;
-class Chunk;
 namespace UI {
     class WindowManager;
 }
@@ -44,26 +41,10 @@ namespace UI {
 class VoxelRaycaster {
 public:
     // Callback function types
-    using ChunkManagerAccessFunc = std::function<IChunkManager*()>;
     using WindowManagerAccessFunc = std::function<UI::WindowManager*()>;
 
     VoxelRaycaster() = default;
     ~VoxelRaycaster() = default;
-
-    /**
-     * Perform optimized raycasting to find voxel intersection
-     * Uses DDA algorithm for efficient voxel traversal
-     * 
-     * @param rayOrigin Starting point of the ray (camera position)
-     * @param rayDirection Normalized direction vector
-     * @param getChunkManager Callback to access ChunkManager
-     * @return VoxelLocation of first intersected voxel, or invalid if no hit
-     */
-    VoxelLocation pickVoxel(
-        const glm::vec3& rayOrigin,
-        const glm::vec3& rayDirection,
-        ChunkManagerAccessFunc getChunkManager
-    ) const;
 
     /**
      * Convert screen coordinates to world-space ray direction

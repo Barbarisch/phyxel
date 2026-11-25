@@ -6,10 +6,6 @@ cmake_minimum_required(VERSION 3.15)
 # Collect integration test source files
 set(INTEGRATION_TEST_SOURCES
     IntegrationTestFixture.cpp
-    ChunkManagerIntegrationTest.cpp
-    VoxelGrazeRemeshIntegrationTest.cpp
-    CoherentCollapseIntegrationTest.cpp
-    TreeCollapseIntegrationTest.cpp
     PhysicsIntegrationTest.cpp
     SceneIntegrationTest.cpp
     VulkanIntegrationTest.cpp

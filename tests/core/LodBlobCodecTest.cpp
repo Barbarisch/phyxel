@@ -2,10 +2,10 @@
 
 #include <memory>
 
-#include "core/Chunk.h"
 #include "core/LodBlobCodec.h"
 #include "core/LodBrick.h"
-#include "core/LodChunkMesh.h"
+#include <string>
+#include <vector>
 
 using namespace Phyxel;
 using namespace Phyxel::Core;
@@ -27,6 +27,29 @@ void expectVolumesEqual(const LodVolume& a, const LodVolume& b, const char* what
                 ASSERT_EQ(p.preserveOpening, q.preserveOpening) << what << " opening flag";
                 ASSERT_EQ(p.openingCoverage, q.openingCoverage) << what << " opening volume";
             }
+}
+
+/// D4: today's Chunk and LodChunkMesh::volumeFromChunk went with the Chunk store. The level-0 volume is built
+/// directly by the rule volumeFromChunk applied: a visible cube is full coverage with bulk = skin = its palette id
+/// (palette[0] == "" is air, materials in first-seen x, y, z order).
+template <class F>
+LodVolume cubeVolume(F&& matAt, std::vector<std::string>* outPalette) {
+    LodVolume v(glm::ivec3(32, 32, 32), 0);
+    std::vector<std::string> palette{""};
+    for (int x = 0; x < 32; ++x)
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 32; ++z) {
+                const std::string m = matAt(x, y, z);
+                if (m.empty()) continue;
+                uint16_t id = 0;
+                for (size_t i = 0; i < palette.size(); ++i) if (palette[i] == m) id = uint16_t(i);
+                if (!id) { palette.push_back(m); id = uint16_t(palette.size() - 1); }
+                LodCell& c = v.at(x, y, z);
+                c.coverage = LodVolume::kFullCoverage;
+                c.bulkMaterial = c.skinMaterial = id;
+            }
+    if (outPalette) *outPalette = std::move(palette);
+    return v;
 }
 
 LodVolume mixedVolume() {
@@ -66,16 +89,11 @@ TEST(LodBlobCodecTest, RoundTripsEveryFieldOfAMixedVolume) {
 /// The pyramid is persisted per level, so every level the renderer can reach must round-trip.
 /// updateChunkLod caps at maxLevel = 5.
 TEST(LodBlobCodecTest, RoundTripsEveryLevelOfARealChunkPyramid) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
-    for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z)
-            for (int y = 0; y < 6; ++y)
-                c->addCube(glm::ivec3(x, y, z), (y == 5) ? "Grass" : "Stone");
-    c->addCube(glm::ivec3(4, 6, 4), "Wood");   // (was subcube detail; D3c-5)
-
     std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
+    LodVolume v = cubeVolume([](int x, int y, int z) -> std::string {
+        if (y < 6) return y == 5 ? "Grass" : "Stone";
+        return (x == 4 && y == 6 && z == 4) ? "Wood" : "";   // (was subcube detail; D3c-5)
+    }, &palette);
     for (int level = 0; level <= 5; ++level) {
         if (level > 0) v = squash(v, SquashConfig{});
         std::vector<uint8_t> blob = LodBlobCodec::encode(v, palette);
@@ -83,37 +101,6 @@ TEST(LodBlobCodecTest, RoundTripsEveryLevelOfARealChunkPyramid) {
         ASSERT_TRUE(LodBlobCodec::decode(blob.data(), blob.size(), back, pal))
             << "level " << level << " failed to decode";
         expectVolumesEqual(v, back, ("pyramid level " + std::to_string(level)).c_str());
-    }
-}
-
-/// A decoded volume must produce the SAME faces as the original. This is the property C3
-/// actually needs: a distant chunk served from storage must look identical to one meshed
-/// from resident voxels. Round-tripping fields is necessary but not sufficient.
-TEST(LodBlobCodecTest, DecodedVolumeMeshesIdenticallyToTheOriginal) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
-    for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z)
-            for (int y = 0; y < 5; ++y) c->addCube(glm::ivec3(x, y, z), "Stone");
-    for (int x = 8; x < 20; ++x)
-        for (int y = 5; y < 10; ++y) c->addCube(glm::ivec3(x, y, 10), "WoodPlanks");
-
-    std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
-    for (int level = 1; level <= 3; ++level) {
-        v = squash(v, SquashConfig{});
-        std::vector<uint8_t> blob = LodBlobCodec::encode(v, palette);
-        LodVolume back; std::vector<std::string> pal;
-        ASSERT_TRUE(LodBlobCodec::decode(blob.data(), blob.size(), back, pal));
-
-        std::vector<InstanceData> a, b;
-        LodChunkMesh::emitFaces(v, palette, a);
-        LodChunkMesh::emitFaces(back, pal, b);
-        ASSERT_EQ(a.size(), b.size()) << "level " << level << ": face COUNT differs after storage";
-        for (size_t i = 0; i < a.size(); ++i) {
-            EXPECT_EQ(a[i].packedData, b[i].packedData) << "level " << level << " face " << i;
-            EXPECT_EQ(a[i].textureIndex, b[i].textureIndex) << "level " << level << " face " << i;
-        }
     }
 }
 
@@ -184,20 +171,13 @@ TEST(LodBlobCodecTest, RejectsRunsThatDoNotTileTheVolume) {
 /// (docs/evidence/lod_residency_wall_20260730.txt). If this format ever bloats past that, C3
 /// stops being worth building and this test should say so loudly rather than let it rot.
 TEST(LodBlobCodecTest, PyramidCostsFarLessThanResidency) {
-    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    c->initializeForLoading();
     // A realistic terrain chunk: a heightfield with a grass skin and a bit of structure.
-    for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z) {
-            const int h = 8 + ((x * 7 + z * 5) % 6);
-            for (int y = 0; y < h; ++y)
-                c->addCube(glm::ivec3(x, y, z), (y == h - 1) ? "Grass" : "Stone");
-        }
-    for (int x = 10; x < 22; ++x)
-        for (int y = 14; y < 20; ++y) c->addCube(glm::ivec3(x, y, 16), "WoodPlanks");
-
     std::vector<std::string> palette;
-    LodVolume v = LodChunkMesh::volumeFromChunk(*c, &palette);
+    LodVolume v = cubeVolume([](int x, int y, int z) -> std::string {
+        if (x >= 10 && x < 22 && y >= 14 && y < 20 && z == 16) return "WoodPlanks";
+        const int h = 8 + ((x * 7 + z * 5) % 6);
+        return y < h ? (y == h - 1 ? "Grass" : "Stone") : "";
+    }, &palette);
 
     size_t pyramidBytes = 0;
     for (int level = 1; level <= 5; ++level) {

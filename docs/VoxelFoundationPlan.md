@@ -3306,7 +3306,14 @@ unreachable), **D4** the store and its readers go.
 defer to the switched world; the v1 migration encodes PXB2 from rows; the editor's legacy 1/9 m handlers and today's
 generation paths deleted; D3c-5 deleted Subcube / Microcube and every sub / micro path in the Chunk store, mesher,
 physics, breaks, raycaster and codec (84 files, -8,896). Battery, six projects and D3-scenes hold with every number;
-unit 4,665 / 3, integration 223 / 5 (retired tests listed in voxfound_f7_prediction.txt D3c-5). **NEXT D4.**
+unit 4,665 / 3, integration 223 / 5 (retired tests listed in voxfound_f7_prediction.txt D3c-5).
+**D4 DONE (2026-11-24) -- STEP 7 COMPLETE.** Chunk and every class that stored, meshed, collided, encoded or read it
+are deleted (163 files, -24,426 lines); ChunkManager remains as the host of the switched world's hooks, span store,
+generator and storage. Battery, six projects, D3-scenes and the packaged game (old source via a documented
+compatibility shim; fresh scaffold via the fixed template) hold; unit 4,412 / 2, integration 184 / 5 (only the
+standing failures). Owed, each already empty on the switched world: axe chop, emissive voxel lights + fire VFX,
+mirrors / OIT, structure LOD proxies, far terrain coverage, residency holds, the realized-world validators (full
+list: voxfound_f7_prediction.txt D4 RESULTS).
 
 
 **F8, scale and stress on the switched world (2026-11-22; voxfound_f8_prediction.txt).** F8.1: 1,000 edits / breaks

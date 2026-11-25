@@ -61,15 +61,11 @@ void PerfCapture::onFrameEnd(ChunkManager* chunks, Graphics::CameraManager* came
         }
         in.pathProgress = pathPlaying ? cameras->getPath().progress() : -1.0f;
         if (chunks) {
-            in.residentChunks = static_cast<uint32_t>(chunks->chunks.size());
+            // Today's chunk residency / remesh queue went with the Chunk store in D4: they read 0.
+            in.residentChunks = 0;
             in.pendingGeneration = static_cast<uint32_t>(chunks->streamingManagerRO().pendingGenerationCount());
-            in.pendingRemesh = static_cast<uint32_t>(chunks->dirtyTracker().getDirtyCount());
-            if (camera) {
-                const glm::vec3 p = camera->getPosition();
-                const glm::ivec3 cc(static_cast<int>(std::floor(p.x / 32.0f)), static_cast<int>(std::floor(p.y / 32.0f)),
-                                    static_cast<int>(std::floor(p.z / 32.0f)));
-                in.cameraChunkResident = chunks->getChunkAtCoord(cc) ? 1 : 0;
-            }
+            in.pendingRemesh = 0;
+            in.cameraChunkResident = 0;
         }
         recorder_.addFrame(in);
     }

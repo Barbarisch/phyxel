@@ -48,15 +48,11 @@ int settlementTopScan(ChunkManager* cm, int oy, int wx, int wz, bool floraBlind)
     const int top = oy + 96;
     for (int wy = top; wy >= 0 && wy >= top - 200; --wy)
         if (cm->hasVoxelAt(glm::ivec3(wx, wy, wz))) {
-            if (floraBlind) {
-                // ELEVATION means natural terrain, and terrain is always full cubes.
-                // A present-but-cubeless cell is sub/micro content (tree branches,
-                // fences, paving) - never ground.
-                const auto* c = cm->getCubeAt(glm::ivec3(wx, wy, wz));
-                if (!c) continue;
-                const std::string& m = c->getMaterialName();
-                if (m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0) continue;
-            }
+            // floraBlind: ELEVATION means natural terrain, which was a full Cube in today's Chunk store; a
+            // present-but-cubeless cell was skipped, and so was Log* / Leaf*. D4 deleted that store, so no cell
+            // has a Cube: floraBlind skips every cell, exactly as it did on the switched world before D4 (it
+            // falls back to `oy`). D4 finding: this scan needs the switched world's material read to work.
+            if (floraBlind) continue;
             return wy;
         }
     return oy;
@@ -368,22 +364,17 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, prects, ox, oz, terrainTopAt, groundTopAt]() {
                 if (!chunkManager) return;
                 constexpr int kMargin = 4;    // canopy overhang reach beyond the plot line
-                std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
                 std::set<std::pair<int, int>> seen;
                 for (const auto& pr : prects) {
                     for (int x = ox + pr.x - kMargin; x < ox + pr.x + pr.w + kMargin; ++x)
                         for (int z = oz + pr.z - kMargin; z < oz + pr.z + pr.d + kMargin; ++z) {
                             if (!seen.insert({x, z}).second) continue;
-                            const int g = terrainTopAt(x, z);          // flora-blind ground
-                            const int top = std::max(groundTopAt(x, z), g + 12);
-                            for (int y = g + 1; y <= top; ++y) {
-                                const glm::ivec3 wp(x, y, z);
-                                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
-                                    byChunk[ch].push_back(wp - ch->getWorldOrigin());
-                            }
+                            (void)terrainTopAt; (void)groundTopAt;   // (the cells went to today's Chunk store)
                         }
                 }
-                const int cleared = chunkManager->clearChunkCellsBulk(byChunk, "settlement_clearing");   // F7.13
+                // D4 finding: the cells were gathered from today's Chunk store (none exist on the switched world),
+                // so this clear was always empty there; it is not re-pointed here (that would change behaviour).
+                const int cleared = 0;
                 LOG_INFO_FMT("Settlement", "parcel clearing: " << cleared
                              << " cells over " << seen.size() << " columns (margin "
                              << kMargin << ")");
@@ -444,12 +435,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                  << ", fill " << tfill.voxels.size() << ")");
                 }});
             }
-            // one REGIONAL physics pass after ALL parcels (never whole-world, never per-parcel)
-            units.push_back({"terrace physics", [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, ox, oz, W, D, reqY = oy]() {
-                if (chunkManager)
-                    chunkManager->buildChunkPhysicsInRegion(
-                        glm::ivec3(ox - 8, 0, oz - 8), glm::ivec3(ox + W + 8, reqY + 96, oz + D + 8));
-            }});
+            // (A REGIONAL chunk physics pass ran here after all parcels; today's chunk physics went with D4.)
         }
 
         nlohmann::json queued = nlohmann::json::array();
@@ -686,7 +672,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // street time, so no material filter is needed.
             std::set<std::tuple<int, int, int>> cutCubes;
             std::set<std::pair<int, int>> clearedCols;
-            std::map<Chunk*, std::vector<glm::ivec3>> bandByChunk;
             for (const auto& c : pave.columns) {
                 const int cbx = fl9(c.x), cbz = fl9(c.z);
                 if (c.cut) {
@@ -696,11 +681,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (clearedCols.insert({cbx, cbz}).second) {
                     const int y0 = c.surface / 9;
                     const int y1 = std::max(groundTopAt(cbx, cbz), y0 + 7);
-                    for (int y = y0; y <= y1; ++y) {
-                        const glm::ivec3 wp(cbx, y, cbz);
-                        if (Chunk* ch = chunkManager->getChunkAtFast(wp))
-                            bandByChunk[ch].push_back(wp - ch->getWorldOrigin());
-                    }
+                    (void)y1;   // (the band clear gathered from today's Chunk store; D4)
                     // Walkable headroom band (3 cells over the paving) for the late
                     // street sweep — NOT taller: an eave can legitimately overhang a
                     // door spur at y0+3 and must survive the sweep.
@@ -708,7 +689,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         sharedRoadBand->push_back(glm::ivec3(cbx, y, cbz));
                 }
             }
-            const int bandCleared = chunkManager->clearChunkCellsBulk(bandByChunk, "settlement_street_band");   // F7.13
+            const int bandCleared = 0;   // D4 finding: gathered from today's Chunk store, always empty when switched
             if (!cutCubes.empty()) {
                 std::vector<glm::ivec3> cuts;
                 cuts.reserve(cutCubes.size());
@@ -745,19 +726,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 };
                 std::vector<glm::ivec3> gcut;
                 Core::StructureResult gfill;
-                for (const auto& [cbx, cbz] : pavedCols) {
-                    const int gy = groundMicro(cbx * 9 + 4, cbz * 9 + 4) / 9 - 1;
-                    const glm::ivec3 gp(cbx, gy, cbz);
-                    if (const auto* cu = chunkManager->getCubeAt(gp))
-                        if (isGrassMat(cu->getMaterialName())) {
-                            gcut.push_back(gp);
-                            Core::VoxelPlacement vp;
-                            vp.position = gp;
-                            vp.material = "Dirt";
-                            vp.level = Core::VoxelLevel::Cube;
-                            gfill.voxels.push_back(vp);
-                        }
-                }
+                // D4 finding: the grass test read today's Chunk Cubes (none on the switched world): nothing converts.
                 if (!gcut.empty()) {
                     Core::StructureGenerator::removeVoxels(chunkManager, gcut);
                     Core::StructureGenerator::place(chunkManager, gfill);
@@ -1070,11 +1039,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
              sweepMat = (programMode && tierP ? tierP->street.material
                                              : std::string("Gravel"))]() {
             if (!chunkManager || sharedRoadBand->empty()) return;
-            std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
-            for (const auto& wp : *sharedRoadBand)
-                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
-                    byChunk[ch].push_back(wp - ch->getWorldOrigin());
-            const int swept = chunkManager->clearChunkCellsBulk(byChunk, "settlement_sweep");   // F7.13
+            const int swept = 0;   // D4 finding: gathered from today's Chunk store, always empty when switched
             // The sweep clears WHOLE cells, pavement included — re-stamp the paving
             // from the street unit's recorded per-column stamp (idempotent bulk place).
             long restamped = 0;
@@ -1289,11 +1254,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
 
             // Clear the wall line first (trees, undergrowth, anything standing in it), then
             // stamp — so the circuit is a pure function of the plan, not of what grew there.
-            std::map<Chunk*, std::vector<glm::ivec3>> clearByChunk;
-            for (const auto& wp2 : toClear)
-                if (Chunk* ch = chunkManager->getChunkAtFast(wp2))
-                    clearByChunk[ch].push_back(wp2 - ch->getWorldOrigin());
-            const int cleared = chunkManager->clearChunkCellsBulk(clearByChunk, "settlement_wall_line");   // F7.13
+            const int cleared = 0;   // D4 finding: gathered from today's Chunk store, always empty when switched
             const auto placed = Core::StructureGenerator::place(chunkManager, batch);
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
@@ -1345,11 +1306,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 return chunkManager->hasVoxelAt(p);
             };
             const auto orphans = Core::planOrphanedFloraSweep(bounds, isFlora, isSolid);
-            std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
-            for (const auto& wp : orphans)
-                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
-                    byChunk[ch].push_back(wp - ch->getWorldOrigin());
-            const int cleared = chunkManager->clearChunkCellsBulk(byChunk, "settlement_canopy");   // F7.13
+            const int cleared = 0;   // D4 finding: gathered from today's Chunk store, always empty when switched
             LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
                          << " cells found, " << cleared << " cleared");
             (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
@@ -1417,24 +1374,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // removed whole (nothing walkable is authored as a subcube in the band).
             int approachMicrosCleared = 0;
             auto clearAbove = [&](int cx, int cz, int fromMicro, int toMicro) {
-                const glm::ivec3 cube0(cx, 0, cz);
-                for (int my = fromMicro; my < toMicro; ++my) {
-                    const int cy = fl9(my);
-                    const glm::ivec3 cube(cx, cy, cz);
-                    Chunk* ch = chunkManager->getChunkAtFast(cube);
-                    if (!ch) continue;
-                    const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
-                    const int ry = my - cy * 9;
-                    for (int dx = 0; dx < 9; ++dx)
-                        for (int dz = 0; dz < 9; ++dz) {
-                            if (!chunkManager->occupiedMicro(glm::ivec3(cx * 9 + dx, my, cz * 9 + dz))) continue;
-                            if (chunkManager->getVoxelTypeAt(cube) == VoxelLocation::CUBE) continue;   // a full cube is terrain/wall: not ours
-                            // (sub/micro clearing removed: a Chunk has no 1/9 m store since D3c-5)
-                            (void)ry; (void)lp;
-                        }
-                    chunkManager->markChunkDirty(ch);
-                }
-                (void)cube0;
+                // Erased micro cells from today's Chunk store (none exist on the switched world; D4).
+                (void)cx; (void)cz; (void)fromMicro; (void)toMicro;
             };
             int stooped = 0, steps = 0, skipped = 0;
             Core::StructureResult out;

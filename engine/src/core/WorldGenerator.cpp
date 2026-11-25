@@ -2,9 +2,7 @@
 #include "core/WorldForgePlan.h"
 #include "core/WorldRecipe.h"
 #include "core/MapCoarseSource.h"
-#include "core/Chunk.h"
 #include "core/WaterSpansForChunk.h"
-#include "core/Cube.h"
 #include "core/HydrologyMap.h"
 #include "core/FinePonds.h"
 #include "core/FlowField.h"
@@ -456,155 +454,6 @@ std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
                                 surfaceMat, surfaceY, channel);
 }
 
-void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
-    // Non-height-based types keep their per-voxel paths (per-voxel random fill, building
-    // grids, or a user-supplied function). Height-based types use the column-first pipeline.
-    if (!isHeightBased()) {
-        GenerationFunction generator;
-        switch (generationType) {
-            case GenerationType::Random:
-                generator = [this](const glm::ivec3& c, const glm::ivec3& l) { return generateRandom(c, l); };
-                break;
-            case GenerationType::City:
-                generator = [this](const glm::ivec3& c, const glm::ivec3& l) { return generateCity(c, l); };
-                break;
-            case GenerationType::Custom:
-                generator = customGenerator;
-                break;
-            default:
-                break;
-        }
-        if (!generator) {
-            LOG_ERROR("WorldGenerator", "[WORLD_GENERATOR] No valid generator function!");
-            return;
-        }
-        for (int x = 0; x < 32; ++x) {
-            for (int z = 0; z < 32; ++z) {
-                glm::ivec3 worldCol = chunkCoord * 32 + glm::ivec3(x, 0, z);
-                float surfaceHeight = (generationType == GenerationType::City) ? 15.0f : 16.0f;
-                for (int y = 0; y < 32; ++y) {
-                    glm::ivec3 localPos(x, y, z);
-                    if (generator(chunkCoord, localPos)) {
-                        std::string material = getMaterialForPosition(
-                            glm::ivec3(worldCol.x, chunkCoord.y * 32 + y, worldCol.z), surfaceHeight);
-                        chunk.addCube(localPos, material);
-                    }
-                }
-            }
-        }
-        return;
-    }
-
-    // Column-first height-based generation (Perlin / Flat / Mountains / Caves). The heightmap
-    // + climate fields are sampled ONCE per (x,z) column, then the Y span is filled from them
-    // (instead of recomputing noise per voxel). Biomes drive the surface material by climate.
-    //
-    // Phase 4.4 fast path: a chunk that sits ENTIRELY at depth >= 4 under every column, with
-    // one deep material and nothing to carve, is one uniform fill — not 32,768 addCube calls.
-    // This is what keeps generated buried chunks in the uniform store representation so the
-    // sealed classifier (ChunkManager) can retire them; it also removes the generation cost
-    // that motivated the streamer's vertical clamp (loadChunksAroundPosition).
-    const auto colsPtr = columnsForChunk(glm::ivec2(chunkCoord.x, chunkCoord.z));
-    const std::vector<ColumnSample>& cols = *colsPtr;
-    int minSurface = INT_MAX;
-    for (const ColumnSample& c : cols) minSurface = std::min(minSurface, c.surfaceY);
-    {
-        const int chunkTop = chunkCoord.y * 32 + 31;
-        const int chunkBottom = chunkCoord.y * 32;
-        const bool noBedrockHere = !depthProfile.hasBedrock || depthProfile.bedrockY < chunkBottom;
-        if (generationType != GenerationType::Caves && noBedrockHere &&
-            chunkTop <= minSurface - 4) {
-            static const std::string kFallbackDeep = "Stone";
-            const std::string* deepMat = nullptr;
-            bool uniformDeep = true;
-            for (const ColumnSample& c : cols) {
-                const std::string& dm =
-                    m_biomes.empty() ? kFallbackDeep : m_biomes[c.biomeIndex].deepMaterial;
-                if (!deepMat) deepMat = &dm;
-                else if (*deepMat != dm) { uniformDeep = false; break; }
-            }
-            if (uniformDeep && deepMat) {
-                chunk.fillAllCubes(*deepMat);
-                LOG_TRACE_FMT("WorldGenerator", "[WORLD_GENERATOR] Uniform deep fill ("
-                          << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
-                          << ") material=" << *deepMat);
-                return;
-            }
-        }
-    }
-    for (int x = 0; x < 32; ++x) {
-        for (int z = 0; z < 32; ++z) {
-            int wx = chunkCoord.x * 32 + x;
-            int wz = chunkCoord.z * 32 + z;
-            const ColumnSample& col = cols[static_cast<size_t>(x) * 32 + z];
-
-            for (int y = 0; y < 32; ++y) {
-                int wy = chunkCoord.y * 32 + y;
-                glm::ivec3 localPos(x, y, z);
-
-                // Optional bedrock floor: empty below it, an indestructible layer at it.
-                if (depthProfile.hasBedrock) {
-                    if (wy < depthProfile.bedrockY) continue;
-                    if (wy == depthProfile.bedrockY) { chunk.addCube(localPos, "Stone"); continue; }
-                }
-
-                // WorldForge bridge family (docs/WorldForge.md #44): the bridge is the ONLY
-                // thing generation emits above the surface — all pure per-column from the
-                // baked plan, so it streams seam-free exactly like the road field.
-                //   deck   : plank layer at deckY ("Wood" = oak planks, FLOOR wood — a deck
-                //            is a floor);
-                //   parapet: deck-EDGE columns get a 2/3-voxel subcube shelf at deckY+1
-                //            (WoodPlanks = WALL wood; sub-voxel per the detail rule — the
-                //            creek-bed-shelf pattern, inverted) so the walkway between the
-                //            rails stays clear;
-                //   pier   : station columns fill solid Stone from the carved bed up to
-                //            under the deck.
-                if (col.bridgeDeckY != INT_MIN && wy > col.surfaceY) {
-                    if (wy == col.bridgeDeckY) {
-                        chunk.addCube(localPos, "Wood");
-                        continue;
-                    }
-                    if (col.bridgeRail && wy == col.bridgeDeckY + 1) {
-                        continue;   // the 2/3-high subcube rail: a Chunk has no 1/9 m store since D3c-5
-                    }
-                    if (col.bridgePierTopY != INT_MIN && wy <= col.bridgePierTopY) {
-                        chunk.addCube(localPos, "Stone");
-                        continue;
-                    }
-                }
-
-                if (wy > col.surfaceY) continue;  // above the surface: air (solid extends down)
-
-                // Caves: carve 3D-noise pockets underground (kept from the legacy Caves path).
-                if (generationType == GenerationType::Caves && wy < col.surfaceY - 2) {
-                    float caveNoise = perlinNoise3D(wx * 0.05f, wy * 0.05f, wz * 0.05f, 3, 0.5f, 2.0f);
-                    if (caveNoise > terrainParams.caveThreshold) continue;
-                }
-
-                // Creek bed recess (water-as-terrain-stage P2): the surface voxel of a creek column was a
-                // subcube shelf. A Chunk has no 1/9 m subcube store since D3c-5, so the shelf voxel is air.
-                if (col.creekBed && wy == col.surfaceY) continue;
-
-                chunk.addCube(localPos, materialForColumn(wy, col));
-            }
-        }
-    }
-
-    // ── WATER SPANS → CHUNK (docs/Water.md §2 layer 1) ───────────────────────────────────────
-    // Water becomes part of what generation PRODUCES, persisted with the chunk blob — not
-    // re-derived at draw time from the coarse bake (the 606-rim-leak class). The per-chunk-column
-    // span set is memoized (one flood per column stack); each vertical chunk stores its clip.
-    // The uniform-deep fast path above returns early WITHOUT spans, correctly: a chunk ≥4 below
-    // every surface cannot intersect open-sky water, which rests ON the surface.
-    if (m_hydro) {
-        std::vector<Chunk::WaterSpanLocal> local = Phyxel::waterSpansForChunk(*this, chunkCoord);
-        if (!local.empty()) chunk.setWaterSpans(std::move(local));
-    }
-
-    LOG_TRACE_FMT("WorldGenerator", "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
-              << ") column-first, biome-aware");
-}
-
 std::shared_ptr<const std::vector<WorldGenerator::ColumnSample>>
 WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
     const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
@@ -627,10 +476,11 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
 }
 
 // docs/VoxelFoundationPlan.md F7.18: one chunk's generation-time water spans, a pure function of the chunk coordinate
-// (the memoized column flood clipped to the chunk's y range; bridge piers displace their column). generateChunk stores
-// these on the Chunk; the switched world fills ChunkManager's span store from the same function.
-std::vector<Chunk::WaterSpanLocal> waterSpansForChunk(WorldGenerator& gen, const glm::ivec3& chunkCoord) {
-    std::vector<Chunk::WaterSpanLocal> local;
+// (the memoized column flood clipped to the chunk's y range; bridge piers displace their column). The switched world
+// fills ChunkManager's span store from it (WorldGenerator::generateChunk, which stored them on today's Chunk, went
+// with D4).
+std::vector<WaterSpanLocal> waterSpansForChunk(WorldGenerator& gen, const glm::ivec3& chunkCoord) {
+    std::vector<WaterSpanLocal> local;
     if (!gen.hydrology()) return local;
     const WorldForgePlan* forge = gen.worldForge();
     const auto ws = gen.waterColumnSpans(glm::ivec2(chunkCoord.x, chunkCoord.z));

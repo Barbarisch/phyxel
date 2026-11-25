@@ -2,7 +2,6 @@
 
 #include "scene/AnimatedVoxelCharacter.h"
 #include "core/ChunkManager.h"
-#include "core/Chunk.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "physics/VoxelDynamicsWorld.h"
@@ -43,10 +42,6 @@ struct FloorWorld {
         physics = std::make_unique<Phyxel::Physics::PhysicsWorld>();
         physics->initialize();
         cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        auto owned = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-        owned->initializeForLoading();
-        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
-        cm.chunks.push_back(std::move(owned));
         auto g = std::make_unique<Phyxel::Physics::VoxelOccupancyGrid>();
         g->setChunkOrigin(glm::ivec3(0, 0, 0));
         for (int x = 0; x < 32; ++x)

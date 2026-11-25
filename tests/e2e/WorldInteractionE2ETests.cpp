@@ -1,6 +1,5 @@
 #include "E2ETestFixture.h"
 #include <gtest/gtest.h>
-#include "core/Chunk.h"
 #include "physics/PhysicsWorld.h"
 #include "core/ChunkManager.h"
 #include <glm/glm.hpp>

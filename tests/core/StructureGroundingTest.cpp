@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "core/ChunkManager.h"
+#include "CubeWorldReads.h"   // D4: rig terrain in the switched store
 #include "core/StructureBuildService.h"
 
 using namespace Phyxel;
@@ -35,13 +36,11 @@ TEST(StructureGroundingTest, RefusesAirBuildsByDefault) {
     ChunkManager cm;   // headless (WaterManagerTest pattern: VK_NULL_HANDLE init + manual chunk)
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
     // A 12x10 stone platform at y=15: world (100..111) x (200..209) — inside chunk (3,0,6).
-    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(96, 0, 192));
-    owned->initializeForLoading();
+    Phyxel::Testing::CubeWorldReads terrain;   // D4: was an empty Chunk in chunkMap
     for (int x = 100; x < 112; ++x)
         for (int z = 200; z < 210; ++z)
-            owned->addCube(glm::ivec3(x - 96, 15, z - 192));
-    cm.chunkMap[glm::ivec3(3, 0, 6)] = owned.get();
-    cm.chunks.push_back(std::move(owned));
+            terrain.addCube(glm::ivec3(x, 15, z));
+    terrain.install(cm);
     ASSERT_TRUE(cm.hasVoxelAt(glm::ivec3(100, 15, 200))) << "test platform not visible";
 
     StructureBuildService::Deps deps;

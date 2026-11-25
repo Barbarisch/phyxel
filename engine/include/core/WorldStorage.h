@@ -17,8 +17,6 @@ typedef struct sqlite3_stmt sqlite3_stmt;
 namespace Phyxel {
 
 // Forward declarations
-class Chunk;
-class Cube;
 
 /**
  * @brief World storage interface using SQLite for efficient chunk persistence
@@ -40,12 +38,11 @@ public:
     bool close();
     
     // Chunk operations
-    bool saveChunk(const Chunk& chunk);
-    bool saveChunk(const Chunk& chunk, bool useTransaction);
-    bool loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
+    // (saveChunk / loadChunk of today's Chunk objects went with D4; stored chunks are read as PXB2 blobs and
+    // converted by Core::VoxFound::convertPxb2.)
     /// The raw v2 blob of a chunk (a copy), so a caller can decode it off this thread
     /// (ChunkStreamingManager::loadChunksParallel). False when the chunk has no blob row
-    /// (absent, or legacy v1 rows only - use loadChunk for those).
+    /// (absent, or legacy v1 rows only).
     bool readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out);
     bool chunkExists(const glm::ivec3& chunkCoord);
     bool deleteChunk(const glm::ivec3& chunkCoord);
@@ -55,10 +52,6 @@ public:
     // it needs. This is what lets a distant region render WITHOUT its full-resolution chunk
     // becoming resident — the R^2 residency wall measured in
     // docs/evidence/lod_residency_wall_20260730.txt.
-    /// C3.2: build+persist the LOD pyramid as part of every chunk save. Default ON. Exposed as
-    /// a kill switch because it adds work to the save path, and a save regression must be
-    /// attributable to one flag rather than bisected.
-    static bool s_lodPyramidOnSave;
 
     bool saveLodBlob(const glm::ivec3& chunkCoord, int lod, const std::vector<uint8_t>& data);
     /// Returns false when there is no row for (chunkCoord, lod) — an absent level is a normal
@@ -88,8 +81,6 @@ public:
     bool deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     
     // Batch operations for performance
-    bool saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks);
-    bool saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks);
     std::vector<glm::ivec3> getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk);
     std::vector<glm::ivec3> getAllChunkCoordinates();  // Get coordinates of all chunks in database
     
@@ -150,8 +141,6 @@ private:
     bool applyPragmas();
 
     // Storage v2 helpers
-    bool loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found);
-    bool loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk);
     bool deleteLegacyRows(const glm::ivec3& chunkCoord);
     /// One-time v1→v2 migration on open: every chunk that still has
     /// row-format data is re-encoded as a blob; the pre-migration DB is
@@ -170,10 +159,6 @@ private:
     bool commitTransaction();
     bool rollbackTransaction();
     
-    // Conversion helpers
-    void saveCube(const Cube& cube, const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
-    
-    bool loadCubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
 };
 
 } // namespace Phyxel

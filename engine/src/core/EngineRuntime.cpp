@@ -247,12 +247,7 @@ void EngineRuntime::shutdown() {
 
     // Save and clean up chunks before Vulkan device goes away
     if (chunkManager_) {
-        LOG_INFO("EngineRuntime", "Saving modified chunks to database...");
-        auto saveStart = std::chrono::steady_clock::now();
-        chunkManager_->saveDirtyChunks();
-        auto saveEnd = std::chrono::steady_clock::now();
-        auto saveMs = std::chrono::duration_cast<std::chrono::milliseconds>(saveEnd - saveStart).count();
-        LOG_INFO("EngineRuntime", "Chunk save complete ({} ms)", saveMs);
+        // (Today's dirty chunks were saved here; the Chunk store went with D4.)
 
         LOG_INFO("EngineRuntime", "Cleaning up chunk resources...");
         auto cleanStart = std::chrono::steady_clock::now();
@@ -341,13 +336,7 @@ float EngineRuntime::beginFrame() {
     // Runs at the START of the frame like the editor (its pump precedes render()); the first
     // cut ran it in endFrame, after the submit, and the shipped town went VK_ERROR_DEVICE_LOST
     // within a second of streamed chunks landing.
-    if (chunkManager_ && camera_ && chunkManager_->isStreamingGenerationEnabled()) {
-        chunkManager_->setPlayerPosition(camera_->getPosition());
-        chunkManager_->setStreamingViewDirection(camera_->getFront());
-        if ((frameCount_ & 1u) == 0u) chunkManager_->updateChunkStreaming();
-        else                          chunkManager_->pumpChunkLanding();
-    }
-
+    // (Today's chunk streaming pump ran here; it went with the Chunk store in D4.)
 
     return dt;
 }

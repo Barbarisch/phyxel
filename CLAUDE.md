@@ -135,7 +135,8 @@ exist for optimization. Dynamic voxels are physics bodies and must behave physic
 world state; per-chunk quantities may only bound **cost**, never looks. `bladesForDistance` is the
 model (conservative bound from the chunk's nearest corner). Reaching for cross-chunk lookups to
 patch a chunk-local dependency is usually wrong — derive it from world position or from the
-generator instead. Pin it with a chunked-vs-whole-region equality test (`FloraMarginTest`,
+generator instead. Pin it with a chunked-vs-whole-region equality test (`VoxFoundStorageLab.RegionChunksEqualTheRegionGeneratedWhole` -- terrain + flora; FloraMarginTest retired
+with the Chunk store in D4 --,
 `FaunaPlanTest`). Known live violation: grass/foliage are skipped entirely at chunk LOD ≠ 0, which
 is why distance-driven chunk LOD stays default-OFF.
 

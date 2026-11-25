@@ -2,7 +2,6 @@
 // Application.cpp (2026-10-07) so the editor and shipped games (GameApiService) register the same
 // code. Only the host members they used are rebound to DebrisApiContext. See DebrisApiCommands.h.
 #include "core/DebrisApiCommands.h"
-#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "core/CoherentFragmentManager.h"
 #include "core/DamageSystem.h"
@@ -454,10 +453,9 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
         // Coherent collapse: a severed component topples as ONE rigid slab via the
         // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
         // its deps lazily — the voxel world is live by the time damage is applied.
-        if (coherent && coherentFragmentManager && physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+        if (coherent && coherentFragmentManager && physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager)
             coherentFragmentManager->setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager);
-            dmg.setFragmentManager(coherentFragmentManager);
-        }
+        // (DamageSystem's coherent collapse over today's Chunk store went with D4.)
         dmg.setPushExisting(cmd.params.value("push", true));   // test control: false = pre-Phase-4 blast
         auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
         // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
@@ -558,55 +556,10 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
         };
         int cells = 0, absent = 0, unknown = 0, cellMis = 0, subMis = 0, gridMis = 0;
         json bad = json::array();
-        for (int x = lo.x; x <= hi.x; ++x) for (int y = lo.y; y <= hi.y; ++y) for (int z = lo.z; z <= hi.z; ++z) {
-            const glm::ivec3 wc(x, y, z);
-            Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wc));
-            if (!ch) { ++absent; continue; }
-            ++cells;
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wc);
-            // STORE.
-            Bits store;
-            if (ch->visibleSolidCubeAt(lp)) store.set();   // cube-only since D3c-5
-            // GRID (the same walk buildLightOccupancy and the cell probe use).
-            const auto& grid = ch->getOccupancyGrid();
-            Bits gridBits;
-            if (grid.isCubeFilled(lp)) {
-                if (!grid.isSubdivided(lp)) gridBits.set();
-                else for (int m = 0; m < 729; ++m) {
-                    const int mx = m / 81, my = (m / 9) % 9, mz = m % 9;
-                    const glm::ivec3 s(mx / 3, my / 3, mz / 3), mm(mx % 3, my % 3, mz % 3);
-                    if (grid.isSubcubeFilled(lp, s) &&
-                        (!grid.isSubcubeSubdivided(lp, s) || grid.isMicrocubeFilled(lp, s, mm)))
-                        gridBits.set(m);
-                }
-            }
-            // POOL.
-            if (!renderCoordinator->lightOccupancyKnownAt(wc * 9)) { ++unknown; continue; }
-            Bits pool;
-            const auto pc = renderCoordinator->lightOccupancyCubeAt(wc);
-            if (pc == Graphics::CubeOccupancy::Solid) pool.set();
-            else if (pc == Graphics::CubeOccupancy::Mixed)
-                for (int m = 0; m < 729; ++m)
-                    if (renderCoordinator->lightOccupancySolidAt(wc * 9 + glm::ivec3(m / 81, (m / 9) % 9, m % 9)))
-                        pool.set(m);
-
-            const bool poolOk = pool == store, gridOk = gridBits == store;
-            if (!gridOk) ++gridMis;
-            if (poolOk && gridOk) continue;
-            if (!poolOk) {
-                ++cellMis;
-                const Bits diff = pool ^ store;
-                for (int s = 0; s < 27; ++s) {
-                    const glm::ivec3 sp(s / 9, (s / 3) % 3, s % 3);
-                    bool any = false;
-                    for (int m = 0; m < 27 && !any; ++m) any = diff.test(microIdx(sp, {m / 9, (m / 3) % 3, m % 3}));
-                    subMis += any;
-                }
-            }
-            if (bad.size() < 20)
-                bad.push_back({{"cell", {x, y, z}}, {"store", store.count()}, {"grid", gridBits.count()},
-                               {"pool", pool.count()}});
-        }
+        // The STORE and GRID copies were today's Chunk store and its occupancy grids, which went with D4: every cell
+        // reads "no chunk" (as it did on the switched world before D4).
+        absent = static_cast<int>(static_cast<int64_t>(ext.x) * ext.y * ext.z);
+        (void)microIdx;
         r = {{"region", {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}}},
                     {"cells_checked", cells}, {"cells_no_chunk", absent},
                     {"cells_pool_unknown", unknown},       // not resident in the pool: debris HOLDS there

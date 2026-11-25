@@ -8,7 +8,6 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/VoxelTemplate.h"
 #include "physics/Material.h"
-#include "core/Chunk.h"
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
 #include "scene/NPCEntity.h"
@@ -815,12 +814,7 @@ void PropertiesPanel::renderVoxelSection() {
             ImGui::Text("Face: %s", faceName(loc.hitFace));
         }
 
-        if (loc.chunk) {
-            if (!loc.isMicrocube && !loc.isSubcube) {   // a Chunk holds cubes only since D3c-5
-                const Cube* cube = loc.chunk->getCubeAt(loc.localPos);
-                if (cube) ImGui::Text("Material: %s", cube->getMaterialName().c_str());
-            }
-        }
+        // (The material line read today's Chunk cube; the Chunk store went with D4.)
 
         ImGui::Text("Hit: %.2f, %.2f, %.2f", loc.hitPoint.x, loc.hitPoint.y, loc.hitPoint.z);
 

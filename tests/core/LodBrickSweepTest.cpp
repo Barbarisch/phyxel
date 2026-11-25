@@ -19,7 +19,6 @@
 #include <map>
 #include <memory>
 
-#include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/AssemblyPlan.h"
 #include "core/BuildingProgram.h"
@@ -389,87 +388,6 @@ TEST(LodBrickSweepTest, BrickSizeSweepOnTiledSettlementBlock) {
            "many bricks, the single-tavern figure was scale-limited. Whatever remains at 16^3 is\n"
            "the VERTICAL collapse (a 9-cube-tall building cannot span three 16-cube bricks in Y),\n"
            "and that IS real for buildings.\n\n");
-}
-
-// ---------------------------------------------------------------------------
-// TERRAIN-ONLY SWEEP (the last C0 sweep item). Terrain has NO openings, so
-// over-carve must be 0 by construction and only `fattening` is in play. The
-// prediction from the structure sweeps: larger bricks should be far cheaper here,
-// so a single global brick size for terrain AND structures is unlikely.
-//
-// Real generator output: WorldGenerator(Perlin) into real Chunks, same params the
-// LodBench project uses (heightScale 14 / freq 0.03 / oct 4 / persist 0.5).
-// ---------------------------------------------------------------------------
-TEST(LodBrickSweepTest, BrickSizeSweepOnGeneratedTerrain) {
-    // 2x2 chunks of terrain at the surface band -> 64x32x64 cubes.
-    Phyxel::WorldGenerator gen(Phyxel::WorldGenerator::GenerationType::Perlin, 777001u);
-    auto& tp = gen.getTerrainParams();
-    tp.heightScale = 14.0f; tp.frequency = 0.03f; tp.octaves = 4; tp.persistence = 0.5f;
-
-    const int CH = 2;   // chunks per axis in X/Z
-    LodVolume base(glm::ivec3(CH * 32, 32, CH * 32), 0);
-    std::map<std::string, uint16_t> palette;
-    auto idFor = [&palette](const std::string& m) -> uint16_t {
-        if (m.empty()) return 0;
-        auto it = palette.find(m);
-        if (it != palette.end()) return it->second;
-        const uint16_t id = static_cast<uint16_t>(palette.size() + 1);
-        palette.emplace(m, id);
-        return id;
-    };
-
-    for (int cx = 0; cx < CH; ++cx)
-    for (int cz = 0; cz < CH; ++cz) {
-        const glm::ivec3 coord(cx, 1, cz);            // chunk y=1 straddles the y~53 surface
-        auto chunk = std::make_unique<Phyxel::Chunk>(coord * 32);
-        chunk->initializeForLoading();
-        gen.generateChunk(*chunk, coord);
-        for (int x = 0; x < 32; ++x)
-        for (int y = 0; y < 32; ++y)
-        for (int z = 0; z < 32; ++z) {
-            const auto* c = chunk->getCubeAt(glm::ivec3(x, y, z));
-            if (!c) continue;
-            LodCell& cell = base.at(cx * 32 + x, y, cz * 32 + z);
-            cell.coverage = LodVolume::kFullCoverage;     // a full cube of terrain
-            cell.bulkMaterial = cell.skinMaterial = idFor(c->getMaterialName());
-        }
-    }
-    ASSERT_GT(base.solidCellCount(), 0u) << "generator produced no terrain in chunk y=1";
-
-    SquashConfig cfg;
-    std::vector<LodVolume> levels{base};
-    std::vector<long long> us;
-    for (int i = 0; i < 4; ++i) {
-        const auto t0 = std::chrono::steady_clock::now();
-        levels.push_back(squash(levels.back(), cfg));
-        us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - t0).count());
-    }
-
-    printf("\n=== C0 BRICK SWEEP - GENERATED TERRAIN (Perlin, 2x2 chunks at the surface) ===\n");
-    printf("level-0 volume: %dx%dx%d cubes, %zu solid cells, %zu materials\n\n",
-           base.dim().x, base.dim().y, base.dim().z, base.solidCellCount(), palette.size());
-    printf("brick lvl coarse    solid  units/  fattening  over-    mat_      scale us\n");
-    printf("          dims      bricks chunk              carve    mismatch  ok?\n");
-    for (int brick : {4, 8, 16}) {
-        int level = 0; for (int b = brick; b > 1; b >>= 1) ++level;
-        const LodVolume& lv = levels[level];
-        const glm::ivec3 cd = lv.dim();
-        const bool scaleOk = cd.x >= 3 && cd.y >= 3 && cd.z >= 3;
-        const double carve = overCarve(base, lv);
-        printf("  %2d^3  %d  %2dx%2dx%-2d  %6zu  %6lld  %7.2fx  %6.1f%%  %7.4f%%  %-4s %lld\n",
-               brick, level, cd.x, cd.y, cd.z, lv.solidCellCount(),
-               (long long)((32 / brick) * (32 / brick) * (32 / brick)),
-               fatteningRatio(base, lv), carve * 100.0,
-               materialMismatch(base, lv) * 100.0, scaleOk ? "yes" : "NO", us[level - 1]);
-        // Terrain has no authored openings, so nothing may ever be carved away.
-        EXPECT_DOUBLE_EQ(carve, 0.0) << "terrain over-carved at brick " << brick
-                                     << " -- impossible without openings";
-        EXPECT_EQ(countWatertightViolations(base, lv), 0u);
-    }
-    printf("\nover-carve is 0%% by construction here (no openings). Compare `fattening` against the\n"
-           "structure tables: if terrain fattens far less at 8^3/16^3, then terrain and structures\n"
-           "want DIFFERENT brick sizes and a single global constant is the wrong model.\n\n");
 }
 
 // ---------------------------------------------------------------------------

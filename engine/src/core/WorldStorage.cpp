@@ -1,9 +1,6 @@
 #include "core/WorldStorage.h"
 #include "core/LodBlobCodec.h"
-#include "core/LodPyramidService.h"
-#include "core/Chunk.h"
 #include "core/ChunkBlobCodec.h"
-#include "core/Cube.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <filesystem>
@@ -14,10 +11,6 @@
 #endif
 
 // Only compile SQLite functionality if available
-// C3.2 kill switch. Defined OUTSIDE the ENABLE_WORLD_STORAGE guard so it exists in both the
-// real and the no-SQLite stub builds -- placing it beside a saveChunk definition put it inside
-// the stub-only branch, and the real build failed to link.
-namespace Phyxel { bool WorldStorage::s_lodPyramidOnSave = true; }
 
 #ifndef ENABLE_WORLD_STORAGE
 // Provide stub implementations when SQLite is not available
@@ -37,8 +30,6 @@ bool WorldStorage::initialize() {
 }
 
 bool WorldStorage::close() { return true; }
-bool WorldStorage::saveChunk(const Chunk& chunk) { return false; }
-bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out) { out.clear(); return false; }
 bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) { return false; }
@@ -52,8 +43,6 @@ bool WorldStorage::saveVoxFoundBlob(const glm::ivec3&, const std::vector<uint8_t
 bool WorldStorage::loadVoxFoundBlob(const glm::ivec3&, std::vector<uint8_t>& out) { out.clear(); return false; }
 bool WorldStorage::deleteVoxFoundBlob(const glm::ivec3&) { return false; }
 std::vector<glm::ivec3> WorldStorage::getVoxFoundBlobCoords() { return {}; }
-bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) { return false; }
-bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) { return false; }
 std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) { return {}; }
 std::vector<glm::ivec3> WorldStorage::getAllChunkCoordinates() { return {}; }
 bool WorldStorage::createNewWorld() { return false; }
@@ -68,8 +57,6 @@ bool WorldStorage::beginTransaction() { return false; }
 bool WorldStorage::commitTransaction() { return false; }
 bool WorldStorage::rollbackTransaction() { return false; }
 bool WorldStorage::applyPragmas() { return false; }
-bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) { found = false; return false; }
-bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::migrateLegacyChunks() { return false; }
 bool WorldStorage::readLegacyRows(const glm::ivec3&, Core::VoxFound::V1ChunkRows&) { return false; }
@@ -463,104 +450,6 @@ void WorldStorage::finalizeStatements() {
     if (deleteMicrocubeRowsStmt) { sqlite3_finalize(deleteMicrocubeRowsStmt); deleteMicrocubeRowsStmt = nullptr; }
 }
 
-bool WorldStorage::saveChunk(const Chunk& chunk) {
-    return saveChunk(chunk, true); // Use transaction by default for standalone saves
-}
-
-bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
-    if (!db) {
-        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: No database connection in saveChunk()");
-        return false;
-    }
-    
-    glm::ivec3 chunkCoord = chunk.getWorldOrigin() / 32; // Convert world origin to chunk coordinates
-    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Starting saveChunk for chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-    
-    bool ownTransaction = false;
-    if (useTransaction) {
-        if (!beginTransaction()) {
-            LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to begin transaction in saveChunk()");
-            return false;
-        }
-        ownTransaction = true;
-    }
-
-    {
-        // Storage v2: the whole chunk becomes one palette+RLE blob row
-        // (ChunkBlobCodec) — replaces ~32k row inserts per solid chunk.
-        ChunkBlobCodec::Counts counts;
-        std::vector<uint8_t> blob = ChunkBlobCodec::encode(chunk, &counts);
-
-        // Chunk record (modified_at + chunkExists support)
-        sqlite3_bind_int(insertChunkStmt, 1, chunkCoord.x);
-        sqlite3_bind_int(insertChunkStmt, 2, chunkCoord.y);
-        sqlite3_bind_int(insertChunkStmt, 3, chunkCoord.z);
-        if (sqlite3_step(insertChunkStmt) != SQLITE_DONE) {
-            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert chunk record: " << sqlite3_errmsg(db));
-            sqlite3_reset(insertChunkStmt);
-            if (ownTransaction) rollbackTransaction();
-            return false;
-        }
-        sqlite3_reset(insertChunkStmt);
-
-        // Blob upsert
-        sqlite3_bind_int(insertBlobStmt, 1, chunkCoord.x);
-        sqlite3_bind_int(insertBlobStmt, 2, chunkCoord.y);
-        sqlite3_bind_int(insertBlobStmt, 3, chunkCoord.z);
-        sqlite3_bind_int(insertBlobStmt, 4, ChunkBlobCodec::kCodecVersion);
-        sqlite3_bind_int(insertBlobStmt, 5, static_cast<int>(counts.cubes));
-        sqlite3_bind_int(insertBlobStmt, 6, static_cast<int>(counts.subcubes));
-        sqlite3_bind_int(insertBlobStmt, 7, static_cast<int>(counts.microcubes));
-        sqlite3_bind_blob(insertBlobStmt, 8, blob.data(), static_cast<int>(blob.size()), SQLITE_STATIC);
-        if (sqlite3_step(insertBlobStmt) != SQLITE_DONE) {
-            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert chunk blob: " << sqlite3_errmsg(db));
-            sqlite3_reset(insertBlobStmt);
-            if (ownTransaction) rollbackTransaction();
-            return false;
-        }
-        sqlite3_reset(insertBlobStmt);
-
-        // Drop any legacy v1 rows for this chunk (no-op once migrated)
-        deleteLegacyRows(chunkCoord);
-
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
-                  << ") - Saved blob: " << blob.size() << " bytes (" << counts.cubes << " cubes, "
-                  << counts.subcubes << " subcubes, " << counts.microcubes << " microcubes)");
-
-        // C3.2: keep the persisted LOD pyramid in step with the voxels, INSIDE the same
-        // transaction. Outside it, a crash between the two writes would leave a pyramid
-        // describing a chunk that no longer exists -- stale geometry at distance, which reads
-        // as "the world does not update until I walk up to it" rather than as a torn write.
-        // refreshPyramid drops the old levels first, so a chunk that stops warranting one
-        // (its structure demolished) stops being served.
-        if (s_lodPyramidOnSave) Core::LodPyramidService::refreshPyramid(chunk, *this);
-    }
-
-    if (ownTransaction) {
-        bool commitResult = commitTransaction();
-        if (!commitResult) {
-            LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to commit transaction in saveChunk()");
-        } else {
-            LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-        }
-        return commitResult;
-    } else {
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ") (no transaction commit needed)");
-        return true;
-    }
-}
-
-bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
-    if (!db) return false;
-
-    // Storage v2 blob first; legacy v1 rows only as fallback for unmigrated data.
-    bool blobFound = false;
-    bool loaded = loadChunkFromBlob(chunkCoord, chunk, blobFound);
-    if (blobFound) return loaded;
-
-    return loadChunkFromLegacyRows(chunkCoord, chunk);
-}
-
 bool WorldStorage::readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out) {
     out.clear();
     if (!db || !selectBlobStmt) return false;
@@ -576,96 +465,6 @@ bool WorldStorage::readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8
     }
     sqlite3_reset(selectBlobStmt);
     return found;
-}
-
-bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) {
-    found = false;
-    if (!db || !selectBlobStmt) return false;
-
-    sqlite3_bind_int(selectBlobStmt, 1, chunkCoord.x);
-    sqlite3_bind_int(selectBlobStmt, 2, chunkCoord.y);
-    sqlite3_bind_int(selectBlobStmt, 3, chunkCoord.z);
-
-    bool decoded = false;
-    ChunkBlobCodec::Counts counts;
-    if (sqlite3_step(selectBlobStmt) == SQLITE_ROW) {
-        found = true;
-        const void* data = sqlite3_column_blob(selectBlobStmt, 0);
-        const int size = sqlite3_column_bytes(selectBlobStmt, 0);
-        decoded = ChunkBlobCodec::decode(static_cast<const uint8_t*>(data),
-                                         static_cast<size_t>(size), chunk, &counts);
-        if (!decoded) {
-            // Fail loudly rather than silently falling back / regenerating —
-            // a corrupt blob means saved player edits are at risk.
-            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] CORRUPT chunk blob at ("
-                      << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
-                      << "), " << size << " bytes — load failed");
-        }
-    }
-    sqlite3_reset(selectBlobStmt);
-
-    if (!found || !decoded) return false;
-
-    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded blob chunk ("
-              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << "): "
-              << counts.cubes << " cubes, " << counts.subcubes << " subcubes, "
-              << counts.microcubes << " microcubes");
-
-    // Match v1 semantics: "loaded" means the chunk actually contained voxels.
-    return (counts.cubes + counts.subcubes + counts.microcubes) > 0;
-}
-
-bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) {
-    if (!db) return false;
-
-    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Attempting to load chunk ("
-              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-
-    // Bind chunk coordinates
-    sqlite3_bind_int(selectCubesStmt, 1, chunkCoord.x);
-    sqlite3_bind_int(selectCubesStmt, 2, chunkCoord.y);
-    sqlite3_bind_int(selectCubesStmt, 3, chunkCoord.z);
-    
-    int loadedCubes = 0;
-    
-    // Load cubes
-    while (sqlite3_step(selectCubesStmt) == SQLITE_ROW) {
-        int x = sqlite3_column_int(selectCubesStmt, 0);
-        int y = sqlite3_column_int(selectCubesStmt, 1);
-        int z = sqlite3_column_int(selectCubesStmt, 2);
-        
-        bool isSubdivided = sqlite3_column_int(selectCubesStmt, 3) != 0;
-        bool isVisible = sqlite3_column_int(selectCubesStmt, 4) != 0;
-        
-        // Read material name (column 5), default to "Default" if NULL
-        const char* materialStr = reinterpret_cast<const char*>(sqlite3_column_text(selectCubesStmt, 5));
-        std::string material = materialStr ? materialStr : "Default";
-        
-        // If the cube is subdivided, it's a placeholder for subcubes/microcubes.
-        // We should NOT create a full cube object here. The subcubes will be loaded later.
-        if (isSubdivided) {
-            continue;
-        }
-
-        if (chunk.addCube(glm::ivec3(x, y, z), material)) {
-            // If the cube is invisible (but not subdivided), hide it — a store write (4.2b;
-            // the old getCubeAt+setVisible would materialize a Cube per hidden voxel).
-            if (!isVisible) {
-                chunk.setCubeVisible(glm::ivec3(x, y, z), false);
-            }
-            loadedCubes++;
-        }
-    }
-    
-    sqlite3_reset(selectCubesStmt);
-    
-    // (v1 subcube/microcube rows are not loaded into a Chunk: its 1/9 m store was deleted in D3c-5;
-    // the migration reads them via readLegacyRows + encodePxb2FromRows instead.)
-
-    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
-              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-    
-    return loadedCubes > 0;
 }
 
 bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) {
@@ -1057,60 +856,6 @@ bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& lo
                   << localPos.x << "," << localPos.y << "," << localPos.z 
                   << ") in chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << "): " 
                   << sqlite3_errmsg(db));
-    }
-    
-    return success;
-}
-
-bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) {
-    if (!db) return false;
-    
-    beginTransaction();
-
-    for (const auto& chunk : chunks) {
-        // false: already inside this batch's transaction (a nested BEGIN
-        // would fail and abort the whole batch)
-        if (!saveChunk(chunk.get(), false)) {
-            rollbackTransaction();
-            return false;
-        }
-    }
-
-    return commitTransaction();
-}
-
-bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) {
-    if (!db) return false;
-    
-    int savedCount = 0;
-    int skippedCount = 0;
-    
-    LOG_TRACE_FMT("WorldStorage", "[WORLD_STORAGE] Processing " << chunks.size() << " chunks for smart save...");
-    
-    beginTransaction();
-    
-    for (auto& chunkRef : chunks) {
-        Chunk& chunk = chunkRef.get();
-        glm::ivec3 chunkCoord = chunk.getWorldOrigin() / 32;
-        
-        if (chunk.getIsDirty()) {
-            LOG_TRACE_FMT("WorldStorage", "[WORLD_STORAGE] Saving DIRTY chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-            if (saveChunk(chunk, false)) { // Don't use nested transaction
-                chunk.markClean();
-                savedCount++;
-            }
-        } else {
-            skippedCount++;
-        }
-    }
-    
-    bool success = commitTransaction();
-    
-    if (success) {
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Smart save complete: " << savedCount << " dirty chunks saved, " 
-                  << skippedCount << " clean chunks skipped");
-    } else {
-        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Smart save FAILED!");
     }
     
     return success;

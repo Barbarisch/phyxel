@@ -13,9 +13,6 @@
 
 namespace Phyxel {
 
-// Forward declarations within namespace
-class Chunk;
-
 enum class TargetMode {
     Cube,
     Subcube,
@@ -34,7 +31,6 @@ struct VoxelLocation {
     enum Type { EMPTY, CUBE, SUBDIVIDED };
     
     Type type = EMPTY;
-    Chunk* chunk = nullptr;                 // Phyxel::Chunk forward declaration
     glm::ivec3 localPos{-1};        // Local position within chunk
     glm::ivec3 worldPos{-1};        // World position for convenience
     glm::ivec3 subcubePos{-1};      // Only valid if type == SUBDIVIDED
@@ -47,15 +43,14 @@ struct VoxelLocation {
     
     VoxelLocation() = default;
     
-    bool isValid() const { return chunk != nullptr && type != EMPTY; }
+    bool isValid() const { return type != EMPTY; }   // (the owning-Chunk pointer went with D4)
     bool isSubcube() const { return type == SUBDIVIDED && subcubePos != glm::ivec3(-1) && microcubePos == glm::ivec3(-1); }
     bool isMicrocube() const { return type == SUBDIVIDED && microcubePos != glm::ivec3(-1); }
     bool isCube() const { return type == CUBE; }
     
     // Equality comparison for hover change detection
     bool operator==(const VoxelLocation& other) const {
-        return chunk == other.chunk && 
-               localPos == other.localPos && 
+        return localPos == other.localPos &&  
                worldPos == other.worldPos &&
                subcubePos == other.subcubePos &&
                microcubePos == other.microcubePos &&

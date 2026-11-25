@@ -74,10 +74,6 @@ nlohmann::json setEffectTime(Graphics::RenderCoordinator* rc, const nlohmann::js
 // BFS), Submit, Present.
 nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
 
-// GET /api/debug/mesh_timing?reset=0|1 (I7). rebuildAllFaces split by phase, plus whole-rebuild time
-// bucketed by the chunk's microcube count. reset=1 returns the stats and then zeroes them, so a
-// caller can measure exactly one window.
-nlohmann::json meshTiming(const nlohmann::json& params);
 
 // ---- City benchmark tooling (docs/PerfProgram2026-09.md section 16) ----
 

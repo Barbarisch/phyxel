@@ -200,28 +200,8 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         // it to Dirt so no grass blades emit under the building.
         if (!out.objectId.empty() && chunkManager) {
             pc.lap();
-            auto isG = [](const std::string& m) {
-                return m == "Grass" || m == "GrassForest" || m == "GrassSavanna";
-            };
-            std::vector<glm::ivec3> gcut;
-            StructureResult gfill;
-            for (int gx = out.smin.x; gx <= out.smax.x; ++gx)
-                for (int gz = out.smin.z; gz <= out.smax.z; ++gz)
-                    for (int gy = out.smin.y - 1; gy >= out.smin.y - 4; --gy) {
-                        auto* gc = chunkManager->getCubeAt(glm::ivec3(gx, gy, gz));
-                        if (gc && isG(gc->getMaterialName())) {
-                            gcut.push_back(glm::ivec3(gx, gy, gz));
-                            VoxelPlacement vp;
-                            vp.position = glm::ivec3(gx, gy, gz);
-                            vp.material = "Dirt";
-                            vp.level    = VoxelLevel::Cube;
-                            gfill.voxels.push_back(vp);
-                        }
-                    }
-            if (!gcut.empty()) {
-                StructureGenerator::removeVoxels(chunkManager, gcut);   // bulk-end rebuilds collision
-                StructureGenerator::place(chunkManager, gfill);
-            }
+            // D4 finding: the grass test read today's Chunk Cubes (none exist on the switched world), so this sweep
+            // never converted anything there; it went with the Chunk store.
             out.msGrass = pc.lap();
         }
     }

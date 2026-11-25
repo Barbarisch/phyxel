@@ -714,7 +714,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       fixed: black world, clamped player); part 3 DONE (asset / anim editors on a switched stage, grid-8 save) --
       D3-scenes DONE (multi-scene games switched per scene, editor + standalone); D3b DONE (REORDERED: the opt-out
       removed -- switched is the only world); D3c DONE (1/9 m writers + Subcube / Microcube classes deleted,
-      D3c-5 -8,896 lines, every gate held) -- NEXT D4 (the Chunk store + its readers go)
+      D3c-5 -8,896 lines, every gate held); D4 DONE (Chunk + its mesher / physics / codec / LOD / readers
+      deleted, -24,426 lines; ChunkManager = the switched world's host) -- STEP 7 COMPLETE. Owed features
+      with no 1/8 m feed: voxfound_f7_prediction.txt D4 RESULTS
       -- generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the
