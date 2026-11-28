@@ -2275,3 +2275,15 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      the broken glass reads MILKY (each shard body draws its own inner faces; the OIT layers stack); once the palette holds
      glass every body face is re-submitted to the OIT pass (20,711 after the Stone break -- the frag keeps the glass), the
      same cost pattern as the faces. Editor status bar 7 FPS while 280 Stone bodies were awake (not measured by route).
+
+  S10 PREDICTION (the packaging smoke fix shown against its failure; before running). The D4 failure: a cold first launch
+  (startup 41.3 s) sampled render stats as the test API answered, before the switched world's deferred boot drew:
+  'no visible chunks'. Warm launches (8 runs today) already show 214 clusters at that sample, so the race needs a slow
+  start: PHYXEL_VOXFOUND_BOOT_DELAY_FRAMES (tests only) delays the boot. With a 600-frame delay: the OLD sample point
+  (first_sample) reads 0 clusters in every run = the original failure, and the smoke test (which waits for a drawn world
+  within the startup deadline) PASSES; without the delay both read 214.
+  S10 RESULT (voxfound_s10_smoke*.json, the packaged TavernPkg rebuilt by produce_game): with the boot delayed 600 frames the
+     OLD sample point (first_sample, at API-ready) reads 0 clusters / 0 faces in 4 / 4 runs -- the original D4 failure,
+     reproduced on demand -- and the smoke test PASSES 4 / 4 (world drawn after a 4.5-4.6 s wait); without the delay
+     first_sample 214 clusters and 4 / 4 pass. Found on the way (not predicted): the first delayed run CRASHED the smoke
+     script -- a 2 s poll timed out during the multi-second boot frame; the wait loop now retries until the deadline.

@@ -89,13 +89,18 @@ def smoke_test(executable: Path, port: int, startup_timeout: float) -> dict:
         startup_seconds = time.monotonic() - started_at
         screen = _request(base, "/api/screen/state")
         render = _request(base, "/api/render/stats")
+        # the sample the old smoke test judged (the moment the test API answers): kept for the record
+        first_sample = {k: render.get(k, 0) for k in ("voxfound_clusters", "visible_chunk_count", "voxfound_faces")}
         # The switched world boots its region a few frames AFTER the test API answers (VoxFoundWorld's
         # deferred boot): wait for it to draw, within the same startup deadline. Same requirement --
         # a world must be drawn -- sampled once the boot has had its chance (D4 fresh-package race).
         while (render.get("voxfound_clusters", 0) + render.get("visible_chunk_count", 0) == 0
                and time.monotonic() < deadline and process.poll() is None):
             time.sleep(0.5)
-            render = _request(base, "/api/render/stats")
+            try:   # S10: the boot frame itself runs for seconds -- a poll may time out while it builds
+                render = _request(base, "/api/render/stats", timeout=10.0)
+            except Exception:
+                continue
         world_wait_seconds = time.monotonic() - started_at - startup_seconds
         screen = _request(base, "/api/screen/state")
         errors = evaluate_probe(project, screen, render)
@@ -133,6 +138,7 @@ def smoke_test(executable: Path, port: int, startup_timeout: float) -> dict:
             "errors": errors,
             "startup_seconds": round(startup_seconds, 3),
             "world_wait_seconds": round(world_wait_seconds, 3),
+            "first_sample": first_sample,   # S10: at API-ready; 0 clusters here = the original D4 failure
             "project": project,
             "screen": screen,
             "render": render,

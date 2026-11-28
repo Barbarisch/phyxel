@@ -4033,7 +4033,10 @@ void VoxFoundWorld::tick(float dt) {
     }
     voxFoundGrassRefreshTick();   // F7.30
     voxFoundEmissiveTick();       // D4 follow-up: glow voxels are lights (U3.2)
-    if (voxFoundBootPending && ++voxFoundBootFrames > 30) {  // F7.16: the boot mode, once the first frames ran
+    // S10 (tests only): PHYXEL_VOXFOUND_BOOT_DELAY_FRAMES delays the boot -- a slow cold start, on demand (the D4
+    // packaging smoke failure: the API answered before the boot drew anything)
+    static const int kBootDelay = [] { const char* e = std::getenv("PHYXEL_VOXFOUND_BOOT_DELAY_FRAMES"); return e ? std::max(0, std::atoi(e)) : 0; }();
+    if (voxFoundBootPending && ++voxFoundBootFrames > 30 + kBootDelay) {  // F7.16: the boot mode, once the first frames ran
         voxFoundBootPending = false;
         try {   // F7.27: a boot that fails is REPORTED, never fatal (TavernTest: a null world field killed the app)
             voxFoundBoot();

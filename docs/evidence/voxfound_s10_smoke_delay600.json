@@ -1,0 +1,46 @@
+[
+ {
+  "success": true,
+  "errors": [],
+  "startup_seconds": 3.266,
+  "world_wait_seconds": 4.5,
+  "first_sample": {
+   "voxfound_clusters": 0,
+   "visible_chunk_count": 0,
+   "voxfound_faces": 0
+  }
+ },
+ {
+  "success": true,
+  "errors": [],
+  "startup_seconds": 3.218,
+  "world_wait_seconds": 4.547,
+  "first_sample": {
+   "voxfound_clusters": 0,
+   "visible_chunk_count": 0,
+   "voxfound_faces": 0
+  }
+ },
+ {
+  "success": true,
+  "errors": [],
+  "startup_seconds": 3.218,
+  "world_wait_seconds": 4.563,
+  "first_sample": {
+   "voxfound_clusters": 0,
+   "visible_chunk_count": 0,
+   "voxfound_faces": 0
+  }
+ },
+ {
+  "success": true,
+  "errors": [],
+  "startup_seconds": 3.219,
+  "world_wait_seconds": 4.609,
+  "first_sample": {
+   "voxfound_clusters": 0,
+   "visible_chunk_count": 0,
+   "voxfound_faces": 0
+  }
+ }
+]
