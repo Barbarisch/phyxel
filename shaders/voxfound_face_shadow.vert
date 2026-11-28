@@ -23,7 +23,15 @@ layout(push_constant) uniform PushConstants {
     vec3 chunkBaseOffset;   // per-chunk draws: CAMERA-RELATIVE origin of voxel (0,0,0); multidraw: the anchor
     uint useChunkDataSsbo;  // 0 = per-chunk draws; 1 = multidraw, add origins[drawIndexBase + gl_DrawIDARB]
     uint drawIndexBase;
+    uvec4 clear0;           // S5: CardSet::clear bits 0-127 (transparent materials cast no shadow); std430 offset 96
+    uvec4 clear1;           // bits 128-255 (the range is 128 B; the bodies / chunk pushes stop at 84 and leave these 0)
 } pushConstants;
+
+bool isClear(uint m) {
+    const uint w = m >> 5u;
+    const uint word = w < 4u ? pushConstants.clear0[w] : pushConstants.clear1[w - 4u];
+    return ((word >> (m & 31u)) & 1u) != 0u;
+}
 
 layout(std430, set = 0, binding = 0) readonly buffer ChunkData {
     vec4 origins[];
@@ -32,6 +40,10 @@ layout(std430, set = 0, binding = 0) readonly buffer ChunkData {
 const float kVoxel = 1.0 / 8.0;
 
 void main() {
+    if (isClear((inFaceB >> 16) & 0xFFu)) {   // S5: glass casts no shadow -- every corner at one point, nothing drawn
+        gl_Position = vec4(0.0, 0.0, -1.0, 1.0);
+        return;
+    }
     const uint axis = (inFaceA >> 24) & 3u;
     const bool pos = ((inFaceA >> 26) & 1u) != 0u;
     const vec3 o = vec3(float(inFaceA & 0xFFu), float((inFaceA >> 8) & 0xFFu), float((inFaceA >> 16) & 0xFFu));

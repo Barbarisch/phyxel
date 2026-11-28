@@ -2216,3 +2216,7 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   bodies (glass opaque there, as S2). Live (TavernTest copy, the S2 rig: Glass wall + Bricks pillar on Stone, noon):
   the dark band behind the wall is GONE (the ground there as bright as the open ground beside it, +-10%), the
   Bricks pillar's shadow is UNCHANGED; FPS unchanged within noise.
+  S5 RESULT: glass casts no shadow. Same rig, same pose (d4g_glass_after.png vs the S3-era d4g_glass_after_s3_shadow.png):
+     the floor strip behind the wall reads luminance 129.1 vs the open floor 129.2 (ratio 1.00; before: 104.4 / 100.1,
+     both strips under the glass's shadow); the Bricks pillar still casts. FPS 53.2 -> 50.7 with the glass filled (as
+     S2). Push range 84 -> 128 B (the guaranteed minimum; the other shadow pushes stop at 84 and leave the clear bits 0).

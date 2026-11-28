@@ -3570,10 +3570,20 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             }
             vulkanDevice->bindVertexBuffers(currentFrame);
             vulkanDevice->bindIndexBuffer(currentFrame);
-            struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
+            struct {
+                glm::mat4 lightSpaceMatrix;
+                glm::vec3 chunkBaseOffset;
+                uint32_t useChunkDataSsbo;
+                uint32_t drawIndexBase;
+                uint32_t pad[3];
+                uint32_t clear[8];   // S5: the palette's transparent materials (the face table's flag), cast no shadow
+            } pc{};
+            static_assert(sizeof(pc) == 128, "voxfound_face_shadow.vert push constants");
             pc.lightSpaceMatrix = lightSpaceMatrix;
             pc.useChunkDataSsbo = 0u;
             pc.drawIndexBase = 0u;
+            for (size_t m = 0; m < 256 && m * 6 < m_voxFoundPreview->faceTex.size(); ++m)
+                if (m_voxFoundPreview->faceTex[m * 6] & (2u << 16)) pc.clear[m >> 5] |= 1u << (m & 31);
             uint32_t cast = 0;
             const int ci = cascade == kCascadeNear ? 1 : 0;
             // F2.12 (§4.6 item 6): today's per-chunk caster test + the light frustum (reach = fitted radius + the

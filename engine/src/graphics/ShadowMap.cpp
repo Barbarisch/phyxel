@@ -440,7 +440,8 @@ bool ShadowMap::createPipeline() {
     pushConstantRange.offset = 0;
     // C2.1: + a uint flag selecting the origin source. 0 = push-constant origin (legacy,
     // byte-identical); 1 = read origins[gl_DrawIDARB] from the SSBO (multidraw path).
-    pushConstantRange.size = sizeof(glm::mat4) + sizeof(glm::vec3) + 2 * sizeof(uint32_t);
+    // 84 B (light matrix, chunk offset, ssbo flag, draw base) + S5's 12 B pad + 32 B clear bits (voxfound_face_shadow.vert)
+    pushConstantRange.size = 128;
 
     // Pipeline Layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
