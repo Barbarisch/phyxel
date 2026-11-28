@@ -2220,3 +2220,13 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      the floor strip behind the wall reads luminance 129.1 vs the open floor 129.2 (ratio 1.00; before: 104.4 / 100.1,
      both strips under the glass's shadow); the Bricks pillar still casts. FPS 53.2 -> 50.7 with the glass filled (as
      S2). Push range 84 -> 128 B (the guaranteed minimum; the other shadow pushes stop at 84 and leave the clear bits 0).
+
+  S6 PREDICTION (structure LOD proxies fed from the switched world; written before the code). Since D4 every
+  structure sat in state 0 (extraction read today's Chunk cubes) and drew no proxy -- a settlement beyond the
+  streamed region simply vanished. NOW: extraction reads the switched world (WorldReads, the cube's 1/9 m micro cells
+  sampled at their centre voxel, materials by palette index, textures from the face table) once every chunk of the
+  structure's box is resident; the residency gate asks the same reads. L1 (lod_report, TavernTest copy): the tavern's
+  entry reaches state 2 with tris_l0 > 0 within ~10 s of boot (state 0 forever before). L4: the camera moved ~250 m
+  away (streaming focus follows; the tavern's chunks leave the region): a frame shows the tavern's proxy where it
+  stood (before the fix: nothing there), last_min_fade -> 1 once its chunks are gone; back at the tavern no proxy is
+  drawn solid over the real building (solid_in_band 0).
