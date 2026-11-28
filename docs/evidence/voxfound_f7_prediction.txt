@@ -2071,3 +2071,15 @@ I reviewed the switched-path diffs (RenderCoordinator: the switched draws stay i
   Test coverage lost with the store: water-span PXB2 round-trips, generateChunk bridge decks / piers, Chunk-based
   collapse / chop.
 D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, writers and readers are gone.
+
+=== D4 FOLLOW-UPS (2026-11-27) -- the owed features on the switched world, the suites, and a startup regression
+  FINDING (before any fix): the battery G1 (voxfound_f82_live.py green) HUNG for ~3 days in ground_points(): every
+  column top in the booted region is 45..63 (225 samples), none <= 34. Root cause read, not guessed: the D4
+  follow-up linkPythonBindings() anchor made the `phyxel` module importable again, so scripts/startup.py now RUNS in
+  every project -- it spawns a spider at (40,50,40), takes control (camera follows) and runs world_gen.run_demo().
+  The boot then centres its region on that camera (region [-1,0,-1]..[2,1,2], boot camera (40,52.2,43.6)) instead
+  of game.json's (8192,70,230); the F7/D4 gates had been calibrated while the module silently failed to import.
+  PREDICTION (S1, written before the fix): startup.py's demo (spawn + world_gen) runs only with NO project open
+  (ScriptingSystem exposes PHYXEL_PROJECT_MODE; the console helpers still load). With it: VoxFoundGate8 boots its
+  region around chunk (256,*,7) (lo [254,0,5]); the boot camera x ~8192; G1 finds ground <= 34 and returns
+  {} / {}, 0 lost, max apply <= ~0.45 s, as at D4. No project log line "Characters spawned successfully!".
