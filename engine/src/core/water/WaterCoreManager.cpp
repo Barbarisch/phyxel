@@ -94,6 +94,7 @@ std::unique_ptr<WaterCoreManager::Av> WaterCoreManager::buildCpu(const glm::ivec
     } else av->grid = std::make_unique<WaterGrid>(spec);
     caLap("create.0 grid");
     av->occCache.assign(cells, Occ::Air);
+    ++av->occGen;   // 58.10
     caLap("create.1 occupancy cache");
     Av* raw = av.get();
     SolidQuery q = [raw](const glm::ivec3& cellWorld) -> Occ {
@@ -380,6 +381,7 @@ int WaterCoreManager::occupancyRows(const Av& av) const {
 }
 
 void WaterCoreManager::readOccupancyRows(Av& av, int r0, int r1) {
+    ++av.occGen;   // 58.10: a prefetched tile seed read the cache before this
     const WaterGrid& g = *av.grid;
     const int per = av.per;
     const bool byCube = occupancyByCube(av);
@@ -448,6 +450,7 @@ void WaterCoreManager::refreshOccupancyLocal(Av& av, const std::vector<SolidsCha
             if (s == av.occCache[i]) continue;
             av.occCache[i] = s; g.occ(x, y, z) = s;
             changed.push_back(static_cast<int>(i));
+            ++av.occGen;   // 58.10
         }
     }
     ++av.occLocalRefreshes; av.occCellsResampled = resampled; av.occCellsChanged = static_cast<long>(changed.size());
@@ -567,6 +570,8 @@ void WaterCoreManager::update(float dt) {
         else m_tickAccum -= ticks * static_cast<double>(s_fixedTickS);
         tickDt = s_fixedTickS;
     }
+    long wokeBefore = 0;   // 58.10: a frame that woke no tile prefetches one tile's seed
+    for (const auto& av : m_avs) wokeBefore += av->tilesWoken;
     for (auto& av : m_avs) {
         if (ticks == 0) break;   // 27.26: no water tick due this frame - nothing steps (droplets and ripples still run on the frame)
         { const auto t = UClock::now(); refreshOccupancy(*av); m_updateCpu.occupancy += ums(t); }
@@ -593,6 +598,10 @@ void WaterCoreManager::update(float dt) {
             ++av->stepCount; collectBirths(*av, ticks * tickDt);
         }
         m_updateCpu.step += ums(t);
+    }
+    {   long wokeAfter = 0;
+        for (const auto& av : m_avs) wokeAfter += av->tilesWoken;
+        if (wokeAfter == wokeBefore) prefetchTileSeeds();   // 58.10: its cost in s_seedPrefetchStats
     }
     { const auto t = UClock::now(); stepDroplets(dt); m_updateCpu.droplets = ums(t); }   // 21: flight + landing (deposits reach a GPU volume at its next step)
     { const auto t = UClock::now(); stepRipples(dt); m_updateCpu.ripples = ums(t); }     // 22: the sub-cell wave layer
@@ -3043,35 +3052,154 @@ void WaterCoreManager::logTileEvent(Av& av, int tx, int tz, char cause, double m
     at = now;
 }
 
+namespace {
+// 58.10: equal in everything seedGridFromRuns reads (the column, held, each run's bottom and top)
+bool sameSeedRuns(const std::vector<ColumnRuns>& a, const std::vector<ColumnRuns>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        const ColumnRuns& p = a[i];
+        const ColumnRuns& q = b[i];
+        if (p.x != q.x || p.z != q.z || p.held != q.held || p.runs.size() != q.runs.size()) return false;
+        for (size_t k = 0; k < p.runs.size(); ++k)
+            if (p.runs[k].bottomY != q.runs[k].bottomY || p.runs[k].topY != q.runs[k].topY) return false;
+    }
+    return true;
+}
+}
+
+bool WaterCoreManager::tileSeedBox(const Av& av, int tx, int tz, glm::ivec3& vLo, glm::ivec3& vHi, int& x0, int& x1, int& z0, int& z1) const {
+    const glm::ivec3 so = av.grid->spec().origin, n(av.grid->nx(), av.grid->ny(), av.grid->nz());
+    vLo = glm::ivec3(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
+    vHi = glm::ivec3(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
+    // the tile's cells in the volume (world-aligned tile, clipped to the box)
+    x0 = std::max(0, tx * kTileVoxels * av.per - so.x); x1 = std::min(n.x - 1, (tx + 1) * kTileVoxels * av.per - 1 - so.x);
+    z0 = std::max(0, tz * kTileVoxels * av.per - so.z); z1 = std::min(n.z - 1, (tz + 1) * kTileVoxels * av.per - 1 - so.z);
+    return x1 >= x0 && z1 >= z0;
+}
+
+void WaterCoreManager::buildTileSeed(Av& av, const std::vector<ColumnRuns>& runs, int x0, int x1, int z0, int z1, std::unique_ptr<WaterGrid>& g, WaterSurfaceField& sf) {
+    const glm::ivec3 so = av.grid->spec().origin;
+    const int ny = av.grid->ny();
+    g = std::make_unique<WaterGrid>(GridSpec{so + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, ny, z1 - z0 + 1), av.h});
+    // 58.3: a row at a time (both grids are x-fastest: idx(x0..x1, y, z) is one run) - a per-cell idx() was ~0.9 ms of a tile wake
+    for (int z = z0; z <= z1; ++z) for (int y = 0; y < ny; ++y) {
+        const size_t src = av.grid->idx(x0, y, z);
+        std::copy(av.occCache.begin() + static_cast<long>(src), av.occCache.begin() + static_cast<long>(src) + (x1 - x0 + 1), g->occData().begin() + static_cast<long>(g->idx(0, y, z - z0)));
+    }
+    seedGridFromRuns(*g, runs);   // 27.9: level-filled into the air cells
+    extractSurfaceField(*g, sf);
+}
+
+bool WaterCoreManager::prefetchTileSeeds() {
+    if (!s_seedPrefetch || !m_spanReader) return false;
+    const auto t0 = std::chrono::steady_clock::now();
+    for (auto& avp : m_avs) {
+        Av& av = *avp;
+        if (av.backend != "gpu" || !av.gpuVol || !av.grid || !av.recordTiles || av.recordedTileList.empty()) continue;
+        if (av.gpuVol->asleep && av.pendingTileWakes.empty()) continue;   // nothing moving: no wake is coming
+        const glm::ivec3 so = av.grid->spec().origin, dims(av.grid->nx(), av.grid->ny(), av.grid->nz());
+        auto recorded = [&](const std::pair<int, int>& t) { return std::find(av.recordedTileList.begin(), av.recordedTileList.end(), t) != av.recordedTileList.end(); };
+        // stale seeds first (the occupancy or the box changed, the tile no longer recorded): never used, so dropped
+        av.seedCache.erase(std::remove_if(av.seedCache.begin(), av.seedCache.end(), [&](const Av::SeedCache& c) {
+            const bool stale = c.occGen != av.occGen || c.origin != so || c.dims != dims || !recorded({c.tx, c.tz});
+            if (stale) ++s_seedPrefetchStats.dropped;
+            return stale;
+        }), av.seedCache.end());
+        auto cached = [&](const std::pair<int, int>& t) {
+            for (const auto& c : av.seedCache) if (c.tx == t.first && c.tz == t.second) return true;
+            return false;
+        };
+        // the wake's own order (51.3): nearest a live disturbance first - the tiles the waves reach next
+        const auto& discs = av.gpuVol->discCentres;
+        auto dist2 = [&](const std::pair<int, int>& t) {
+            if (discs.empty()) return 0.0f;
+            const glm::vec2 mid((t.first + 0.5f) * kTileVoxels * av.per - so.x, (t.second + 0.5f) * kTileVoxels * av.per - so.z);   // volume-local cells
+            float d2 = 1e30f;
+            for (const glm::vec2& c : discs) { const glm::vec2 q = mid - c; d2 = std::min(d2, glm::dot(q, q)); }
+            return d2;
+        };
+        // the tile: a queued wake first, else the nearest recorded tile with a tile beside it that is not recorded (awake water)
+        std::pair<int, int> pick{0, 0};
+        bool have = false;
+        float pickD2 = 0.0f;
+        for (const auto& t : av.pendingTileWakes) if (recorded(t) && !cached(t)) { pick = t; have = true; break; }
+        if (!have) {
+            const int tx0 = floorDivI(av.minVoxel.x, kTileVoxels), tx1 = floorDivI(av.maxVoxel.x, kTileVoxels);
+            const int tz0 = floorDivI(av.minVoxel.z, kTileVoxels), tz1 = floorDivI(av.maxVoxel.z, kTileVoxels);
+            const std::set<std::pair<int, int>> rec(av.recordedTileList.begin(), av.recordedTileList.end());
+            for (const auto& t : av.recordedTileList) {
+                if (cached(t)) continue;
+                bool awakeBeside = false;
+                for (int dz = -1; dz <= 1 && !awakeBeside; ++dz) for (int dx = -1; dx <= 1 && !awakeBeside; ++dx) {
+                    if (dx == 0 && dz == 0) continue;
+                    const int nx = t.first + dx, nz = t.second + dz;
+                    if (nx < tx0 || nx > tx1 || nz < tz0 || nz > tz1) continue;
+                    awakeBeside = !rec.count({nx, nz});
+                }
+                if (!awakeBeside) continue;
+                const float d2 = dist2(t);
+                if (!have || d2 < pickD2) { pick = t; pickD2 = d2; have = true; }
+            }
+        }
+        if (!have) continue;
+        if (static_cast<int>(av.seedCache.size()) >= kSeedCacheMax) {   // full: the farthest seed gives way to a nearer tile
+            size_t far = 0;
+            for (size_t i = 1; i < av.seedCache.size(); ++i) if (dist2({av.seedCache[i].tx, av.seedCache[i].tz}) > dist2({av.seedCache[far].tx, av.seedCache[far].tz})) far = i;
+            if (dist2({av.seedCache[far].tx, av.seedCache[far].tz}) <= dist2(pick)) continue;
+            av.seedCache.erase(av.seedCache.begin() + static_cast<long>(far));
+            ++s_seedPrefetchStats.dropped;
+        }
+        glm::ivec3 vLo(0), vHi(0);
+        int x0 = 0, x1 = -1, z0 = 0, z1 = -1;
+        if (!tileSeedBox(av, pick.first, pick.second, vLo, vHi, x0, x1, z0, z1)) continue;
+        // the cache is read as it stands (no refresh here: a refresh that changes it bumps occGen, and the wake then builds its own)
+        Av::SeedCache c;
+        c.tx = pick.first; c.tz = pick.second; c.origin = so; c.dims = dims; c.occGen = av.occGen;
+        m_spanReader(vLo, vHi, c.runs);
+        buildTileSeed(av, c.runs, x0, x1, z0, z1, c.g, c.sf);
+        av.seedCache.push_back(std::move(c));
+        ++s_seedPrefetchStats.built;
+        s_seedPrefetchStats.lastMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        s_seedPrefetchStats.maxMs = std::max(s_seedPrefetchStats.maxMs, s_seedPrefetchStats.lastMs);
+        return true;   // one a frame
+    }
+    return false;
+}
+
 bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
     auto& vol = *av.gpuVol;
     const auto t0 = std::chrono::steady_clock::now();
     glm::ivec2 bLo, bHi;
     if (!tileBricks(av, tx, tz, bLo, bHi)) return false;
-    const glm::ivec3 so = av.grid->spec().origin, n(av.grid->nx(), av.grid->ny(), av.grid->nz());
-    const glm::ivec3 vLo(std::max(av.minVoxel.x, tx * kTileVoxels), av.minVoxel.y, std::max(av.minVoxel.z, tz * kTileVoxels));
-    const glm::ivec3 vHi(std::min(av.maxVoxel.x, tx * kTileVoxels + kTileVoxels - 1), av.maxVoxel.y, std::min(av.maxVoxel.z, tz * kTileVoxels + kTileVoxels - 1));
+    glm::ivec3 vLo(0), vHi(0);
+    int x0 = 0, x1 = -1, z0 = 0, z1 = -1;
+    if (!tileSeedBox(av, tx, tz, vLo, vHi, x0, x1, z0, z1)) return false;
     auto tl = t0;
     auto lap = [&](double* last, double* mx, int k) { const auto n = std::chrono::steady_clock::now(); last[k] = std::chrono::duration<double, std::milli>(n - tl).count(); mx[k] = std::max(mx[k], last[k]); tl = n; };   // 27.19 measurement
     auto& P = s_tilePhases;
     std::vector<ColumnRuns> runs;
     if (m_spanReader) m_spanReader(vLo, vHi, runs);
     lap(P.wake, P.wakeMax, 0);
-    // the tile's cells in the volume (world-aligned tile, clipped to the box), its occupancy the volume's own
-    const int x0 = std::max(0, tx * kTileVoxels * av.per - so.x), x1 = std::min(n.x - 1, (tx + 1) * kTileVoxels * av.per - 1 - so.x);
-    const int z0 = std::max(0, tz * kTileVoxels * av.per - so.z), z1 = std::min(n.z - 1, (tz + 1) * kTileVoxels * av.per - 1 - so.z);
-    if (x1 < x0 || z1 < z0) return false;
-    WaterGrid g(GridSpec{so + glm::ivec3(x0, 0, z0), glm::ivec3(x1 - x0 + 1, n.y, z1 - z0 + 1), av.h});
     refreshOccupancy(av);
-    // 58.3: a row at a time (both grids are x-fastest: idx(x0..x1, y, z) is one run) - a per-cell idx() was ~0.9 ms of a tile wake
-    for (int z = z0; z <= z1; ++z) for (int y = 0; y < n.y; ++y) {
-        const size_t src = av.grid->idx(x0, y, z);
-        std::copy(av.occCache.begin() + static_cast<long>(src), av.occCache.begin() + static_cast<long>(src) + (x1 - x0 + 1), g.occData().begin() + static_cast<long>(g.idx(0, y, z - z0)));
+    // 58.10: a seed built ahead (prefetchTileSeeds) is used only when the grid's spec, its occupancy and the runs are the ones it was
+    // built from - the seed is a pure function of those three, so it is the grid this wake would build (bit for bit)
+    std::unique_ptr<WaterGrid> g;
+    WaterSurfaceField sf;
+    {
+        const glm::ivec3 so = av.grid->spec().origin, dims(av.grid->nx(), av.grid->ny(), av.grid->nz());
+        for (auto it = av.seedCache.begin(); it != av.seedCache.end(); ++it) {
+            if (it->tx != tx || it->tz != tz) continue;
+            if (!s_seedPrefetchIgnoreForTest && it->g && it->origin == so && it->dims == dims && it->occGen == av.occGen && sameSeedRuns(it->runs, runs)) {
+                g = std::move(it->g); sf = std::move(it->sf); ++s_seedPrefetchStats.hits;
+                if (s_seedPrefetchCorruptForTest) for (float& f : g->fData()) if (f > 0.0f) { f = std::max(0.0f, f - 0.25f); break; }   // TEST ONLY: the red
+            } else ++s_seedPrefetchStats.misses;
+            av.seedCache.erase(it);
+            break;
+        }
     }
     lap(P.wake, P.wakeMax, 1);
-    seedGridFromRuns(g, runs);   // 27.9: level-filled into the air cells
+    if (!g) buildTileSeed(av, runs, x0, x1, z0, z1, g, sf);   // the tile's cells, its occupancy the volume's own; 27.9: level-filled
     {   // the volume draws the woken tile at once from the seed (the GPU's surface replaces it at the next collected call)
-        WaterSurfaceField sf; extractSurfaceField(g, sf);
         for (int z = 0; z < sf.nz; ++z) for (int x = 0; x < sf.nx; ++x) {
             const int fx = x0 + x, fz = z0 + z;
             if (fx < av.field.nx && fz < av.field.nz && av.field.cols.size() == static_cast<size_t>(av.field.nx) * av.field.nz)
@@ -3085,7 +3213,7 @@ bool WaterCoreManager::wakeTile(Av& av, int tx, int tz, char cause) {
         if (!(s_handoverRevertForTest & 4)) av.seedPatches.push_back(std::move(sp));   // TEST ONLY bit 4: the B red control
     }
     lap(P.wake, P.wakeMax, 2);
-    m_gpu->seedColumns(vol, std::move(g), bLo, bHi, m_seedDefer && !s_seedDeferOffForTest);   // 58.3: deferred into the call right after
+    m_gpu->seedColumns(vol, std::move(*g), bLo, bHi, m_seedDefer && !s_seedDeferOffForTest);   // 58.3: deferred into the call right after
     lap(P.wake, P.wakeMax, 3);
     if (s_handoverRevertForTest & 2) vol.surfaceFullNext = false;   // TEST ONLY: the A red control
     // the record gives the water back: its columns cleared, the body debited

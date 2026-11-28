@@ -789,11 +789,12 @@ TEST_F(WaterRecordTilesTest, ATileWakeSeedsTheSameDeviceStateAsTheWholeMapWalk) 
 // deferred run deferred seeds (counted within the run), the blocking run none.
 TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
     if (!isVulkanAvailable()) GTEST_SKIP();
-    struct State { std::vector<float> f, fPrev; std::vector<int> map; double mass = 0; long woken = 0, deferred = 0; bool ok = false; };
-    auto run = [&](bool blocking) {
+    struct State { std::vector<float> f, fPrev; std::vector<int> map; double mass = 0; long woken = 0, deferred = 0, hits = 0, built = 0; bool ok = false; };
+    auto run = [&](bool blocking, bool prefetch = false) {
         State s;
         WaterCoreManager::s_seedDeferOffForTest = blocking;
         struct Restore { ~Restore() { WaterCoreManager::s_seedDeferOffForTest = false; } } restore;
+        const WaterCoreManager::SeedPrefetchStats ps0 = WaterCoreManager::s_seedPrefetchStats;
         auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
         WaterCoreManager mgr(state);
         std::string err;
@@ -811,8 +812,9 @@ TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
         for (int k = 0; k < 360; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
         const long d0 = WaterCoreGpu::s_tileGpuMs.seedsDeferred;
         mgr.addImpulse(glm::vec3(12.0f, 1.9f, 12.0f), 1.0f, 2.0f, glm::vec3(0.0f, -1.0f, 0.0f));   // waves into the recorded tiles round it
-        for (int k = 0; k < 90; ++k) mgr.step(id, 1, 1.0f / 60.0f, &rec);
+        for (int k = 0; k < 90; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); if (prefetch) mgr.prefetchTileSeeds(); }   // 58.10
         s.deferred = WaterCoreGpu::s_tileGpuMs.seedsDeferred - d0;
+        s.hits = WaterCoreManager::s_seedPrefetchStats.hits - ps0.hits; s.built = WaterCoreManager::s_seedPrefetchStats.built - ps0.built;
         const AvRecord* r = mgr.find(id);
         s.woken = r ? r->tilesWoken : -1;
         s.ok = mgr.deviceStateForTest(id, s.f, s.fPrev, s.map);
@@ -832,6 +834,30 @@ TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
     EXPECT_EQ(def.woken, blk.woken);
     EXPECT_EQ(cf, 0); EXPECT_EQ(cp, 0); EXPECT_EQ(b, 0);
     EXPECT_EQ(def.mass, blk.mass);
+    {   // 58.10: seeds prefetched between steps and used by the wakes leave the same device state as each wake building its own
+        const State pre = run(false, true);
+        ASSERT_TRUE(pre.ok);
+        long pf = 0, pp = 0, pb = 0;
+        ASSERT_EQ(pre.f.size(), def.f.size()); ASSERT_EQ(pre.map.size(), def.map.size());
+        for (size_t i = 0; i < def.f.size(); ++i) { pf += def.f[i] != pre.f[i]; pp += def.fPrev[i] != pre.fPrev[i]; }
+        for (size_t i = 0; i < def.map.size(); ++i) pb += (def.map[i] != 0) != (pre.map[i] != 0);
+        std::printf("  prefetched seeds: built %ld, used %ld, tiles woken %ld | vs built at the wake: f %ld, fPrev %ld cells, bricks %ld; mass %.6f vs %.6f\n",
+                    pre.built, pre.hits, pre.woken, pf, pp, pb, pre.mass, def.mass);
+        EXPECT_GT(pre.hits, 0) << "CONTROL: no wake used a prefetched seed - the comparison is of one path with itself";
+        EXPECT_EQ(pre.woken, def.woken);
+        EXPECT_EQ(pf, 0); EXPECT_EQ(pp, 0); EXPECT_EQ(pb, 0);
+        EXPECT_EQ(pre.mass, def.mass);
+        // RED: a used prefetched seed one wet cell short - the comparison must see it
+        WaterCoreManager::s_seedPrefetchCorruptForTest = true;
+        const State bad = run(false, true);
+        WaterCoreManager::s_seedPrefetchCorruptForTest = false;
+        ASSERT_TRUE(bad.ok);
+        long rf = 0;
+        for (size_t i = 0; i < def.f.size() && i < bad.f.size(); ++i) rf += def.f[i] != bad.f[i];
+        std::printf("  RED (a used seed one cell short): f %ld cells differ, mass %.6f vs %.6f\n", rf, bad.mass, def.mass);
+        EXPECT_GT(bad.hits, 0);
+        EXPECT_TRUE(rf > 0 || bad.mass != def.mass) << "the red is invisible to the comparison";
+    }
 }
 
 // RemovingAVolumeNeverLosesWater (27.25, red first): a 32 x 16 m pond with recording - at rest every tile records, a push wakes the
@@ -1544,6 +1570,12 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
     WaterCoreManager::s_patchPoolUnsizedForTest = env("P_UNSIZED", 0) != 0;   // the control: the pool from 510 slots
     struct RestoreCap { int c = WaterCoreManager::s_tileWakesPerCall; ~RestoreCap() { WaterCoreManager::s_tileWakesPerCall = c; } } restoreCap;
     WaterCoreManager::s_tileWakesPerCall = static_cast<int>(env("P_TILECAP", WaterCoreManager::s_tileWakesPerCall));   // 58.3: tile wakes a call
+    struct RestorePrefetch { bool p = WaterCoreManager::s_seedPrefetch; ~RestorePrefetch() { WaterCoreManager::s_seedPrefetch = p; } } restorePrefetch;
+    WaterCoreManager::s_seedPrefetch = env("P_PREFETCH", 1.0) != 0.0;   // 58.10: tile seeds built ahead
+    const WaterCoreManager::SeedPrefetchStats ps0 = WaterCoreManager::s_seedPrefetchStats;
+    struct PrintPrefetch { WaterCoreManager::SeedPrefetchStats a; ~PrintPrefetch() { const auto& b = WaterCoreManager::s_seedPrefetchStats;
+        std::printf("  seed prefetch %s: built %ld, used %ld, missed %ld, dropped %ld; worst prefetch frame part %.2f ms\n", WaterCoreManager::s_seedPrefetch ? "ON" : "OFF",
+                    b.built - a.built, b.hits - a.hits, b.misses - a.misses, b.dropped - a.dropped, b.maxMs); } } printPrefetch{ps0};
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });

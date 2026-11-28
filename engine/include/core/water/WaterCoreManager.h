@@ -858,6 +858,16 @@ public:
     /// 51.3: recorded tiles a volume wakes in one call (the margin's asks; nearest a live disturbance first, the rest the next call). A
     /// tile wake is one tile's span read, seed and upload (8-19 ms on the host, 27.19); the margin runs metres ahead of the waves
     static inline int s_tileWakesPerCall = 2;
+    /// 58.10: tile seeds prefetched on a frame with no tile wake (one a frame: a recorded tile beside awake water, a queued wake
+    /// first), used by the wake when still exact - the seed's fill + surface (~1.3 ms) and occupancy copy (~0.6) leave the wake frame
+    static inline bool s_seedPrefetch = true;
+    static constexpr int kSeedCacheMax = 6;   ///< seeds kept a volume (a tile grid ~72 x 72 x ny cells each)
+    struct SeedPrefetchStats { long built = 0, hits = 0, misses = 0, dropped = 0; double lastMs = 0.0, maxMs = 0.0; };
+    static inline SeedPrefetchStats s_seedPrefetchStats;
+    static inline bool s_seedPrefetchIgnoreForTest = false;   ///< TEST ONLY: the wake builds its own seed even when one was prefetched
+    static inline bool s_seedPrefetchCorruptForTest = false;  ///< TEST ONLY (the red): a used prefetched seed loses 0.25 of one wet cell
+    /// 58.10: one tile seed built ahead (update() calls it on a frame that woke no tile; public for the parity test). Returns built.
+    bool prefetchTileSeeds();
     /// TEST ONLY (51.3b control): any volume change makes every record draw tile stale (the rule before 51.3b)
     static inline bool s_drawStaleOnAnyBoxForTest = false;
     /// 51.4d TEST ONLY: a record tile wakes its water's WHOLE height into the scratch grid (the control of the top-only build)
@@ -1133,6 +1143,11 @@ private:
         std::vector<Occ> occCache;         ///< per grid cell, refreshed when dirty
         bool occDirty = true;
         uint64_t occRevision = ~0ull;   // pack revision the cache was sampled at
+        uint64_t occGen = 0;            ///< 58.10: bumped by every write to occCache (a prefetched tile seed holds only at its generation)
+        /// 58.10: a recorded tile's seed built ahead of its wake (the tile grid seeded from the runs + its surface) - a pure function of
+        /// the grid's spec, its occupancy and the runs; used by the wake only when all three are unchanged (bit-identical to building it)
+        struct SeedCache { int tx = 0, tz = 0; glm::ivec3 origin{0}, dims{0}; uint64_t occGen = 0; std::vector<ColumnRuns> runs; std::unique_ptr<WaterGrid> g; WaterSurfaceField sf; };
+        std::vector<SeedCache> seedCache;
         int brickHeightReq = 0, groundBricksReq = -1; long cellsReq = 0;   // L4 (42): create's GPU options, for buildGpu
         StepReport last;
         double residueDropped = 0.0;   // cumulative
@@ -1432,6 +1447,10 @@ private:
     /// 29 S2: the tall floor reads the field's lowest wet top and its water from the device. TEST ONLY: the host's scan (the control)
     static inline bool s_tallHostScanForTest = false;
     bool wakeTile(Av& av, int tx, int tz, char cause = 'M');
+    /// 58.10: a tile's voxel box and its cells in the volume (clipped); false when it is outside
+    bool tileSeedBox(const Av& av, int tx, int tz, glm::ivec3& vLo, glm::ivec3& vHi, int& x0, int& x1, int& z0, int& z1) const;
+    /// 58.10: the tile grid seeded from the runs (occupancy copied from occCache, which must be current) and its surface
+    void buildTileSeed(Av& av, const std::vector<ColumnRuns>& runs, int x0, int x1, int z0, int z1, std::unique_ptr<WaterGrid>& g, WaterSurfaceField& sf);
     /// 51.3: every tile of a new (empty) volume taken as RECORDED - the state recordTile leaves: the record holds the water, the volume
     /// no cells, its columns walls (setColumnsRecorded), drawn by the record. A patch is made this way and wakes only the tiles its
     /// disturbance reaches (wakeTile: one tile's seed and upload) - never the whole box's seed and upload (260-280 ms, measured).

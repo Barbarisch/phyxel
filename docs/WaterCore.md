@@ -15657,6 +15657,28 @@ fPrev cells / bricks differ, `ADeferredSeedLeavesTheSameDeviceState`; the whole-
 1.18 -> **1.10 ms**: the volume's rows already hug the water (a patch's box is the bed - 1 .. the top + 2), so the band removes
 little. Not worth the code (reverted). The walk's cost is the wet cells themselves - only the run-based seed (no cell grid at all)
 removes it.
+**The run-based seed on the GPU cannot be bit-exact (read from `seedGridFromRuns`, 2026-11-27):** the seed LEVEL-FILLS each run
+layer by layer, spreading it over the 1 m column's 81 sub-columns in proportion to each air cell's room, in double precision -
+which cells and bricks end up wet depends on that whole pass over the solid cells. A GPU pass in float cannot reproduce it to the
+bit; it needs the seed's exact tests restated to a tolerance - an owner decision (a change to how the water's correctness is
+verified), not taken.
+**Built instead: tile seeds PREFETCHED (2026-11-27, `s_seedPrefetch` ON).** A recorded tile's seed (its grid level-filled from the
+runs + its surface) is a pure function of the grid's spec, its occupancy and the runs; on a frame that woke NO tile,
+`prefetchTileSeeds()` builds one: a queued wake first, else the recorded tile beside awake water NEAREST a live disturbance (the
+wake's own order; a full cache - `kSeedCacheMax` 6 a volume - drops its farthest seed for a nearer tile). The wake uses it only when
+the spec, `Av::occGen` (bumped by every write to the occupancy cache) and the runs it just read (`sameSeedRuns`: what the seed reads)
+are all equal - otherwise it builds its own as before. **Parity** (`ADeferredSeedLeavesTheSameDeviceState`, a third run that
+prefetches between steps): 5 of 9 wakes used a prefetched seed, **0 f / fPrev cells and 0 bricks differ, the mass equal**. RED
+(`s_seedPrefetchCorruptForTest`: a used seed one wet cell 0.25 short): 83,533 cells differ - the comparison sees it. **Measured**
+(`DiagPatchLife`, `P_PREFETCH` 0 / 1, 3 runs each): used 6 of 13 wakes (the first picker - the first recorded tile with an awake
+neighbour - used 3; replaced by the nearest-first one); **p99 15.1-15.5 -> 13.6-14.2 ms**; the worst frame **unchanged ~18 ms**
+(17.6-18.4 / 18.1-18.2; one ON run's 36.1 not repeated - the prefetch's own part is at most 1.8 ms); the prefetch's part of a
+quiet frame 1.6-1.8 ms (with the 3.3 ms median, under 2 x median); memory up to 6 tile grids a volume (72 x 72 x ny cells, ~4 MB
+each at ny 45 - an estimate, not measured). **Why the worst frame does not move:** it is the opening burst - frames 2-4 after the
+splash wake 2 + 2 + 1 tiles back to back (12.6 / 18.0 / 12.1 ms; `mgr.2` 7.0 / 10.5 / 5.4) - and no quiet frame comes before
+them (the volume was asleep until the splash, every frame since woke tiles). Item 1's gate is that burst; the prefetch cuts the
+later wakes only. What is left for the burst: pacing it (rejected at one wake a call: waves meet recorded walls, 58.10 above), or
+the GPU seed (the tolerance decision above).
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
