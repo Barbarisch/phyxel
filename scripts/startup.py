@@ -143,6 +143,6 @@ if __name__ == "__main__":
     # the project's game.json: the spawned spider pulled the camera -- and the switched world's boot region -- to
     # (40,50,40) in every project (docs/evidence/voxfound_f7_prediction.txt, D4 FOLLOW-UPS S1).
     if globals().get("PHYXEL_PROJECT_MODE", False):
-        phyxel.Logger.info("Script", "Project open: startup demo skipped (console helpers loaded)")
+        phyxel.Logger.info("Script", "Startup demo skipped (set PHYXEL_STARTUP_DEMO=1 to run it; console helpers loaded)")
     else:
         on_start()

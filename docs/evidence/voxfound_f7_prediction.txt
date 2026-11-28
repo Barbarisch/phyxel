@@ -2253,3 +2253,10 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   S7 RESULT: the mirror shows sky above the reflected horizon (d4g_mirror_after / side: blue where the S3 frames were black);
      the main sky unchanged; FPS 45.4 -> 40.0 with the mirror in view (S3: 46.1 -> 40.0 -- the sky pass adds nothing
      measurable). Still owed in reflections: leaf cards (trees reflect as trunks), grass blades; characters were already drawn.
+
+  S8 PREDICTION (the launcher; before the code): with no project the editor always shows the launcher, so the startup demo
+  spawned into the launcher's empty world and its spider followed into whichever project was picked. The demo becomes
+  opt-in (PHYXEL_STARTUP_DEMO=1). Live: phyxel.exe with no project logs 'startup demo skipped', never 'Characters
+  spawned'; the same with PHYXEL_STARTUP_DEMO=1 logs 'Characters spawned' (control).
+  S8 RESULT: as predicted -- no project: 'Startup demo skipped' + 'Project launcher will show'; PHYXEL_STARTUP_DEMO=1:
+     'Characters spawned successfully!' (control).

@@ -661,7 +661,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // would hang or error when no game world is loaded (asset/anim/interaction editors).
     if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
         LOG_INFO("Application", "Initializing scripting system...");
-        scriptingSystem->setProjectMode(!projectDir_.empty());
+        // S8: startup.py's demo (a spider the camera follows + world_gen) is opt-in: with no project the launcher
+        // shows, and the demo's spider followed into whichever project was picked. PHYXEL_STARTUP_DEMO=1 runs it.
+        const char* demoEnv = std::getenv("PHYXEL_STARTUP_DEMO");
+        scriptingSystem->setProjectMode(!(demoEnv && std::string(demoEnv) == "1"));
         scriptingSystem->init();
         LOG_INFO("Application", "Scripting system initialized successfully");
     } else {
