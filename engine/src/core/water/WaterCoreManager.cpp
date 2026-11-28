@@ -2808,6 +2808,12 @@ void WaterCoreManager::recordTilesStep(Av& av, float seconds, bool stepFollows) 
         const uint64_t callNow = m_gpu->callsSubmitted(vol);
         // 58.3: these wakes run right before this volume's call (stepGpu) - their seeds ride it (no blocking submission each)
         struct DeferScope { bool& f; DeferScope(bool& x, bool on) : f(x) { f = on; } ~DeferScope() { f = false; } } deferScope(m_seedDefer, !s_recordAfterStepForTest);
+        {   // 58.10: this call's wakes' seeds built side by side (a pure function each; the wakes use them through the seed cache)
+            const int cap = av.tileWakeCap > 0 ? std::min(av.tileWakeCap, std::max(1, s_tileWakesPerCall)) : std::max(1, s_tileWakesPerCall);
+            std::vector<std::pair<int, int>> next;
+            for (const auto& [d2, t] : order) { if (static_cast<int>(next.size()) >= cap) break; next.push_back(t); }
+            prebuildSeeds(av, next);
+        }
         for (const auto& [d2, t] : order) {
             av.tileAskedAt.emplace(t, callNow);   // 58.3 measurement: the first ask (kept while it waits)
             const int cap = av.tileWakeCap > 0 ? std::min(av.tileWakeCap, std::max(1, s_tileWakesPerCall)) : std::max(1, s_tileWakesPerCall);
@@ -3088,6 +3094,40 @@ void WaterCoreManager::buildTileSeed(Av& av, const std::vector<ColumnRuns>& runs
     }
     seedGridFromRuns(*g, runs);   // 27.9: level-filled into the air cells
     extractSurfaceField(*g, sf);
+}
+
+void WaterCoreManager::prebuildSeeds(Av& av, const std::vector<std::pair<int, int>>& tiles) {
+    if (!s_seedPrefetch || !m_spanReader || !av.grid || tiles.size() < 2) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    refreshOccupancy(av);   // the wakes refresh too: unchanged, occGen holds and they use these
+    const glm::ivec3 so = av.grid->spec().origin, dims(av.grid->nx(), av.grid->ny(), av.grid->nz());
+    std::vector<Av::SeedCache> built;
+    struct Box { int x0 = 0, x1 = -1, z0 = 0, z1 = -1; };
+    std::vector<Box> boxes;
+    for (const auto& t : tiles) {
+        bool have = false;
+        for (const auto& c : av.seedCache) have = have || (c.tx == t.first && c.tz == t.second && c.occGen == av.occGen && c.origin == so && c.dims == dims);
+        if (have) continue;
+        glm::ivec3 vLo(0), vHi(0);
+        Box b;
+        if (!tileSeedBox(av, t.first, t.second, vLo, vHi, b.x0, b.x1, b.z0, b.z1)) continue;
+        Av::SeedCache c;
+        c.tx = t.first; c.tz = t.second; c.origin = so; c.dims = dims; c.occGen = av.occGen;
+        m_spanReader(vLo, vHi, c.runs);   // the record read on this thread
+        built.push_back(std::move(c)); boxes.push_back(b);
+    }
+    if (built.size() < 2) return;   // one seed: nothing to run side by side (its wake builds it)
+    std::vector<std::future<void>> jobs;
+    for (size_t i = 1; i < built.size(); ++i)
+        jobs.push_back(std::async(std::launch::async, [this, &av, &built, &boxes, i]() { buildTileSeed(av, built[i].runs, boxes[i].x0, boxes[i].x1, boxes[i].z0, boxes[i].z1, built[i].g, built[i].sf); }));
+    buildTileSeed(av, built[0].runs, boxes[0].x0, boxes[0].x1, boxes[0].z0, boxes[0].z1, built[0].g, built[0].sf);
+    for (auto& j : jobs) j.get();
+    // a stale entry for one of these tiles would be found first by the wake: dropped
+    for (const auto& c : built)
+        av.seedCache.erase(std::remove_if(av.seedCache.begin(), av.seedCache.end(), [&](const Av::SeedCache& e) { return e.tx == c.tx && e.tz == c.tz; }), av.seedCache.end());
+    for (auto& c : built) av.seedCache.push_back(std::move(c));
+    s_seedPrefetchStats.parallelBuilt += static_cast<long>(boxes.size());
+    s_seedPrefetchStats.parallelMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }
 
 bool WaterCoreManager::prefetchTileSeeds() {

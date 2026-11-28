@@ -15679,6 +15679,13 @@ splash wake 2 + 2 + 1 tiles back to back (12.6 / 18.0 / 12.1 ms; `mgr.2` 7.0 / 1
 them (the volume was asleep until the splash, every frame since woke tiles). Item 1's gate is that burst; the prefetch cuts the
 later wakes only. What is left for the burst: pacing it (rejected at one wake a call: waves meet recorded walls, 58.10 above), or
 the GPU seed (the tolerance decision above).
+**+ the call's seeds built side by side (2026-11-28, `prebuildSeeds`, under `s_seedPrefetch`).** Right before a call's wakes, the
+seeds of the tiles it will wake (2+ not cached) are built at once on threads (`buildTileSeed` reads only the occupancy cache and the
+runs - read on the main thread) into the seed cache, so each wake takes its own as a hit. Parity unchanged (the reference runs now
+have `s_seedPrefetch` off: 0 cells / bricks differ, RED 83,533). **Measured** (`DiagPatchLife` x3 a side; the machine noisier this
+round - median 4.6 vs 3.3 ms): used 8 of 13 wakes; **the burst's frame 2: 15.3 / 16.4 / 15.4 -> 12.8 / 12.3 / 12.2 ms**; frame 3
+unchanged (17.4-19.5 / 16.2-21.1 - only frame 2's pair ran side by side, `side by side 2`); the worst frame within the noise
+(20.9-27.5 / 19.7-23.8). Item 1's gate still unmet.
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 

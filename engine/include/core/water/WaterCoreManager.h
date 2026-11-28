@@ -862,7 +862,7 @@ public:
     /// first), used by the wake when still exact - the seed's fill + surface (~1.3 ms) and occupancy copy (~0.6) leave the wake frame
     static inline bool s_seedPrefetch = true;
     static constexpr int kSeedCacheMax = 6;   ///< seeds kept a volume (a tile grid ~72 x 72 x ny cells each)
-    struct SeedPrefetchStats { long built = 0, hits = 0, misses = 0, dropped = 0; double lastMs = 0.0, maxMs = 0.0; };
+    struct SeedPrefetchStats { long built = 0, hits = 0, misses = 0, dropped = 0, parallelBuilt = 0; double lastMs = 0.0, maxMs = 0.0, parallelMs = 0.0; };
     static inline SeedPrefetchStats s_seedPrefetchStats;
     static inline bool s_seedPrefetchIgnoreForTest = false;   ///< TEST ONLY: the wake builds its own seed even when one was prefetched
     static inline bool s_seedPrefetchCorruptForTest = false;  ///< TEST ONLY (the red): a used prefetched seed loses 0.25 of one wet cell
@@ -1451,6 +1451,8 @@ private:
     bool tileSeedBox(const Av& av, int tx, int tz, glm::ivec3& vLo, glm::ivec3& vHi, int& x0, int& x1, int& z0, int& z1) const;
     /// 58.10: the tile grid seeded from the runs (occupancy copied from occCache, which must be current) and its surface
     void buildTileSeed(Av& av, const std::vector<ColumnRuns>& runs, int x0, int x1, int z0, int z1, std::unique_ptr<WaterGrid>& g, WaterSurfaceField& sf);
+    /// 58.10: the seeds of the tiles one call wakes, built on threads at once (2+ not yet cached; s_seedPrefetch) into the seed cache
+    void prebuildSeeds(Av& av, const std::vector<std::pair<int, int>>& tiles);
     /// 51.3: every tile of a new (empty) volume taken as RECORDED - the state recordTile leaves: the record holds the water, the volume
     /// no cells, its columns walls (setColumnsRecorded), drawn by the record. A patch is made this way and wakes only the tiles its
     /// disturbance reaches (wakeTile: one tile's seed and upload) - never the whole box's seed and upload (260-280 ms, measured).

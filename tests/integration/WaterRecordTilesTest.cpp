@@ -793,7 +793,8 @@ TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
     auto run = [&](bool blocking, bool prefetch = false) {
         State s;
         WaterCoreManager::s_seedDeferOffForTest = blocking;
-        struct Restore { ~Restore() { WaterCoreManager::s_seedDeferOffForTest = false; } } restore;
+        struct Restore { ~Restore() { WaterCoreManager::s_seedDeferOffForTest = false; WaterCoreManager::s_seedPrefetch = true; } } restore;
+        WaterCoreManager::s_seedPrefetch = prefetch;   // 58.10: off = every seed built at its wake (the reference)
         const WaterCoreManager::SeedPrefetchStats ps0 = WaterCoreManager::s_seedPrefetchStats;
         auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
         WaterCoreManager mgr(state);
@@ -814,7 +815,8 @@ TEST_F(WaterRecordTilesTest, ADeferredSeedLeavesTheSameDeviceState) {
         mgr.addImpulse(glm::vec3(12.0f, 1.9f, 12.0f), 1.0f, 2.0f, glm::vec3(0.0f, -1.0f, 0.0f));   // waves into the recorded tiles round it
         for (int k = 0; k < 90; ++k) { mgr.step(id, 1, 1.0f / 60.0f, &rec); if (prefetch) mgr.prefetchTileSeeds(); }   // 58.10
         s.deferred = WaterCoreGpu::s_tileGpuMs.seedsDeferred - d0;
-        s.hits = WaterCoreManager::s_seedPrefetchStats.hits - ps0.hits; s.built = WaterCoreManager::s_seedPrefetchStats.built - ps0.built;
+        s.hits = WaterCoreManager::s_seedPrefetchStats.hits - ps0.hits;
+        s.built = WaterCoreManager::s_seedPrefetchStats.built - ps0.built + WaterCoreManager::s_seedPrefetchStats.parallelBuilt - ps0.parallelBuilt;
         const AvRecord* r = mgr.find(id);
         s.woken = r ? r->tilesWoken : -1;
         s.ok = mgr.deviceStateForTest(id, s.f, s.fPrev, s.map);
@@ -1574,8 +1576,8 @@ TEST_F(WaterRecordTilesTest, DISABLED_DiagPatchLife) {
     WaterCoreManager::s_seedPrefetch = env("P_PREFETCH", 1.0) != 0.0;   // 58.10: tile seeds built ahead
     const WaterCoreManager::SeedPrefetchStats ps0 = WaterCoreManager::s_seedPrefetchStats;
     struct PrintPrefetch { WaterCoreManager::SeedPrefetchStats a; ~PrintPrefetch() { const auto& b = WaterCoreManager::s_seedPrefetchStats;
-        std::printf("  seed prefetch %s: built %ld, used %ld, missed %ld, dropped %ld; worst prefetch frame part %.2f ms\n", WaterCoreManager::s_seedPrefetch ? "ON" : "OFF",
-                    b.built - a.built, b.hits - a.hits, b.misses - a.misses, b.dropped - a.dropped, b.maxMs); } } printPrefetch{ps0};
+        std::printf("  seed prefetch %s: built %ld, used %ld, missed %ld, dropped %ld, side by side %ld; worst prefetch frame part %.2f ms\n", WaterCoreManager::s_seedPrefetch ? "ON" : "OFF",
+                    b.built - a.built, b.hits - a.hits, b.misses - a.misses, b.dropped - a.dropped, b.parallelBuilt - a.parallelBuilt, b.maxMs); } } printPrefetch{ps0};
     auto state = [](const glm::ivec3& m) -> int { return m.y < 0 ? 1 : 0; };
     WaterCoreManager mgr(state);
     mgr.setCubeStateQuery([](const glm::ivec3& c) { return c.y < 0 ? 1 : 0; });
