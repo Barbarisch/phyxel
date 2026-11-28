@@ -15686,6 +15686,10 @@ have `s_seedPrefetch` off: 0 cells / bricks differ, RED 83,533). **Measured** (`
 round - median 4.6 vs 3.3 ms): used 8 of 13 wakes; **the burst's frame 2: 15.3 / 16.4 / 15.4 -> 12.8 / 12.3 / 12.2 ms**; frame 3
 unchanged (17.4-19.5 / 16.2-21.1 - only frame 2's pair ran side by side, `side by side 2`); the worst frame within the noise
 (20.9-27.5 / 19.7-23.8). Item 1's gate still unmet.
+**The wake's laps after both (2026-11-28):** span read 0.0, occupancy 0.0, seed + surface 1.9 (a miss), record clear 0.1, record
+surfaces 0.1-0.4 - the record write-back costs nothing; what is left of a wake is `seedColumns` (its host part ~2.7 a tile + the
+call's fence). That run's fence waits were 25-35 ms in BOTH arms (`collect.1`; ~2 ms in the rounds before) - the GPU shared with
+the locked machine's screen - so no frame timing from it is evidence; the gate is re-measured with the screen unlocked.
 
 ### 58.9 Item 5 (the shore band's edges): one fix tried, measured, REVERTED (2026-11-23). Status: OPEN
 
