@@ -2999,7 +2999,17 @@ nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::ve
     fwd = glm::length(fwd) > 1e-4f ? glm::normalize(fwd) : glm::vec3(0.0f, 0.0f, 1.0f);
     const glm::vec3 c = (glm::vec3(hit) + 0.5f) * vm;
     const int nH = int(std::ceil(0.15f * kVoxelsPerM));
-    const int bandLo = hit.y - nH, bandHi = hit.y + nH, topY = bandHi + 1, botY = bandLo - 1;
+    // the notch belongs to its TREE: the first contact locks the band's height and the footprint only grows (a
+    // contact one voxel lower must not start a second, shifted notch -- found live: the band drifted and wood outside
+    // the first footprint survived every later swing)
+    VoxFoundChopNotch* notch = nullptr;
+    for (auto& n : voxFoundChopNotches)
+        if (n.foot.count({hit.x, hit.z})) { notch = &n; break; }
+    if (!notch) {
+        voxFoundChopNotches.push_back(VoxFoundChopNotch{hit.y, {}});
+        notch = &voxFoundChopNotches.back();
+    }
+    const int bandLo = notch->bandY - nH, bandHi = notch->bandY + nH, topY = bandHi + 1, botY = bandLo - 1;
     // the footprint: the 4-connected Log cross-sections just above and just below the band, seeded at the contact's
     // column (and its neighbours) -- this trunk's own columns, never a neighbouring tree's
     std::set<std::pair<int, int>> foot;
@@ -3020,8 +3030,10 @@ nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::ve
         }
         foot.insert(in.begin(), in.end());
     }
-    // the band's voxels in the footprint columns (the contact column always counts)
+    // the band's voxels in the footprint columns (the contact column always counts); the tree's footprint only grows
     foot.insert({hit.x, hit.z});
+    foot.insert(notch->foot.begin(), notch->foot.end());
+    notch->foot = foot;
     auto along = [&](int x, int z) { return glm::dot((glm::vec3(float(x), 0.0f, float(z)) + 0.5f) * vm - c, fwd); };
     float front = 1e30f;
     for (const auto& [x, z] : foot)
@@ -3045,7 +3057,15 @@ nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::ve
         severed = !any;
     }
     r["severed"] = severed;
-    if (!severed) return r;
+    if (!severed) {   // where the notch's front now is (the next swing's target; a player steps around the trunk)
+        float best = 1e30f;
+        glm::ivec3 fv(0);
+        for (const auto& [x, z] : foot)
+            for (int y = bandLo; y <= bandHi; ++y)
+                if (isLog(voxFoundEdit.voxelAt({x, y, z})) && along(x, z) < best) best = along(x, z), fv = glm::ivec3(x, y, z);
+        if (best < 1e29f) r["front_voxel"] = {fv.x, fv.y, fv.z};
+        return r;
+    }
     // the CROWN: a bounded 26-connected flood over Log + Leaf from the footprint just above the band. Anchored when it
     // reaches the band or below, or touches any other solid (terrain, a building, another material): nothing released.
     std::vector<glm::ivec3> stack;
@@ -3075,6 +3095,7 @@ nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::ve
                 }
     }
     r["crown_voxels"] = seen.size();
+    voxFoundChopNotches.erase(std::remove_if(voxFoundChopNotches.begin(), voxFoundChopNotches.end(), [&](const VoxFoundChopNotch& n) { return &n == notch; }), voxFoundChopNotches.end());   // cut through: the notch is done
     if (!anchor.empty()) {
         r["anchored"] = anchor;
         return r;

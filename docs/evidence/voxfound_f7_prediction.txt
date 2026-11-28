@@ -2196,3 +2196,16 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
        falling / after. FPS: a dip while the crown is awake, back within 10% of before after 10 s (measured).
   S3 SUITES (with S2 + S3): unit 4,424 pass / 1 fail (WaterCoupling, WaterCore-owned; WorldReads.Cost passed solo-timed
      this run); integration 188 / 2 (WaterCoreGpuParity + WaterTallCell, identical on main).
+  S4 RESULT (felling, TavernTest copy, a generated oak: trunk ~2 m, 332 footprint columns): first run MISSED -- the
+     notch worked (6 swings, 1,296 Log removed, census Log -1,296 exactly) but the contact y drifted one voxel, the
+     band moved with it and the recomputed footprint (371 columns) left wood the first footprint never saw; and the
+     test blade followed only x, losing the trunk. Fixed: a per-tree notch (the first contact locks the band height,
+     the footprint only grows) and the chop reports the notch's front voxel (the driver aims there, as a player steps
+     around). Re-run: SEVERED after 7 contact swings (predicted <= ceil(2 m / 0.36) + 1 = 7); crown 53,877 voxels
+     (box 6.6 x 10.75 x 9.9 m) released as ONE body through a 13 m window; census (world only): Log -14,294, Leaf
+     -40,922 = kerf 1,339 + crown 53,877 exactly -- every crown voxel is in the body, nothing else changed. FPS 68.1 ->
+     68.9 (1 s) -> 73.0 (10 s) by engine_timing (no dip; the editor status bar read 18 at the after-capture -- its
+     smoothed counter during the screenshot, recorded, not used). Frames d4g_fell_before / falling / after: the
+     stump stands, the crown lies beside it. Not shown: the bake back (bodies still awake at 10 s: baked 0); a
+     crown over 32 m is clipped by the break window (reported, not exercised); a crown touching another solid stays
+     ("anchored", not exercised live).

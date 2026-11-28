@@ -336,6 +336,11 @@ public:
     /// Log flood from just above the kerf no longer reaches below it) -> the crown is released through the switched
     /// world's break at near-zero energy (extraction lifts the unanchored crown out as a body).
     nlohmann::json voxFoundChop(const glm::vec3& blade, const glm::vec3& fwd, float depthM, bool release = true);
+    struct VoxFoundChopNotch {   // S4: one tree's notch -- the band height (first contact) and the footprint so far
+        int bandY = 0;
+        std::set<std::pair<int, int>> foot;
+    };
+    std::vector<VoxFoundChopNotch> voxFoundChopNotches;
     /// RegionEdit::assemble on the region preview, recording which chunks changed (null = all) for the incremental
     /// emissive rescan -- every assemble of voxFoundEdit into voxFoundPreview goes through here.
     void voxFoundAssemble(const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed = nullptr);

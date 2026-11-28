@@ -216,17 +216,17 @@ def fell(out):
         f["census_before"] = census()
         f["shot_before"] = shot("d4g_fell_before.png")
         f["fps_before"] = fps()
-        bx = tx_ - 0.2
+        bx, by, bz = tx_ - 0.2, ty_ + 0.5, tz_ + 0.5
         for k in range(40):
-            rr = call("POST", P, {"chop": {"x": bx, "y": ty_ + 0.5, "z": tz_ + 0.5, "dir": [1, 0, 0], "depth": 0.36,
+            rr = call("POST", P, {"chop": {"x": bx, "y": by, "z": bz, "dir": [1, 0, 0], "depth": 0.36,
                                            "release": True}})
-            f["swings"].append({k2: rr.get(k2) for k2 in ("contact", "material", "footprint_columns", "kerf_voxels",
+            f["swings"].append({k2: rr.get(k2) for k2 in ("contact", "material", "footprint_columns", "kerf_voxels", "front_voxel",
                                                           "severed", "crown_voxels", "anchored", "crown_box", "release")})
             if rr.get("severed"):
                 break
-            cv = rr.get("contact_voxel")
-            if rr.get("material", "").startswith("Log") and cv:
-                bx = (cv[0] + 0.5) / 8.0 + 0.3
+            fv = rr.get("front_voxel")
+            if fv:   # the blade goes to the notch's front (the player steps around the trunk)
+                bx, by, bz = (fv[0] + 0.5) / 8.0 - 0.1, (fv[1] + 0.5) / 8.0, (fv[2] + 0.5) / 8.0
             else:
                 bx += 0.15
         time.sleep(1.0)
