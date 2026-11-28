@@ -2209,3 +2209,10 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      stump stands, the crown lies beside it. Not shown: the bake back (bodies still awake at 10 s: baked 0); a
      crown over 32 m is clipped by the break window (reported, not exercised); a crown touching another solid stays
      ("anchored", not exercised live).
+
+  S5 PREDICTION (glass casts no shadow; written before the code). The voxfound face casters get the clear set through
+  the shadow push constants (84 -> 128 B: + 12 B pad + clear0 / clear1, std430) and voxfound_face_shadow.vert collapses
+  a clear material's faces to a degenerate point. Not covered: the LOD-caster pipeline (off by default) and loose
+  bodies (glass opaque there, as S2). Live (TavernTest copy, the S2 rig: Glass wall + Bricks pillar on Stone, noon):
+  the dark band behind the wall is GONE (the ground there as bright as the open ground beside it, +-10%), the
+  Bricks pillar's shadow is UNCHANGED; FPS unchanged within noise.
