@@ -2165,6 +2165,36 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         }
     }
 
+    // S11: the switched world's leaf cards (sprigs) and grass blades from the reflected camera -- their pipelines read
+    // the camera from set 0, so the reflection descriptor set is all they need (both draw double-sided)
+    if (m_voxFoundPreview && m_voxFoundPreview->shown && foliagePipeline && m_voxFoundSprigBuffer != VK_NULL_HANDLE) {
+        for (const auto& r : m_voxFoundPreview->ranges()) {
+            if (r.sprigCount == 0) continue;
+            foliagePipeline->renderVoxFound(vulkanDevice->getCommandBuffer(frameIndex),
+                                            vulkanDevice->getReflectionDescriptorSet(frameIndex), m_voxFoundSprigBuffer,
+                                            r.sprigCount, r.originMetres,
+                                            VkDeviceSize(r.firstSprig) * sizeof(Core::VoxFound::PreviewSprig), 0.0f, 0);
+            lastFrameStats.reflectionDrawCalls++;
+        }
+    }
+    if (grassPipeline && m_hideWorld && m_vfGrassBuffer != VK_NULL_HANDLE && !m_vfGrass.empty()) {
+        std::vector<GrassRenderPipeline::ChunkDraw> gdraws;
+        const glm::vec3 cp = camera->getPosition();
+        const float radius = effectiveVegetationRadius(grassPipeline->params().radius, screenSpaceLodScale()) + 27.8f;
+        for (const auto& g : m_vfGrass) {
+            const glm::vec3 center = glm::vec3(g.origin) + glm::vec3(16.0f);
+            const float dist = glm::length(center - cp);
+            if (dist > radius) continue;
+            gdraws.push_back({m_vfGrassBuffer, g.count, glm::vec3(g.origin), VkDeviceSize(g.first) * sizeof(GrassInstanceData),
+                              std::max(0.0f, dist - 27.71f)});
+        }
+        if (!gdraws.empty()) {
+            grassPipeline->render(vulkanDevice->getCommandBuffer(frameIndex),
+                                  vulkanDevice->getReflectionDescriptorSet(frameIndex), gdraws);
+            lastFrameStats.reflectionDrawCalls++;
+        }
+    }
+
     // Draw instanced characters (player + animated NPCs) into the reflection target so they
     // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
     // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). The

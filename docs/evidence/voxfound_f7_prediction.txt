@@ -2287,3 +2287,12 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      reproduced on demand -- and the smoke test PASSES 4 / 4 (world drawn after a 4.5-4.6 s wait); without the delay
      first_sample 214 clusters and 4 / 4 pass. Found on the way (not predicted): the first delayed run CRASHED the smoke
      script -- a 2 s poll timed out during the multi-second boot frame; the wait loop now retries until the deadline.
+
+  S11 PREDICTION (leaf cards + grass in mirrors; before the code): the reflection pass redraws the switched world's leaf
+  cards and grass blades with the reflection descriptor set (their camera comes from set 0); foliage.frag / grass.frag get
+  the mirror clip (the trailing UBO fields declared to keep offsets). The S3 rig: the reflected trees show canopies
+  (trunks only before), grass blades appear in the reflected ground; nothing from behind the mirror's wall shows; the
+  reflection draw count rises; FPS with the mirror in view drops further (cards + blades drawn twice).
+  S11 RESULT: d4g_mirror_after: the reflection shows leaf canopies and grass blades (S7 frame: bare trunks, no blades);
+     nothing from behind the wall. Reflection draws 22 -> 46. FPS with the mirror in view 44.7 -> 30.0 (-33%; S7: -12%):
+     cards + blades drawn twice -- the mirror's cost, measured (no reflection LOD / distance cap yet).

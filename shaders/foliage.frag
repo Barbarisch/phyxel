@@ -63,6 +63,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     int   skyBodyCount;
     ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = 1 when 11/12 are real
     vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
+    vec4  windDebugA;     // (declared for the offsets: the trailing fields follow voxel.frag's order)
+    vec4  windDebugB;
+    vec4  reflectClipPlane;   // S11: the reflection pass's mirror plane (camera-relative); (0,0,0,1) elsewhere
 } ubo;
 
 #include "occupancy.glsl"   // U3.3 / D15: leaves get the SAME visibility term as stone
@@ -104,6 +107,8 @@ float bayer4(vec2 p) {
 }
 
 void main() {
+    // S11: in a mirror's reflection keep only the viewer's side of the mirror (a no-op in every other pass)
+    if (dot(ubo.reflectClipPlane.xyz, vWorldPos) + ubo.reflectClipPlane.w < -0.01) discard;
     // Radius-edge dissolve (2026-08-06): cards dither out over the last 10% of the foliage
     // radius instead of the old whole-chunk pop at the cutoff.
     if (vFade < bayer4(gl_FragCoord.xy)) discard;
