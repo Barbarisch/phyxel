@@ -2144,3 +2144,22 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
        no void. MISS (predicted, now seen): the glass casts a FULL shadow (alpha 0.02 glass, black band on the
        ground) -- the voxfound shadow pass has no face table bound; owed. The pixel-box metric is unreliable (it
        projects with the full window; the viewport is an editor sub-panel) -- not used as evidence.
+
+  S3 PREDICTION (mirrors on the switched world; written before the code). Design (the old model, restated): one
+  mirror plane per frame; the face words carry voxel.frag's mirror bit (flags bit 10 = MaterialDef::isMirror -- the
+  opaque and OIT passes discard those faces) and, with it, the old alpha byte for transparent materials (flags
+  bits 2-9, read by transparent_voxel.frag; S2 left it 0). The PLANE: exposed Mirror faces counted per direction
+  (per chunk, cached with the emissive scan's dirty set; blocks without a mirror voxel skipped); normal = the
+  direction with the most faces (ties: -x,+x,-y,+y,-z,+z), point = the mean centre of those faces (the old code
+  fixed the normal at +Z and took the first voxel). The REFLECTION pass draws every preview range (not the main
+  frustum's) with voxfound_face.vert + voxel.frag, back-culled (det -1 view); the MIRROR pass draws the main view's
+  ranges with voxfound_face.vert + mirror_voxel_vf.frag (the reflection sampler at set 2: set 1 is the face table).
+    T1 (unit): VoxFoundMirror.PlaneOfASlab -- a 2 x 2 m Mirror slab one voxel thick in front of Stone: normal +z,
+       256 faces, point z = the slab's front; no mirror material -> no plane; the plane is the same with the slab
+       straddling a chunk border (summed per chunk).
+    T2 (live, TavernTest copy): a Stone wall with a 2 x 2 m Mirror face; a Gold cube + Bricks pillar in front.
+       render/stats: mirror_pass_ran true, mirror_plane on the wall face, normal toward the camera,
+       reflection_draw_calls > 0, mirror_geom_draw_calls > 0 (all 0 / false before the Mirror fill). Frames before
+       (Stone) / after (Mirror) at one stated pose: the gold cube and pillar appear IN the mirror. FPS: the region
+       drawn twice more -> a drop of up to ~35% predicted; measured, not hidden.
+    Glass alpha byte: the S2 frames' look should hold (Glass alpha 0.02 -> byte 5; the texture alpha dominated).
