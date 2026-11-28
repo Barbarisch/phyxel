@@ -223,6 +223,10 @@ struct UniformBufferObject {
     //   B: x = gustScale, y = aniso, z = windBase*strength, w = gustAmp*strength
     alignas(16) glm::vec4 windDebugA{1.0f, 0.0f, 0.0f, 0.0f};
     alignas(16) glm::vec4 windDebugB{0.020f, 2.2f, 0.0f, 0.0f};
+    // S3 (mirrors): the reflection pass's clip plane in CAMERA-RELATIVE space (xyz = normal toward the viewer's side,
+    // w = offset); voxel.frag discards fragments with dot(xyz, pos) + w < -0.01. (0,0,0,1) = no clip (every other
+    // pass). Trailing field: appended after the wind debug pair, both sides keep their prefixes.
+    alignas(16) glm::vec4 reflectClipPlane{0.0f, 0.0f, 0.0f, 1.0f};
 };
 
 class VulkanDevice {
@@ -308,6 +312,8 @@ public:
     /// World-unit depth span of the fitted light volume (see UniformBufferObject::shadowDepthRange).
     void setShadowDepthRange(float r) { m_shadowDepthRange = (r > 1e-3f) ? r : 1.0f; }
     void setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP);
+    /// S3: the clip plane the next updateReflectionUniformBuffer writes (camera-relative; see reflectClipPlane)
+    void setReflectionClipPlane(const glm::vec4& plane) { m_reflectionClipPlane = plane; }
     /// Patch the grass displacer arrays in this frame's UBO (call AFTER updateUniformBuffer,
     /// which zero-fills them). displacers: xyz = camera-relative position, w = push radius;
     /// aux: x = strength envelope 0..1 (CPU-eased attack/release).
@@ -736,6 +742,8 @@ private:
     // Window resize handling
     bool framebufferResized = false;
     AtmosphereUniforms m_atmosphere{};  ///< see setAtmosphereUniforms
+    UniformBufferObject m_lastMainUbo{};
+    glm::vec4 m_reflectionClipPlane{0.0f, 0.0f, 0.0f, 1.0f};   ///< S3   ///< S3: this frame's main UBO; the reflection UBO starts from it
     glm::vec4 m_windDebugA{1.0f, 0.0f, 0.0f, 0.0f};  ///< see setWindDebugUniforms
     glm::vec4 m_windDebugB{0.020f, 2.2f, 0.0f, 0.0f};
     int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)

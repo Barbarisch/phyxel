@@ -1884,6 +1884,7 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
 
     void* data;
     vkMapMemory(device, uniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
+    m_lastMainUbo = ubo;   // S3: the reflection UBO reuses every field it does not override
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBuffersMemory[frameIndex]);
 }
@@ -2039,19 +2040,18 @@ bool VulkanDevice::createReflectionBuffers() {
 }
 
 void VulkanDevice::updateReflectionUniformBuffer(uint32_t frameIndex, const glm::mat4& reflectedView, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier, const glm::vec3& cameraPosition) {
-    UniformBufferObject ubo{};
+    // S3 (mirrors): start from THIS frame's main UBO. The reflection UBO used to set only view / proj / sun / ambient,
+    // so exposure, the atmosphere, the shadow cascades and the GI fields were zero and every reflection tonemapped to
+    // black. The reflected camera sees real world points, so the main cascades and probes stay valid there.
+    (void)lightSpaceMatrix; (void)sunDirection; (void)sunColor; (void)numInstances; (void)ambientLight;
+    (void)emissiveMultiplier;
+    UniformBufferObject ubo = m_lastMainUbo;
     ubo.view = reflectedView;
     ubo.proj = proj;
-    ubo.lightSpaceMatrix = lightSpaceMatrix;
-    ubo.sunDirection = sunDirection;
-    ubo.sunColor = sunColor;
-    ubo.numInstances = numInstances;
-    ubo.ambientLight = ambientLight;
-    ubo.emissiveMultiplier = emissiveMultiplier;
-    ubo.cameraPosition = cameraPosition;
-    ubo.reflectedViewProj = glm::mat4(1.0f); // Not used during reflection rendering
     ubo.viewProj = proj * reflectedView;
-    ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;
+    ubo.cameraPosition = cameraPosition;   // the reflected eye, camera-relative
+    ubo.reflectedViewProj = glm::mat4(1.0f);   // not used during reflection rendering
+    ubo.reflectClipPlane = m_reflectionClipPlane;   // only what lies in front of the mirror
     void* data;
     vkMapMemory(device, reflectionUniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
@@ -2093,6 +2093,24 @@ void VulkanDevice::logCheckpointsAfterDeviceLost() {
 }
 
 void VulkanDevice::bindReflectionDescriptorSets(uint32_t frameIndex, VkPipelineLayout layout) {
+    // S3 (mirrors): the reflection set was written once with bindings 0-4; set 0 has since grown to 14 (hi-res and
+    // normal arrays, the near / far cascades, occupancy, GI probes), so voxel.frag read UNBOUND resources in the
+    // reflection pass and every mirror was black. Copy every binding but the UBO (0) from this frame's main set --
+    // this frame's sets are not in flight while it records.
+    if (frameIndex < descriptorSets.size() && frameIndex < reflectionDescriptorSets.size() &&
+        descriptorSets[frameIndex] != VK_NULL_HANDLE && reflectionDescriptorSets[frameIndex] != VK_NULL_HANDLE) {
+        std::array<VkCopyDescriptorSet, 13> copies{};
+        for (uint32_t b = 1; b <= 13; ++b) {
+            VkCopyDescriptorSet& c = copies[b - 1];
+            c.sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET;
+            c.srcSet = descriptorSets[frameIndex];
+            c.srcBinding = b;
+            c.dstSet = reflectionDescriptorSets[frameIndex];
+            c.dstBinding = b;
+            c.descriptorCount = 1;
+        }
+        vkUpdateDescriptorSets(device, 0, nullptr, uint32_t(copies.size()), copies.data());
+    }
     vkCmdBindDescriptorSets(commandBuffers[frameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS,
         layout, 0, 1, &reflectionDescriptorSets[frameIndex], 0, nullptr);
 }

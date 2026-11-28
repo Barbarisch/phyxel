@@ -114,6 +114,12 @@ public:
     /// D4 follow-up (U3.2): the switched world's emissive lights (VoxFoundWorld::voxFoundEmissiveTick); reconciled
     /// into LightManager by updateVfx on change.
     void setVoxFoundEmissiveLights(std::vector<Core::VoxFound::EmissiveLight> l) { m_voxFoundEmissive = std::move(l); }
+    /// S3: the switched world's mirror plane (VoxFoundWorld's scan; has = any exposed Mirror face)
+    void setVoxFoundMirror(bool has, const glm::vec3& point, const glm::vec3& normal) {
+        m_vfMirror = has;
+        m_vfMirrorPoint = point;
+        m_vfMirrorNormal = normal;
+    }
     const std::vector<Core::VoxFound::EmissiveLight>& voxFoundEmissiveLights() const { return m_voxFoundEmissive; }
     size_t flamingBurning() const { return m_flamingBurning; }   // embers the fire VFX was last synced with
     double dirtyChunkBudgetMs() const { return m_dirtyChunkBudgetMs; }
@@ -944,6 +950,8 @@ public:
 private:
     double m_dirtyChunkBudgetMs = 6.0;   // see setDirtyChunkBudgetMs
     std::vector<Core::VoxFound::EmissiveLight> m_voxFoundEmissive;   // D4 follow-up (U3.2)
+    bool m_vfMirror = false;                                           // S3
+    glm::vec3 m_vfMirrorPoint{0.0f}, m_vfMirrorNormal{0.0f, 0.0f, 1.0f};
     // D4 follow-up: the near field's DRAWN chunks are the switched world's (Preview chunks with faces) -- the far
     // terrain coverage, the far-tree residency mask and the LOD tree hand-off read them (they read today's Chunks'
     // instance counts until D4). Rebuilt when the preview's revision moves.

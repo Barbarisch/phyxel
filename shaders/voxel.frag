@@ -70,6 +70,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     // prefixes valid.
     vec4 windDebugA;
     vec4 windDebugB;
+    vec4 reflectClipPlane;   // S3: the reflection pass's mirror plane (camera-relative); (0,0,0,1) elsewhere
 } ubo;
 
 #include "occupancy.glsl"
@@ -341,6 +342,8 @@ void main() {
 
     // Discard mirror fragments — handled in the mirror pass (the flag test is shared, see below)
     if (phxStaticFaceSkippedByFlags(flags)) discard;
+    // S3: the reflection pass keeps only the viewer's side of the mirror (a no-op elsewhere: the plane is (0,0,0,1))
+    if (dot(ubo.reflectClipPlane.xyz, inWorldPos) + ubo.reflectClipPlane.w < -0.01) discard;
 
     bool isEmissive = (flags & 1u) != 0u;
 

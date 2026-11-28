@@ -335,7 +335,7 @@ public:
     /// sized channel from that frontier along fwd (depth, +-0.15 m tall, +-0.2 m wide) become air. Severed (a bounded
     /// Log flood from just above the kerf no longer reaches below it) -> the crown is released through the switched
     /// world's break at near-zero energy (extraction lifts the unanchored crown out as a body).
-    nlohmann::json voxFoundChop(const glm::vec3& blade, const glm::vec3& fwd, float depthM, bool release = false);
+    nlohmann::json voxFoundChop(const glm::vec3& blade, const glm::vec3& fwd, float depthM, bool release = true);
     /// RegionEdit::assemble on the region preview, recording which chunks changed (null = all) for the incremental
     /// emissive rescan -- every assemble of voxFoundEdit into voxFoundPreview goes through here.
     void voxFoundAssemble(const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed = nullptr);
@@ -349,6 +349,11 @@ public:
     std::chrono::steady_clock::time_point voxFoundEmissiveLast{};
     double voxFoundEmissiveScanMs = 0.0;
     size_t voxFoundEmissiveCount = 0;
+    // S3: the mirror plane (exposed Mirror faces per chunk, the emissive scan's cadence and dirty set)
+    std::map<std::array<int, 3>, Core::VoxFound::MirrorFaces> voxFoundMirrorByChunk;
+    bool voxFoundMirrorHas = false;
+    uint64_t voxFoundMirrorFaces = 0;
+    glm::vec3 voxFoundMirrorPoint{0.0f}, voxFoundMirrorNormal{0.0f, 0.0f, 1.0f};
     /// F7.6b: undo (true) / redo (false) the switched world's last edit; false when the history has none
     bool voxFoundUndoRedo(bool undo, nlohmann::json& r);
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)

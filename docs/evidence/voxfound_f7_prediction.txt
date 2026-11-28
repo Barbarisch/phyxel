@@ -2163,3 +2163,36 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
        (Stone) / after (Mirror) at one stated pose: the gold cube and pillar appear IN the mirror. FPS: the region
        drawn twice more -> a drop of up to ~35% predicted; measured, not hidden.
     Glass alpha byte: the S2 frames' look should hold (Glass alpha 0.02 -> byte 5; the texture alpha dominated).
+  S3 RESULT (mirrors): T1 red (stubs: no faces, no plane) then green -- MirrorRig 3 / 3 (+z 256 faces, sides 16,
+     plane (3, 3, 41/8); the chunk-straddling slab sums to the same counts, the border adds none; the -z/+z tie goes
+     to -z). T2 live (TavernTest copy, Stone wall + 2 x 2 m Mirror face, Gold + Bricks in front): plane (40, 18, 54)
+     normal (0, 0, -1) from 640 exposed faces (= 256 front + 3 x 128 sides/top, hand count); reflected eye z 60.5 =
+     54 + (54 - 47.5); reflection draw calls 22, mirror surface 5 (all 0 / false before). MISS, then fixed -- the
+     first frames were BLACK, and the cause was not the port: FOUR pre-existing defects of the old mirror pass, each
+     found by a measurement (not guessed): (1) the reflection was built with the ABSOLUTE view on camera-relative
+     positions (now: the plane in camera-relative space, d = -N.(P0 - C)); (2) the reflection UBO set only view / proj
+     / sun / ambient -- exposure, atmosphere, cascades and GI were zero (now: starts from the frame's main UBO);
+     (3) the reflection descriptor set had only bindings 0-4 of the 14 (now: 1-13 copied from the main set per frame
+     -- a diagnostic shader showed the sample's alpha 1 and colour 0); (4) a double Y-flip (infiniteReverseZPerspective
+     already flips; the reflection came out upside down), plus the reflection pipeline culls nothing now (the 6-index
+     quad's single winding vs the det -1 view dropped faces). And the old claim "a wall behind a mirror is harmless"
+     was WRONG: the reflected eye sits behind the mirror, so the wall's back face filled it -- now a clip plane
+     (voxel.frag, UBO trailing field reflectClipPlane, camera-relative; a no-op elsewhere). Frames
+     d4g_mirror_before / after / side / nowall: the mirror shows the reflected tavern, ground, trees and the Bricks
+     pillar. FPS 46.1 -> 40.0 with the mirror in view (-13%; predicted up to -35%). Owed: the reflection draws no sky
+     (black), no grass blades / leaf cards / characters; its lighting reads darker. Glass re-run with the alpha byte:
+     unchanged look (OIT 95,406, FPS 55.9 -> 53.7). LightingPipeline.md section 9 updated (voxel.frag's discard).
+
+  S4 PREDICTION (chop felling; written before the code). The kerf was a 0.4 m channel: a trunk wider than that could
+  never be cut through, and the sever flood could not tell (redwood: 142, never severed). NOW: each swing removes, in
+  the kerf band (+-0.15 m), EVERY Log voxel of THIS trunk's footprint (the 4-connected Log cross-section just above
+  the band) from the front face up to the accumulated depth along the swing; severed = a band layer with no Log left
+  in the footprint. On sever: the crown = a bounded 26-connected flood over Log + Leaf from above the band; touching
+  any other solid = anchored (reported, nothing released); else the world break runs on a window fitted to the crown's
+  box (not the fixed 32 m), so only the crown leaves as a body.
+    F1 (live, a generated tree on a TavernTest copy): swings until severed <= ceil(trunk depth / 0.36 m) + 1; the crown
+       released as bodies whose voxel total == the crown's (ledger: world + bodies per material conserved);
+       nothing outside the crown's box changes (a voxel census of a ring around it before / after); frames before /
+       falling / after. FPS: a dip while the crown is awake, back within 10% of before after 10 s (measured).
+  S3 SUITES (with S2 + S3): unit 4,424 pass / 1 fail (WaterCoupling, WaterCore-owned; WorldReads.Cost passed solo-timed
+     this run); integration 188 / 2 (WaterCoreGpuParity + WaterTallCell, identical on main).

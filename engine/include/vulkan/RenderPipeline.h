@@ -105,6 +105,14 @@ public:
     /// every createOITPipeline (its render pass).
     bool ensureVoxFoundOitPipeline();
     VkPipeline getVoxFoundOitPipeline() const { return voxFoundOitPipeline; }
+    /// D4 follow-up S3 (mirrors on the switched world): the REFLECTION pass over the voxfound faces
+    /// (voxfound_face.vert + voxel.frag, back-culled: the reflected view flips winding) and the MIRROR surface pass
+    /// (voxfound_face.vert + mirror_voxel_vf.frag, the reflection sampler at set 2 -- set 1 is the face table),
+    /// against the scene render pass createMirrorPipeline last saw (rebuilt lazily after it).
+    bool ensureVoxFoundMirrorPipelines();
+    VkPipeline getVoxFoundReflectionPipeline() const { return voxFoundReflectionPipeline; }
+    VkPipeline getVoxFoundMirrorPipeline() const { return voxFoundMirrorPipeline; }
+    VkPipelineLayout getVoxFoundMirrorLayout() const { return voxFoundMirrorLayout; }
     VkPipeline getMirrorPipeline() const { return mirrorPipeline; }
     VkPipeline getReflectionScenePipeline() const { return reflectionScenePipeline; }
     VkPipelineLayout getMirrorPipelineLayout() const { return mirrorPipelineLayout; }
@@ -156,6 +164,11 @@ private:
     VkShaderModule oitFragShaderModule = VK_NULL_HANDLE;
     VkPipeline voxFoundOitPipeline = VK_NULL_HANDLE;   // D4 follow-up (glass)
     VkRenderPass m_oitRenderPass = VK_NULL_HANDLE;      // the pass the OIT pipelines were last built against
+    VkPipeline voxFoundReflectionPipeline = VK_NULL_HANDLE;   // S3
+    VkPipeline voxFoundMirrorPipeline = VK_NULL_HANDLE;       // S3
+    VkPipelineLayout voxFoundMirrorLayout = VK_NULL_HANDLE;   // S3: set 0 + face table + reflection sampler
+    VkShaderModule voxFoundMirrorFragModule = VK_NULL_HANDLE;
+    VkRenderPass m_mirrorRenderPass = VK_NULL_HANDLE;
     VkPipeline mirrorPipeline = VK_NULL_HANDLE;          // Reflective mirror surface pass
     VkPipeline reflectionScenePipeline = VK_NULL_HANDLE; // Scene rendered from reflected camera
     VkPipelineLayout mirrorPipelineLayout = VK_NULL_HANDLE; // Layout with set 0 + set 1 (reflection)

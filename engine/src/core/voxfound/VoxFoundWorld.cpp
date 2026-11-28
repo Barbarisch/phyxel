@@ -153,7 +153,7 @@
 
 namespace Phyxel {
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(VoxFoundWorld& app);   // F7.4 (defined with RegionWorldEditor)
-uint32_t voxFoundTransparentBit(const std::string& name);   // D4 follow-up (glass), below
+uint32_t voxFoundMaterialFlags(const std::string& name);   // D4 follow-up (glass), below
 
 
 // docs/VoxelFoundationPlan.md F2.2 -- POST /api/debug/voxfound_preview (registered in registerMatSimCommands).
@@ -485,7 +485,10 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
             response = {{"emissive_lights", voxFoundEmissiveCount}, {"scan_ms", voxFoundEmissiveScanMs},
                         {"chunks_scanned", voxFoundEmissiveChunksScanned},
                         {"flaming_burning", renderCoordinator ? renderCoordinator->flamingBurning() : 0},
-                        {"first", ls}, {"flaming_points", chunkManager ? chunkManager->flamingPoints().size() : 0}};
+                        {"first", ls}, {"flaming_points", chunkManager ? chunkManager->flamingPoints().size() : 0},
+                        {"mirror", {{"has", voxFoundMirrorHas}, {"faces", voxFoundMirrorFaces},
+                                    {"point", {voxFoundMirrorPoint.x, voxFoundMirrorPoint.y, voxFoundMirrorPoint.z}},
+                                    {"normal", {voxFoundMirrorNormal.x, voxFoundMirrorNormal.y, voxFoundMirrorNormal.z}}}}};
             return;
         }
         if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
@@ -1265,7 +1268,7 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
         voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
         for (size_t m = 0; m < tex.size() && m < 256; ++m)
             for (int f = 0; f < 6; ++f)
-                voxFoundPreview.faceTex[m * 6 + f] = tex[m][f] | (m ? voxFoundTransparentBit(area.palette[m]) : 0u);
+                voxFoundPreview.faceTex[m * 6 + f] = tex[m][f] | (m ? voxFoundMaterialFlags(area.palette[m]) : 0u);
         voxFoundPreview.faces = packed;
         voxFoundPreview.chunks.clear();   // one area: drawn at originMetres
         voxFoundEdit.clear();             // F2.16: edits are for region previews
@@ -1330,7 +1333,7 @@ int VoxFoundWorld::voxFoundMaterial(const std::string& name, std::string* err) {
         voxFoundLeafTex.resize(voxFoundPalette.size(), 0);
         for (int f = 0; f < 6; ++f) {
             const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(name, f);
-            voxFoundPreview.faceTex[m * 6 + size_t(f)] = t | voxFoundTransparentBit(name);
+            voxFoundPreview.faceTex[m * 6 + size_t(f)] = t | voxFoundMaterialFlags(name);
             if (f == 0) voxFoundLeafTex[m] = t;
         }
         CardSet cards = voxFoundEdit.cards(), see = voxFoundEdit.seeThrough();
@@ -2900,34 +2903,59 @@ void VoxFoundWorld::voxFoundEmissiveTick() {
     voxFoundEmissiveRevision = rev;
     voxFoundEmissiveChunksScanned = 0;
     std::vector<Core::VoxFound::EmissiveLight> lights;
+    Core::VoxFound::MirrorFaces mirror;   // S3: the mirror plane, summed over the chunks' cached faces
     if (up) {
         const auto em = Core::VoxFound::emitterMaterials(voxFoundPalette);
+        const auto mt = Core::VoxFound::mirrorMaterials(voxFoundPalette);
+        const bool anyEm = Core::VoxFound::anyEmitter(em), anyMi = Core::VoxFound::anyMirror(mt);
         std::vector<float> table;
         for (const auto& e : em) table.push_back(e.t);
+        for (size_t i = 0; i < voxFoundPalette.size() && i < mt.size(); ++i) table.push_back(float(mt[i]));
         const auto coords = voxFoundEdit.chunkCoords();
         if (table != voxFoundEmissiveTable || coords != voxFoundEmissiveCoords) voxFoundEmissiveFull = true;
         voxFoundEmissiveTable = table;
         voxFoundEmissiveCoords = coords;
-        if (!Core::VoxFound::anyEmitter(em)) {   // the common no-glow world scans nothing
+        if (!anyEm && !anyMi) {   // the common world (no glow, no mirror) scans nothing
             voxFoundEmissiveByChunk.clear();
+            voxFoundMirrorByChunk.clear();
         } else {
-            if (voxFoundEmissiveFull) voxFoundEmissiveByChunk.clear();
+            if (voxFoundEmissiveFull || !anyEm) voxFoundEmissiveByChunk.clear();
+            if (voxFoundEmissiveFull || !anyMi) voxFoundMirrorByChunk.clear();
+            const std::function<uint8_t(glm::ivec3)> outside = [this](glm::ivec3 w) { return voxFoundEdit.voxelAt(w); };
             for (const auto& c : coords) {
                 const std::array<int, 3> k{c.x, c.y, c.z};
                 if (!voxFoundEmissiveFull && !voxFoundEmissiveDirty.count(k)) continue;
-                auto& v = voxFoundEmissiveByChunk[k];
-                v.clear();
-                if (const auto* st = voxFoundEdit.chunkStore(c)) Core::VoxFound::emissiveLightsOfChunk(*st, c, em, v);
+                const auto* st = voxFoundEdit.chunkStore(c);
+                if (anyEm) {
+                    auto& v = voxFoundEmissiveByChunk[k];
+                    v.clear();
+                    if (st) Core::VoxFound::emissiveLightsOfChunk(*st, c, em, v);
+                }
+                if (anyMi) {
+                    auto& mf = voxFoundMirrorByChunk[k];
+                    mf = Core::VoxFound::MirrorFaces{};
+                    if (st) Core::VoxFound::mirrorFacesOfChunk(*st, c, mt, mf, &outside);
+                }
                 ++voxFoundEmissiveChunksScanned;
             }
             for (const auto& [k, v] : voxFoundEmissiveByChunk) lights.insert(lights.end(), v.begin(), v.end());
+            for (const auto& [k, mf] : voxFoundMirrorByChunk)
+                for (int d = 0; d < 6; ++d) mirror.count[d] += mf.count[d], mirror.sum[d] += mf.sum[d];
         }
         voxFoundEmissiveFull = false;
         voxFoundEmissiveDirty.clear();
     } else {
         voxFoundEmissiveByChunk.clear();
+        voxFoundMirrorByChunk.clear();
         voxFoundEmissiveFull = true;
     }
+    glm::vec3 mp(0.0f), mn(0.0f, 0.0f, 1.0f);
+    voxFoundMirrorHas = Core::VoxFound::mirrorPlane(mirror, mp, mn);
+    voxFoundMirrorFaces = 0;
+    for (int d = 0; d < 6; ++d) voxFoundMirrorFaces += mirror.count[d];
+    voxFoundMirrorPoint = mp;
+    voxFoundMirrorNormal = mn;
+    renderCoordinator->setVoxFoundMirror(voxFoundMirrorHas, mp, mn);
     voxFoundEmissiveScanMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
     voxFoundEmissiveCount = lights.size();
     renderCoordinator->setVoxFoundEmissiveLights(std::move(lights));
@@ -2963,89 +2991,119 @@ nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::ve
     r["material"] = voxFoundPalette[hitMat];
     r["contact_voxel"] = {hit.x, hit.y, hit.z};
     if (!isLog(hitMat)) { r["leaf"] = true; return r; }   // leaves: feedback only
-    // the kerf: a blade-sized channel from the frontier (the contact voxel) along the swing
+    // S4 (felling): the NOTCH. Each swing removes, in the kerf band (+-0.15 m around the contact), every Log voxel of
+    // THIS trunk's footprint from the trunk's current front face up to depthM deeper along the swing -- the notch
+    // advances across the whole trunk, so any trunk can be cut through (the old 0.4 m channel never severed a trunk
+    // wider than itself). Stateless: the front is the nearest remaining Log voxel of the footprint in the band.
     glm::vec3 fwd(fwdIn.x, 0.0f, fwdIn.z);
     fwd = glm::length(fwd) > 1e-4f ? glm::normalize(fwd) : glm::vec3(0.0f, 0.0f, 1.0f);
-    const glm::vec3 up(0.0f, 1.0f, 0.0f), side = glm::cross(up, fwd);
     const glm::vec3 c = (glm::vec3(hit) + 0.5f) * vm;
-    const float halfH = 0.15f, halfW = 0.2f, back = 0.05f;
-    const int reach = int(std::ceil((depthM + halfW + halfH) * kVoxelsPerM)) + 1;
-    std::vector<std::pair<glm::ivec3, uint8_t>> air;
-    for (int dx = -reach; dx <= reach; ++dx)
-        for (int dy = -reach; dy <= reach; ++dy)
-            for (int dz = -reach; dz <= reach; ++dz) {
-                const glm::ivec3 v = hit + glm::ivec3(dx, dy, dz);
-                const glm::vec3 q = (glm::vec3(v) + 0.5f) * vm - c;
-                const float a = glm::dot(q, fwd);
-                if (a < -back || a > depthM || std::abs(q.y) > halfH || std::abs(glm::dot(q, side)) > halfW) continue;
-                if (isLog(voxFoundEdit.voxelAt(v))) air.push_back({v, uint8_t(0)});
-            }
-    r["kerf_voxels"] = air.size();
-    if (!air.empty()) r["edit"] = voxFoundPaintCells("chop", air);
-    // severed? a bounded 6-connected Log flood from the Log just above the kerf: reaching below the kerf = still held
-    const int topY = hit.y + int(std::ceil(halfH * kVoxelsPerM)) + 1, botY = hit.y - int(std::ceil(halfH * kVoxelsPerM)) - 1;
-    // seeds: THIS trunk's cross-section just above the kerf -- the Log voxels at layer topY over the channel's line
-    // (from 0.5 m behind the contact to 3 m ahead, +-0.2 m lateral), flooded within that one layer over Log (bounded).
-    // A raster-order seed could be an unrelated branch; a whole-slab seed could be a neighbouring tree's trunk.
-    std::vector<glm::ivec3> stack;
-    {
+    const int nH = int(std::ceil(0.15f * kVoxelsPerM));
+    const int bandLo = hit.y - nH, bandHi = hit.y + nH, topY = bandHi + 1, botY = bandLo - 1;
+    // the footprint: the 4-connected Log cross-sections just above and just below the band, seeded at the contact's
+    // column (and its neighbours) -- this trunk's own columns, never a neighbouring tree's
+    std::set<std::pair<int, int>> foot;
+    for (int ly : {topY, botY}) {
         std::vector<glm::ivec3> layer;
-        std::set<std::pair<int, int>> inLayer;
-        for (float a = -0.5f; a <= 3.0f; a += vm * 0.5f)
-            for (float l = -halfW; l <= halfW; l += vm * 0.5f) {
-                const glm::vec3 q = c + fwd * a + side * l;
-                const glm::ivec3 v(int(std::floor(q.x * kVoxelsPerM)), topY, int(std::floor(q.z * kVoxelsPerM)));
-                if (isLog(voxFoundEdit.voxelAt(v)) && inLayer.insert({v.x, v.z}).second) layer.push_back(v);
+        std::set<std::pair<int, int>> in;
+        for (int dx = -2; dx <= 2; ++dx)
+            for (int dz = -2; dz <= 2; ++dz) {
+                const glm::ivec3 v(hit.x + dx, ly, hit.z + dz);
+                if (isLog(voxFoundEdit.voxelAt(v)) && in.insert({v.x, v.z}).second) layer.push_back(v);
             }
-        for (size_t i = 0; i < layer.size() && layer.size() < 20000; ++i) {
+        for (size_t i = 0; i < layer.size() && layer.size() < 40000; ++i) {
             static const glm::ivec3 n4[4] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
             for (const auto& d : n4) {
                 const glm::ivec3 w = layer[i] + d;
-                if (isLog(voxFoundEdit.voxelAt(w)) && inLayer.insert({w.x, w.z}).second) layer.push_back(w);
+                if (isLog(voxFoundEdit.voxelAt(w)) && in.insert({w.x, w.z}).second) layer.push_back(w);
             }
         }
-        stack = layer;
-        r["cross_section"] = layer.size();
+        foot.insert(in.begin(), in.end());
     }
-    bool reachedBelow = stack.empty();   // nothing above the kerf: nothing to fell
+    // the band's voxels in the footprint columns (the contact column always counts)
+    foot.insert({hit.x, hit.z});
+    auto along = [&](int x, int z) { return glm::dot((glm::vec3(float(x), 0.0f, float(z)) + 0.5f) * vm - c, fwd); };
+    float front = 1e30f;
+    for (const auto& [x, z] : foot)
+        for (int y = bandLo; y <= bandHi; ++y)
+            if (isLog(voxFoundEdit.voxelAt({x, y, z}))) front = std::min(front, along(x, z));
+    std::vector<std::pair<glm::ivec3, uint8_t>> air;
+    if (front < 1e29f)
+        for (const auto& [x, z] : foot)
+            if (along(x, z) <= front + depthM)
+                for (int y = bandLo; y <= bandHi; ++y)
+                    if (isLog(voxFoundEdit.voxelAt({x, y, z}))) air.push_back({glm::ivec3(x, y, z), uint8_t(0)});
+    r["footprint_columns"] = foot.size();
+    r["kerf_voxels"] = air.size();
+    if (!air.empty()) r["edit"] = voxFoundPaintCells("chop", air);
+    // SEVERED: a band layer with no Log left in the footprint
+    bool severed = false;
+    for (int y = bandLo; y <= bandHi && !severed; ++y) {
+        bool any = false;
+        for (const auto& [x, z] : foot)
+            if (isLog(voxFoundEdit.voxelAt({x, y, z}))) { any = true; break; }
+        severed = !any;
+    }
+    r["severed"] = severed;
+    if (!severed) return r;
+    // the CROWN: a bounded 26-connected flood over Log + Leaf from the footprint just above the band. Anchored when it
+    // reaches the band or below, or touches any other solid (terrain, a building, another material): nothing released.
+    std::vector<glm::ivec3> stack;
+    for (const auto& [x, z] : foot)
+        if (isLog(voxFoundEdit.voxelAt({x, topY, z}))) stack.push_back({x, topY, z});
     std::set<std::tuple<int, int, int>> seen;
-    const size_t kCap = 200000;
-    while (!stack.empty() && !reachedBelow && seen.size() < kCap) {
+    glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
+    std::string anchor;
+    const size_t kCap = 400000;
+    while (!stack.empty() && anchor.empty()) {
         const glm::ivec3 v = stack.back();
         stack.pop_back();
         if (!seen.insert({v.x, v.y, v.z}).second) continue;
-        if (v.y <= botY) { reachedBelow = true; break; }
-        // 26-connected: a rasterised curved shell (trees are shells) is often joined only at edges / corners on the
-        // 1/8 m grid -- a 6-connected flood read such a trunk as cut through (found live: a false fell)
-        for (int dx = -1; dx <= 1; ++dx)
-            for (int dy = -1; dy <= 1; ++dy)
+        if (seen.size() > kCap) { anchor = "crown larger than the flood cap"; break; }
+        bmin = glm::min(bmin, v);
+        bmax = glm::max(bmax, v);
+        for (int dx = -1; dx <= 1 && anchor.empty(); ++dx)
+            for (int dy = -1; dy <= 1 && anchor.empty(); ++dy)
                 for (int dz = -1; dz <= 1; ++dz) {
                     if (!dx && !dy && !dz) continue;
                     const glm::ivec3 w = v + glm::ivec3(dx, dy, dz);
-                    if (!seen.count({w.x, w.y, w.z}) && isLog(voxFoundEdit.voxelAt(w))) stack.push_back(w);
+                    const uint8_t m = voxFoundEdit.voxelAt(w);
+                    if (!m) continue;
+                    if (!isLog(m) && !isLeaf(m)) { anchor = "touches " + voxFoundPalette[m]; break; }
+                    if (w.y <= bandHi) { anchor = "still joined below the kerf"; break; }
+                    if (!seen.count({w.x, w.y, w.z})) stack.push_back(w);
                 }
     }
-    const bool severed = !reachedBelow && seen.size() < kCap;
-    r["flood"] = seen.size();
-    r["severed"] = severed;
-    // RELEASE IS OPT-IN (found live 2026-11-24): on a generated redwood the Log flood called a 0.4 m channel through a
-    // ~1.5 m trunk "severed" (false), the break extracted 3 unrelated loose pieces 14 m away while the crown stayed
-    // (anchored through its leaves), and the frame rate fell ~60 -> ~16 fps. The swing carves only until felling is
-    // designed properly; the report still says what the flood found.
-    if (severed && release) {   // release the crown: the switched world's break, energy near zero
-        nlohmann::json rep;
-        const bool ok = voxFoundWorldBreak(c, 8.0f, 0.02f, fwd, &rep);
-        r["release"] = {{"ok", ok}, {"bodies", rep.value("bodies", -1)}, {"error", rep.value("error", std::string())}};
+    r["crown_voxels"] = seen.size();
+    if (!anchor.empty()) {
+        r["anchored"] = anchor;
+        return r;
     }
+    r["crown_box"] = {{bmin.x, bmin.y, bmin.z}, {bmax.x, bmax.y, bmax.z}};
+    if (!release) return r;
+    // RELEASE: the world break on a window FITTED to the crown (the old fixed 32 m window extracted unrelated loose
+    // pieces); energy near zero -- extraction lifts the unanchored crown out as a body, nothing is cracked
+    const glm::vec3 lo = glm::vec3(bmin) * vm, hi = (glm::vec3(bmax) + 1.0f) * vm;
+    const float extent = std::max({hi.x - lo.x, hi.y - lo.y, hi.z - lo.z});
+    nlohmann::json rep;
+    const bool ok = voxFoundWorldBreak((lo + hi) * 0.5f, (extent + 2.0f) * 0.25f, 0.02f, fwd, &rep);
+    r["release"] = {{"ok", ok}, {"bodies", rep.value("bodies", -1)}, {"error", rep.value("error", std::string())},
+                    {"window_m", std::clamp(std::ceil(std::max(8.0f, extent + 2.0f)), 2.0f, 32.0f)}};
+    if (extent + 2.0f > 32.0f) r["release"]["clipped"] = "crown taller / wider than the 32 m break window";
     return r;
 }
 
 // D4 follow-up (glass on the switched world): a face word's flags half (bits 16-31 = voxel.frag's flags) carries the
 // TRANSPARENT bit (flags bit 1) for a transparent material -- today's chunk criterion (alpha < 0.99, not a billboarded
 // card). voxel.frag discards those fragments in the opaque passes; the OIT pass (transparent_voxel.frag) draws them.
-uint32_t voxFoundTransparentBit(const std::string& name) {
+uint32_t voxFoundMaterialFlags(const std::string& name) {
     const auto* md = name.empty() ? nullptr : Core::MaterialRegistry::instance().getMaterial(name);
-    return (md && !md->billboarded && md->alpha < 0.99f) ? (2u << 16) : 0u;
+    if (!md) return 0u;
+    // the old static packing (ChunkRenderManager, deleted in D4): bit 1 transparent + bits 2-9 its alpha byte
+    // (transparent_voxel.frag reads it), bit 10 mirror (S3: voxel.frag / the OIT pass discard it; the mirror pass draws it)
+    const bool tr = !md->billboarded && md->alpha < 0.99f;
+    const uint32_t qa = tr ? uint32_t(std::clamp(md->alpha, 0.0f, 1.0f) * 255.0f) : 0u;
+    return ((tr ? (2u | (qa << 2)) : 0u) | (md->isMirror ? (1u << 10) : 0u)) << 16;
 }
 
 VoxFoundWorld::CubeContent VoxFoundWorld::cubeContent(const glm::ivec3& cube) const {
@@ -3819,7 +3877,7 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
     for (size_t m = 1; m < palette.size() && m < 256; ++m)
         for (int f = 0; f < 6; ++f) {
             const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(palette[m], f);
-            voxFoundPreview.faceTex[m * 6 + f] = t | voxFoundTransparentBit(palette[m]);
+            voxFoundPreview.faceTex[m * 6 + f] = t | voxFoundMaterialFlags(palette[m]);
             if (f == 0) leafTex[m] = t;
         }
     voxFoundPalette = palette;   // F2.16: edits look materials up here (and may append)

@@ -10,6 +10,8 @@
 // t per material: emissive -> 1; masked (emissiveStrength > 0) -> clamp(strength 4, 2, 10) / 15; else not a light.
 // Per cube, so the result cannot depend on the chunk grid (a cube lies in exactly one chunk).
 
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -42,5 +44,22 @@ bool anyEmitter(const std::vector<EmitterMaterial>& em);
 /// appended to `out` in cube order (x, y, z) -- a pure function of the voxels.
 void emissiveLightsOfChunk(const BlockStore& store, glm::ivec3 chunk, const std::vector<EmitterMaterial>& em,
                            std::vector<EmissiveLight>& out);
+
+// ---- D4 follow-up S3: the mirror plane (MaterialDef::isMirror; the renderer has ONE plane per frame) ----
+/// Exposed mirror faces per direction (index 2 * axis + (dir > 0): -x, +x, -y, +y, -z, +z) and the sum of their
+/// centres (world metres). Summed over chunks.
+struct MirrorFaces {
+    uint64_t count[6] = {0, 0, 0, 0, 0, 0};
+    glm::dvec3 sum[6] = {};
+};
+/// Per palette index: 1 = a mirror material.
+std::vector<uint8_t> mirrorMaterials(const std::vector<std::string>& palette);
+bool anyMirror(const std::vector<uint8_t>& table);
+/// Adds chunk `chunk`'s exposed mirror faces to `acc`. A neighbour outside the store is read through `outside`
+/// (world voxel -> material) when given, else air -- give it, or a chunk border adds faces.
+void mirrorFacesOfChunk(const BlockStore& store, glm::ivec3 chunk, const std::vector<uint8_t>& table, MirrorFaces& acc,
+                        const std::function<uint8_t(glm::ivec3)>* outside = nullptr);
+/// The plane: normal = the direction with the most faces (ties in index order), point = their mean centre.
+bool mirrorPlane(const MirrorFaces& acc, glm::vec3& point, glm::vec3& normal);
 
 }  // namespace Phyxel::Core::VoxFound

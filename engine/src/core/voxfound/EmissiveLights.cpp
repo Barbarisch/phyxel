@@ -89,4 +89,71 @@ void emissiveLightsOfChunk(const BlockStore& store, glm::ivec3 chunk, const std:
             }
 }
 
+std::vector<uint8_t> mirrorMaterials(const std::vector<std::string>& palette) {
+    std::vector<uint8_t> t(256, 0);
+    auto& reg = MaterialRegistry::instance();
+    for (size_t i = 1; i < palette.size() && i < 256; ++i) {
+        const auto* md = palette[i].empty() ? nullptr : reg.getMaterial(palette[i]);
+        t[i] = (md && md->isMirror) ? 1 : 0;
+    }
+    return t;
+}
+
+bool anyMirror(const std::vector<uint8_t>& table) {
+    for (uint8_t v : table)
+        if (v) return true;
+    return false;
+}
+
+void mirrorFacesOfChunk(const BlockStore& store, glm::ivec3 chunk, const std::vector<uint8_t>& table, MirrorFaces& acc,
+                        const std::function<uint8_t(glm::ivec3)>* outside) {
+    if (table.size() < 256) return;
+    const glm::ivec3 dim = store.dim(), nb = dim / 8;
+    const glm::ivec3 base = chunk * dim;   // world voxel of the store's voxel 0
+    auto matAt = [&](glm::ivec3 p) -> uint8_t {   // store voxel p (may lie outside the store)
+        if (store.in(p)) return store.at(p);
+        return outside ? (*outside)(base + p) : uint8_t(0);
+    };
+    for (int bx = 0; bx < nb.x; ++bx)
+        for (int by = 0; by < nb.y; ++by)
+            for (int bz = 0; bz < nb.z; ++bz) {
+                const glm::ivec3 b(bx, by, bz);
+                uint8_t m = 0;
+                if (store.uniformBlock(b, m)) {
+                    if (!table[m]) continue;
+                } else {
+                    const uint8_t* mats = store.detailedMaterials(b);
+                    bool any = false;
+                    for (int i = 0; i < 512 && !any; ++i) any = table[mats[i]] != 0;
+                    if (!any) continue;
+                }
+                for (int i = 0; i < 512; ++i) {
+                    const glm::ivec3 p = b * 8 + glm::ivec3(i >> 6, (i >> 3) & 7, i & 7);
+                    if (!table[store.at(p)]) continue;
+                    for (int axis = 0; axis < 3; ++axis)
+                        for (int dir : {-1, 1}) {
+                            glm::ivec3 q = p;
+                            q[axis] += dir;
+                            if (matAt(q) != 0) continue;   // hidden: any solid neighbour (the mesher's rule)
+                            const int k = 2 * axis + (dir > 0);
+                            glm::dvec3 c = (glm::dvec3(base + p) + 0.5) / 8.0;
+                            c[axis] += 0.5 * dir / 8.0;   // the face's centre
+                            ++acc.count[k];
+                            acc.sum[k] += c;
+                        }
+                }
+            }
+}
+
+bool mirrorPlane(const MirrorFaces& acc, glm::vec3& point, glm::vec3& normal) {
+    int best = -1;
+    for (int k = 0; k < 6; ++k)
+        if (acc.count[k] > 0 && (best < 0 || acc.count[k] > acc.count[best])) best = k;
+    if (best < 0) return false;
+    normal = glm::vec3(0.0f);
+    normal[best / 2] = (best & 1) ? 1.0f : -1.0f;
+    point = glm::vec3(acc.sum[best] / double(acc.count[best]));
+    return true;
+}
+
 }  // namespace Phyxel::Core::VoxFound

@@ -1159,6 +1159,19 @@ void RenderPipeline::cleanup() {
         vkDestroyPipeline(device, voxFoundOitPipeline, nullptr);
         voxFoundOitPipeline = VK_NULL_HANDLE;
     }
+    for (VkPipeline* pp : {&voxFoundReflectionPipeline, &voxFoundMirrorPipeline})   // S3
+        if (*pp != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, *pp, nullptr);
+            *pp = VK_NULL_HANDLE;
+        }
+    if (voxFoundMirrorLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, voxFoundMirrorLayout, nullptr);
+        voxFoundMirrorLayout = VK_NULL_HANDLE;
+    }
+    if (voxFoundMirrorFragModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, voxFoundMirrorFragModule, nullptr);
+        voxFoundMirrorFragModule = VK_NULL_HANDLE;
+    }
 
     if (oitFragShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, oitFragShaderModule, nullptr);
@@ -2202,7 +2215,145 @@ bool RenderPipeline::createSkyPipeline(VkRenderPass sceneRenderPass) {
     return true;
 }
 
+namespace {
+// S3: an opaque voxfound pass (the 8 B PackedFace instance, depth test + write, no blend) for any frag / layout / pass.
+VkPipeline buildVoxFoundOpaque(VkDevice device, VkShaderModule vert, VkShaderModule frag, VkPipelineLayout layout,
+                               VkRenderPass rp, VkCullModeFlags cull) {
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vert;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = frag;
+    stages[1].pName = "main";
+    const auto vb = Vertex::getBindingDescription();
+    const auto va = Vertex::getAttributeDescriptions();
+    VkVertexInputBindingDescription fb{};
+    fb.binding = 1;
+    fb.stride = 8;
+    fb.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputBindingDescription> binds = {vb, fb};
+    std::vector<VkVertexInputAttributeDescription> attrs(va.begin(), va.end());
+    for (uint32_t i = 0; i < 2; ++i) {
+        VkVertexInputAttributeDescription a{};
+        a.binding = 1;
+        a.location = 1 + i;
+        a.format = VK_FORMAT_R32_UINT;
+        a.offset = 4 * i;
+        attrs.push_back(a);
+    }
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = uint32_t(binds.size());
+    vi.pVertexBindingDescriptions = binds.data();
+    vi.vertexAttributeDescriptionCount = uint32_t(attrs.size());
+    vi.pVertexAttributeDescriptions = attrs.data();
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1;
+    vps.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rs{};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.lineWidth = 1.0f;
+    rs.cullMode = cull;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable = VK_TRUE;
+    ds.depthWriteEnable = VK_TRUE;
+    ds.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
+    VkPipelineColorBlendAttachmentState att{};
+    att.blendEnable = VK_FALSE;
+    att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                         VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 1;
+    cb.pAttachments = &att;
+    std::vector<VkDynamicState> dynStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = uint32_t(dynStates.size());
+    dyn.pDynamicStates = dynStates.data();
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2;
+    gpi.pStages = stages;
+    gpi.pVertexInputState = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState = &ms;
+    gpi.pDepthStencilState = &ds;
+    gpi.pColorBlendState = &cb;
+    gpi.pDynamicState = &dyn;
+    gpi.layout = layout;
+    gpi.renderPass = rp;
+    gpi.subpass = 0;
+    VkPipeline out = VK_NULL_HANDLE;
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &out) != VK_SUCCESS) return VK_NULL_HANDLE;
+    return out;
+}
+}  // namespace
+
+bool RenderPipeline::ensureVoxFoundMirrorPipelines() {
+    if (voxFoundReflectionPipeline != VK_NULL_HANDLE && voxFoundMirrorPipeline != VK_NULL_HANDLE) return true;
+    if (m_mirrorRenderPass == VK_NULL_HANDLE || mirrorReflectionDescSetLayout == VK_NULL_HANDLE) return false;
+    if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;   // layout, set 1, the vert module
+    VkDevice device = vulkanDevice.getDevice();
+    if (voxFoundMirrorFragModule == VK_NULL_HANDLE) {
+        auto code = Utils::readFile("shaders/mirror_voxel_vf.frag.spv");
+        if (code.empty()) {
+            LOG_WARN("RenderPipeline", "voxfound mirror: cannot read shaders/mirror_voxel_vf.frag.spv");
+            return false;
+        }
+        voxFoundMirrorFragModule = createShaderModule(code);
+    }
+    if (voxFoundMirrorLayout == VK_NULL_HANDLE) {
+        const VkDescriptorSetLayout sets[3] = {vulkanDevice.getDescriptorSetLayout(), voxFoundSetLayout,
+                                               mirrorReflectionDescSetLayout};
+        const VkPushConstantRange pcr = VulkanDevice::getPushConstantRange();
+        VkPipelineLayoutCreateInfo pli{};
+        pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pli.setLayoutCount = 3;
+        pli.pSetLayouts = sets;
+        pli.pushConstantRangeCount = 1;
+        pli.pPushConstantRanges = &pcr;
+        if (vkCreatePipelineLayout(device, &pli, nullptr, &voxFoundMirrorLayout) != VK_SUCCESS) {
+            LOG_ERROR("RenderPipeline", "voxfound mirror: pipeline layout creation failed");
+            return false;
+        }
+    }
+    if (voxFoundReflectionPipeline == VK_NULL_HANDLE)
+        voxFoundReflectionPipeline = buildVoxFoundOpaque(device, voxFoundVertModule, fragShaderModule, voxFoundLayout,
+                                                         m_mirrorRenderPass, VK_CULL_MODE_NONE);   // the 6-index quad has ONE winding and the reflected view (det -1) flips it: culling either side drops faces in one quad mode (S3)
+    if (voxFoundMirrorPipeline == VK_NULL_HANDLE)
+        voxFoundMirrorPipeline = buildVoxFoundOpaque(device, voxFoundVertModule, voxFoundMirrorFragModule,
+                                                     voxFoundMirrorLayout, m_mirrorRenderPass, VK_CULL_MODE_FRONT_BIT);
+    if (voxFoundReflectionPipeline == VK_NULL_HANDLE || voxFoundMirrorPipeline == VK_NULL_HANDLE) {
+        LOG_ERROR("RenderPipeline", "voxfound mirror: pipeline creation failed");
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "voxfound reflection + mirror pipelines created");
+    return true;
+}
+
 bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
+    m_mirrorRenderPass = sceneRenderPass;   // S3: the voxfound mirror pipelines follow the pass
+    for (VkPipeline* pp : {&voxFoundReflectionPipeline, &voxFoundMirrorPipeline})
+        if (*pp != VK_NULL_HANDLE) {
+            vkDestroyPipeline(vulkanDevice.getDevice(), *pp, nullptr);
+            *pp = VK_NULL_HANDLE;
+        }
     VkDevice device = vulkanDevice.getDevice();
 
     // Load mirror_voxel.frag

@@ -1931,8 +1931,14 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
 }
 
 bool RenderCoordinator::scanForMirrorVoxels() {
-    // Mirror voxels were found through today's Chunks' cached flag; none since D4 (no Chunk was ever visible).
-    return false;
+    // Today's Chunks flagged their first mirror voxel (normal fixed at +Z) until D4. Since S3 the plane is the
+    // switched world's (VoxFoundWorld: exposed Mirror faces, the dominant direction, their mean centre).
+    if (!m_vfMirror || !m_voxFoundPreview || !m_voxFoundPreview->shown || m_voxFoundTexBuffer == VK_NULL_HANDLE)
+        return false;
+    if (!renderPipeline->ensureVoxFoundMirrorPipelines()) return false;
+    mirrorPlanePoint = m_vfMirrorPoint;
+    mirrorPlaneNormal = m_vfMirrorNormal;
+    return true;
 }
 
 void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
@@ -1977,7 +1983,22 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     // mirrors the image and (b) yields a det=+1 view that does NOT flip triangle winding.
     // mainView * reflMat is the exact reflected view: correct handedness, det=-1 so winding
     // flips as the reflectionScenePipeline's BACK_BIT culling expects.
-    glm::mat4 reflectedView = camera->getViewMatrix() * reflMat;
+    // CAMERA-RELATIVE (docs/CameraRelativeRendering.md; S3 found this): every GPU position is (world - camera) and the
+    // main view is rotation-only (cachedViewMatrix), so the reflection is taken about the plane in THAT space --
+    // N.(p_rel) + d_rel = 0 with d_rel = -N.(P0 - C). The old getViewMatrix() * reflMat mixed the absolute view with
+    // relative positions: the reflection target saw nothing and every mirror sampled black.
+    const float dRel = -glm::dot(N, mirrorPlanePoint - camPos);
+    glm::mat4 reflMatRel(1.0f);
+    reflMatRel[0][0] = 1.0f - 2.0f*N.x*N.x;  reflMatRel[1][0] = -2.0f*N.x*N.y;        reflMatRel[2][0] = -2.0f*N.x*N.z;        reflMatRel[3][0] = 2.0f*N.x*(-dRel);
+    reflMatRel[0][1] = -2.0f*N.x*N.y;         reflMatRel[1][1] = 1.0f - 2.0f*N.y*N.y;  reflMatRel[2][1] = -2.0f*N.y*N.z;        reflMatRel[3][1] = 2.0f*N.y*(-dRel);
+    reflMatRel[0][2] = -2.0f*N.x*N.z;         reflMatRel[1][2] = -2.0f*N.y*N.z;        reflMatRel[2][2] = 1.0f - 2.0f*N.z*N.z;  reflMatRel[3][2] = 2.0f*N.z*(-dRel);
+    glm::mat4 reflectedView = cachedViewMatrix * reflMatRel;
+    {   // S3: clip at the mirror -- keep only the viewer's side (the wall a mirror hangs on lies behind it, between
+        // the reflected eye and the scene; the old pass drew it and every wall mirror showed the wall's back)
+        glm::vec3 Nc = N;
+        if (glm::dot(Nc, camPos - mirrorPlanePoint) < 0.0f) Nc = -Nc;
+        vulkanDevice->setReflectionClipPlane(glm::vec4(Nc, -glm::dot(Nc, mirrorPlanePoint - camPos)));
+    }
     cachedReflectedViewProj = cachedProjectionMatrix * reflectedView;
 
     // Store reflected VP in the main UBO so mirror_voxel.frag can use it for projective texturing
@@ -2006,7 +2027,8 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     // nothing. There is no far plane to preserve any more — that is the point.
     glm::mat4 clippedProj =
         DepthConvention::infiniteReverseZPerspective(glm::radians(45.0f), reflAspect, reflNear);
-    clippedProj[1][1] *= -1;  // Y-flip for Vulkan, matching cachedProjectionMatrix
+    // (S3) NO extra Y-flip: infiniteReverseZPerspective already applies Vulkan's (DepthConvention.h). The old
+    // "clippedProj[1][1] *= -1" flipped it back -- the reflection rendered upside down against the mirror's lookup.
 
     // Update the reflection-specific UBO with the reflected view matrix
     auto sunDir   = glm::vec3(0.0f, -1.0f, 0.0f); // Will be overridden by actual sun direction from last frame
@@ -2015,7 +2037,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     vulkanDevice->updateReflectionUniformBuffer(frameIndex, reflectedView, clippedProj,
         glm::mat4(1.0f), // lightSpaceMatrix (shadows in reflection not critical)
         glm::vec3(0.0f, -1.0f, 0.5f), glm::vec3(1.0f, 0.95f, 0.8f),
-        0, 1.0f, 2.0f, reflCamPos);
+        0, 1.0f, 2.0f, reflCamPos - camPos);   // the reflected eye in camera-relative space
 
     // Render the scene from the reflected camera into the reflection framebuffer
     postProcessor->beginReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
@@ -2035,7 +2057,23 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     // The per-chunk loop below rebinds binding 1 to each chunk's instance buffer.
     vulkanDevice->bindVertexBuffers(frameIndex);
 
-    // Draw visible chunks from reflected camera (mirror faces discarded by voxel.frag)
+    // Draw the switched world from the reflected camera (S3; mirror faces discarded by voxel.frag): EVERY preview
+    // range -- the main view's frustum would drop what lies behind the camera, which is what a mirror shows.
+    if (m_voxFoundPreview && m_voxFoundPreview->shown && renderPipeline->getVoxFoundReflectionPipeline() != VK_NULL_HANDLE &&
+        m_voxFoundTexBuffer != VK_NULL_HANDLE && (m_voxFoundMapped || m_voxFoundFacesDevice)) {
+        VkCommandBuffer rcmd = vulkanDevice->getCommandBuffer(frameIndex);
+        vkCmdBindPipeline(rcmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundReflectionPipeline());
+        renderPipeline->bindVoxFoundFaceTex(rcmd, m_voxFoundTexBuffer);
+        for (const auto& r : m_voxFoundPreview->ranges()) {
+            if (r.faceCount == 0) continue;
+            vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), camera->relativeTo(r.originMetres),
+                                        0u, glm::vec3(r.originMetres));
+            const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+            vkCmdBindVertexBuffers(rcmd, 1, 1, &m_voxFoundBuffer, &off);
+            vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), r.faceCount, 0);
+            lastFrameStats.reflectionDrawCalls++;
+        }
+    }
 
     // Draw instanced characters (player + animated NPCs) into the reflection target so they
     // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
@@ -2063,8 +2101,31 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
 }
 
 void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
-    // Drew today's visible Chunks' mirror faces; none since D4 (the pass returned on an empty visible list).
-    (void)frameIndex;
+    // S3: the switched world's mirror faces (mirror_voxel_vf.frag keeps flags bit 10), sampling the reflection.
+    lastFrameStats.mirrorGeomDrawCalls = 0;
+    if (!m_vfMirror || !m_voxFoundPreview || !m_voxFoundPreview->shown || !camera ||
+        renderPipeline->getVoxFoundMirrorPipeline() == VK_NULL_HANDLE || m_voxFoundTexBuffer == VK_NULL_HANDLE ||
+        (!m_voxFoundMapped && !m_voxFoundFacesDevice))
+        return;
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundMirrorPipeline());
+    vulkanDevice->bindVertexBuffers(frameIndex);
+    vulkanDevice->bindIndexBuffer(frameIndex);
+    vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+    renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer);
+    const VkDescriptorSet refl = renderPipeline->getMirrorReflectionDescriptorSet();
+    if (refl == VK_NULL_HANDLE) return;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundMirrorLayout(), 2, 1, &refl,
+                            0, nullptr);
+    for (const auto& r : voxFoundVisibleRanges()) {
+        if (r.faceCount == 0) continue;
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), camera->relativeTo(r.originMetres), 0u,
+                                    glm::vec3(r.originMetres));
+        const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+        vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), r.faceCount, 0);
+        lastFrameStats.mirrorGeomDrawCalls++;
+    }
 }
 
 void RenderCoordinator::renderDynamicSubcubes() {
