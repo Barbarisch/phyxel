@@ -329,6 +329,9 @@ public:
     /// D4 follow-up (U3.2 on the switched world): the region's emissive lights, recomputed when the drawn revision
     /// changes (throttled to 4 Hz) and handed to the renderer. Reports the last scan's cost.
     void voxFoundEmissiveTick();
+    /// S12: a chunk's voxels + palette names for the structure proxies: resident, else the stream cache / saved switched
+    /// blob (V3), else the DB's stored chunk (PXB2). false = stored nowhere.
+    bool voxFoundChunkForProxy(const glm::ivec3& chunk, Core::VoxFound::BlockStore& out, std::vector<std::string>& names);
     /// D4 follow-up: the axe chop on the switched world (today's carveChopKerf went with the Chunk store). blade = the
     /// axe head (world metres); fwd = the swing's horizontal direction; depthM = this swing's bite. Contact = the
     /// nearest Log / Leaf voxel within 0.3 m of the blade (Leaf: feedback only). The kerf: Log voxels in a blade-

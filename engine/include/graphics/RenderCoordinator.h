@@ -114,6 +114,11 @@ public:
     /// D4 follow-up (U3.2): the switched world's emissive lights (VoxFoundWorld::voxFoundEmissiveTick); reconciled
     /// into LightManager by updateVfx on change.
     void setVoxFoundEmissiveLights(std::vector<Core::VoxFound::EmissiveLight> l) { m_voxFoundEmissive = std::move(l); }
+    /// S12: a structure proxy's voxels by chunk, from wherever they live (VoxFoundWorld: resident store, the stream
+    /// cache / saved switched blob, the DB's stored chunk). false = stored nowhere yet (the structure waits).
+    using StructureChunkSource =
+        std::function<bool(const glm::ivec3& chunk, Core::VoxFound::BlockStore& out, std::vector<std::string>& names)>;
+    void setStructureChunkSource(StructureChunkSource s) { m_structChunkSource = std::move(s); }
     /// S3: the switched world's mirror plane (VoxFoundWorld's scan; has = any exposed Mirror face)
     void setVoxFoundMirror(bool has, const glm::vec3& point, const glm::vec3& normal) {
         m_vfMirror = has;
@@ -952,6 +957,7 @@ private:
     double m_dirtyChunkBudgetMs = 6.0;   // see setDirtyChunkBudgetMs
     std::vector<Core::VoxFound::EmissiveLight> m_voxFoundEmissive;   // D4 follow-up (U3.2)
     bool m_vfMirror = false;                                           // S3
+    StructureChunkSource m_structChunkSource;                         // S12
     glm::vec3 m_vfMirrorPoint{0.0f}, m_vfMirrorNormal{0.0f, 0.0f, 1.0f};
     // D4 follow-up: the near field's DRAWN chunks are the switched world's (Preview chunks with faces) -- the far
     // terrain coverage, the far-tree residency mask and the LOD tree hand-off read them (they read today's Chunks'

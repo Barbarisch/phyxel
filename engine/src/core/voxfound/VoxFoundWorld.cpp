@@ -2126,6 +2126,11 @@ void VoxFoundWorld::voxFoundBoot() {
             handleVoxFoundPreview(c, st);
         }
         voxFoundTodayStreamOff = v.value("today_stream_off", false);   // F7.26: the step-7 gate from the boot
+        if (renderCoordinator)   // S12: the structure proxies read chunks resident, saved or stored
+            renderCoordinator->setStructureChunkSource(
+                [this](const glm::ivec3& c, Core::VoxFound::BlockStore& o, std::vector<std::string>& n) {
+                    return voxFoundChunkForProxy(c, o, n);
+                });
         // S6: a streaming world's far tiers (far terrain / trees / structure proxies, fauna, water) read ChunkManager's
         // streaming generator, which only the (now skipped) loader set: hand them the switched world's generator
         if (w.value("streaming", false) && voxFoundRegionGen && chunkManager) chunkManager->adoptStreamingGenerator(*voxFoundRegionGen);
@@ -2313,6 +2318,25 @@ void VoxFoundWorld::voxFoundGrassRefreshTick() {
 // D1b (step 7, stage D1): the DB's STORED chunks (today's PXB2 blobs) over the region -- each through the converter
 // (convertPxb2: cubes exact, thirds / ninths by volume), mapped to the region palette and loaded whole. No Chunk object
 // is read. The switched world's own saves (loaded at the switch-on, after this) still win.
+bool VoxFoundWorld::voxFoundChunkForProxy(const glm::ivec3& cc, Core::VoxFound::BlockStore& out,
+                                        std::vector<std::string>& names) {
+    using namespace Core::VoxFound;
+    if (const BlockStore* st = voxFoundEdit.chunkStore(cc)) {   // resident
+        out = *st;
+        names = voxFoundPalette;
+        return true;
+    }
+    std::vector<uint8_t> blob;
+    auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;
+    auto cit = voxFoundStreamCache.find({cc.x, cc.y, cc.z});
+    if (cit != voxFoundStreamCache.end()) blob = cit->second;
+    else if (ws && ws->getDb()) ws->loadVoxFoundBlob(cc, blob);
+    if (!blob.empty()) return BlockStore::decodeV3(blob.data(), blob.size(), out, names, nullptr);
+    if (ws && ws->getDb() && ws->readChunkBlob(cc, blob) && !blob.empty())
+        return convertPxb2(blob.data(), blob.size(), out, names, nullptr, nullptr);
+    return false;
+}
+
 nlohmann::json VoxFoundWorld::voxFoundOverlayStored(const std::vector<glm::ivec3>& coords) {
     using namespace Core::VoxFound;
     auto* ws = chunkManager ? chunkManager->m_streamingManager.getWorldStorage() : nullptr;

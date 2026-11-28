@@ -2296,3 +2296,16 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   S11 RESULT: d4g_mirror_after: the reflection shows leaf canopies and grass blades (S7 frame: bare trunks, no blades);
      nothing from behind the wall. Reflection draws 22 -> 46. FPS with the mirror in view 44.7 -> 30.0 (-33%; S7: -12%):
      cards + blades drawn twice -- the mirror's cost, measured (no reflection LOD / distance cap yet).
+
+  S12 PREDICTION (stand-ins for structures never visited; before the code): extraction reads each chunk of a structure's
+  box through a source VoxFoundWorld provides -- resident store, else the stream cache / saved switched blob (V3), else
+  the DB's stored PXB2 chunk -- so a structure whose chunks are stored anywhere gets its proxy WITHOUT a visit; a chunk
+  stored nowhere keeps the structure waiting (no voxels exist to draw). Live (WorldForgeTest copy, the camera never sent
+  to a site): lod_report shows structures reaching state 2 from the boot (all 14 at 0 before); a frame toward an
+  unvisited site from 100+ m shows its proxy. Materials resolve by name (MaterialRegistry) for every source.
+  S12 RESULT (WorldForgeTest copy, the camera never sent to a site before the reports): all 14 structures in state 2 at the
+     first lod_report (0.1 s; S6 needed a visit, before S6 none ever built). The camera then jumped ~700 m to an unvisited
+     site while the streamed region was still at the origin: d4g_structlod_near shows that site's buildings as proxies
+     (min_fade 1.0, tris_l0 40,964 -- voxels from the stored chunks); the far frame's forest hides the building at 257 m.
+     Seen, not explained: a dithered stipple on the ground around the proxies in the near frame (the far tile / proxy
+     overlap is the likely cause; not measured).

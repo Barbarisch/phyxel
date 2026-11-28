@@ -594,34 +594,42 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // take the 1/8 m voxel under their centre (the micro_cells rule, Application); materials are palette indices
         // named "#<index>", resolved to textures through the preview's face table when the meshes are built.
         const auto* reads = chunkManager->voxFoundReads();
-        if (e.state == 0 && !extractedThisFrame && reads && m_voxFoundPreview) {
-            bool allResident = true;
+        if (e.state == 0 && !extractedThisFrame && m_structChunkSource) {
+            // S12: every chunk of the box from the source (resident, saved, or stored) -- no visit needed
+            struct Src { Core::VoxFound::BlockStore store; std::vector<std::string> names; };
+            std::map<std::tuple<int, int, int>, Src> srcs;
+            bool allKnown = true;
             const glm::ivec3 c0 = glm::ivec3(glm::floor(glm::vec3(e.mn) / 32.0f)),
                              c1 = glm::ivec3(glm::floor(glm::vec3(e.mx) / 32.0f));
-            for (int cx = c0.x; cx <= c1.x && allResident; ++cx)
-                for (int cy = c0.y; cy <= c1.y && allResident; ++cy)
-                    for (int cz = c0.z; cz <= c1.z && allResident; ++cz)
-                        allResident = reads->hasChunk({cx, cy, cz});
-            if (allResident) {
+            for (int cx = c0.x; cx <= c1.x && allKnown; ++cx)
+                for (int cy = c0.y; cy <= c1.y && allKnown; ++cy)
+                    for (int cz = c0.z; cz <= c1.z && allKnown; ++cz) {
+                        Src s;
+                        allKnown = m_structChunkSource({cx, cy, cz}, s.store, s.names);
+                        if (allKnown) srcs.emplace(std::make_tuple(cx, cy, cz), std::move(s));
+                    }
+            if (allKnown) {
                 Core::TemplateLodChain::MicroSoup soup;
-                std::unordered_map<uint8_t, uint16_t> ids;
+                std::unordered_map<std::string, uint16_t> ids;
                 for (int x = e.mn.x; x <= e.mx.x; ++x)
                     for (int y = e.mn.y; y <= e.mx.y; ++y)
                         for (int z = e.mn.z; z <= e.mx.z; ++z) {
                             const glm::ivec3 cube(x, y, z);
-                            if (!reads->hasVoxelAt(cube)) continue;   // an empty cube: no micro to read
+                            const glm::ivec3 cc = glm::ivec3(glm::floor(glm::vec3(cube) / 32.0f));
+                            const Src& s = srcs.at(std::make_tuple(cc.x, cc.y, cc.z));
                             const glm::ivec3 rel = cube - e.mn;
+                            const glm::ivec3 base = (cube - cc * 32) * 8;   // the cube's first voxel in its chunk store
                             for (int mx2 = 0; mx2 < 9; ++mx2)
                                 for (int my = 0; my < 9; ++my)
                                     for (int mz = 0; mz < 9; ++mz) {
-                                        const glm::ivec3 v = cube * 8 + glm::ivec3((mx2 * 8 + 4) / 9, (my * 8 + 4) / 9,
-                                                                                   (mz * 8 + 4) / 9);
-                                        const uint8_t m = reads->voxel(v);
-                                        if (!m) continue;
-                                        auto it = ids.find(m);
+                                        const glm::ivec3 v = base + glm::ivec3((mx2 * 8 + 4) / 9, (my * 8 + 4) / 9,
+                                                                               (mz * 8 + 4) / 9);
+                                        const uint8_t m = s.store.in(v) ? s.store.at(v) : 0;
+                                        if (!m || m >= s.names.size()) continue;
+                                        auto it = ids.find(s.names[m]);
                                         if (it == ids.end()) {
-                                            it = ids.emplace(m, uint16_t(soup.materials.size())).first;
-                                            soup.materials.push_back("#" + std::to_string(m));
+                                            it = ids.emplace(s.names[m], uint16_t(soup.materials.size())).first;
+                                            soup.materials.push_back(s.names[m]);
                                         }
                                         soup.micros.push_back({rel * 9 + glm::ivec3(mx2, my, mz), it->second});
                                     }
@@ -632,15 +640,12 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                     e.merged = s_proxyMeshMerge;
                     TreeLodMeshRegistry::MeshOptions meshOpt;
                     meshOpt.merge = e.merged;
-                    std::vector<uint32_t> faceTex = m_voxFoundPreview->faceTex;   // palette index -> face words
-                    e.job = std::async(std::launch::async, [soup = std::move(soup), meshOpt, faceTex]() {
+                    e.job = std::async(std::launch::async, [soup = std::move(soup), meshOpt]() {
                         const auto levels = Core::TemplateLodChain::buildFromSoup(
                             soup, Core::TemplateLodChain::structureConfig());
                         std::array<TreeLodMeshRegistry::CpuMesh, Core::TemplateLodChain::kLevelCount> out;
-                        const auto resolve = [&faceTex](const std::string& mat, int face) -> uint16_t {
-                            const size_t m = mat.size() > 1 ? size_t(std::stoul(mat.substr(1))) : 0;
-                            const size_t k = m * 6 + size_t(std::clamp(face, 0, 5));
-                            return k < faceTex.size() ? uint16_t(faceTex[k] & 0xFFFFu) : uint16_t(0);
+                        const auto resolve = [](const std::string& mat, int face) -> uint16_t {
+                            return Core::MaterialRegistry::instance().getTextureIndex(mat, face);
                         };
                         for (size_t i = 0; i < out.size() && i < levels.size(); ++i)
                             out[i] = TreeLodMeshRegistry::buildLevelMesh(levels[i], resolve,
