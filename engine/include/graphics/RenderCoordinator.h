@@ -851,7 +851,7 @@ public:
     /// Draw the atmospheric sky + sun + moon. Called FIRST inside the scene pass, with depth test
     /// and write disabled, so it fills the frame and geometry draws over it. Sets its own viewport
     /// and scissor because it runs before the pass's main dynamic-state setup.
-    void drawSky(VkCommandBuffer cmd);
+    void drawSky(VkCommandBuffer cmd, const glm::mat4* viewOverride = nullptr);   // S7: the reflection pass passes its view
 
     // ---- Exposure + tone curve (live-tunable; POST /api/debug/tonemap) --------------------------
     // The atmosphere returns physical RADIANCE, so exposure is the unit conversion that makes it

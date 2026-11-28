@@ -939,7 +939,7 @@ void RenderCoordinator::updateLightOccupancy() {
                                        m_lightOccupancy->ready());
 }
 
-void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
+void RenderCoordinator::drawSky(VkCommandBuffer cmd, const glm::mat4* viewOverride) {
     if (!m_skyEnabled) return;
     if (!renderPipeline || renderPipeline->getSkyPipeline() == VK_NULL_HANDLE) return;
     if (!windowManager) return;
@@ -947,7 +947,7 @@ void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     // Camera basis in WORLD space, straight out of the view matrix. glm::lookAt stores the basis in
     // the ROWS of the rotation part, so right/up/-forward are read across the columns:
     //   view[0] = (right.x, up.x, -fwd.x, 0), view[1] = (right.y, ...), view[2] = (right.z, ...)
-    const glm::mat4& v = cachedViewMatrix;
+    const glm::mat4& v = viewOverride ? *viewOverride : cachedViewMatrix;   // S7: the reflected view in mirrors
     const glm::vec3 right   = glm::vec3(v[0][0], v[1][0], v[2][0]);
     const glm::vec3 up      = glm::vec3(v[0][1], v[1][1], v[2][1]);
     const glm::vec3 forward = -glm::vec3(v[0][2], v[1][2], v[2][2]);
@@ -2104,6 +2104,8 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
 
     // Render the scene from the reflected camera into the reflection framebuffer
     postProcessor->beginReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
+    // S7: the sky first, seen along the REFLECTED view (the reflection used to clear to black where no geometry was)
+    drawSky(vulkanDevice->getCommandBuffer(frameIndex), &reflectedView);
 
     // Bind reflection scene pipeline (BACK_BIT culling — winding is flipped by camera reflection)
     vkCmdBindPipeline(vulkanDevice->getCommandBuffer(frameIndex),
