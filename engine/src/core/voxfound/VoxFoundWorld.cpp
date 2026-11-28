@@ -2126,6 +2126,9 @@ void VoxFoundWorld::voxFoundBoot() {
             handleVoxFoundPreview(c, st);
         }
         voxFoundTodayStreamOff = v.value("today_stream_off", false);   // F7.26: the step-7 gate from the boot
+        // S6: a streaming world's far tiers (far terrain / trees / structure proxies, fauna, water) read ChunkManager's
+        // streaming generator, which only the (now skipped) loader set: hand them the switched world's generator
+        if (w.value("streaming", false) && voxFoundRegionGen && chunkManager) chunkManager->adoptStreamingGenerator(*voxFoundRegionGen);
     }
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };

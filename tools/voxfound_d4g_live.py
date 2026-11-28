@@ -248,6 +248,71 @@ def fell(out):
     out["F"] = f
 
 
+def lodrep():
+    r = call("GET", "/api/debug/lod_report")
+    s = (r or {}).get("structures", {}) if isinstance(r, dict) else {}
+    return s
+
+
+def structlod(out):
+    """S6: the structure proxies. lod_report until a structure reaches state 2; then the camera goes ~250 m away (the
+    region follows) and looks back at it: the proxy must stand where the building stood."""
+    s = {"reports": []}
+    t0 = time.time()
+    entries = []
+    while time.time() - t0 < 40:
+        rep = lodrep()
+        entries = rep.get("entries", []) if isinstance(rep, dict) else []
+        s["reports"].append({"t": round(time.time() - t0, 1), "states": [e.get("state") for e in entries]})
+        if entries and all(e.get("state") in (2, 3) for e in entries):
+            break
+        time.sleep(2.0)
+    s["entries_near"] = entries
+    built = [e for e in entries if e.get("state") == 2]
+    if not built and entries:   # the sites lie outside the streamed region: visit the first one, let the region follow
+        e0 = entries[0]
+        vx, vz = (e0["min"][0] + e0["max"][0]) / 2.0, (e0["min"][2] + e0["max"][2]) / 2.0
+        call("POST", "/api/camera", {"mode": "free", "position": {"x": vx - 20.0, "y": e0["min"][1] + 15.0, "z": vz - 20.0},
+                                     "yaw": 45.0, "pitch": -20.0})
+        s["visit"] = {"to": [vx, vz]}
+        t1 = time.time()
+        while time.time() - t1 < 90:
+            time.sleep(3.0)
+            entries = lodrep().get("entries", [])
+            s["reports"].append({"t": round(time.time() - t0, 1), "states": [e.get("state") for e in entries]})
+            built = [e for e in entries if e.get("state") == 2]
+            if built:
+                break
+        s["visit"]["region"] = (call("POST", P, {"stream_status": True}) or {}).get("region")
+    if built:
+        e = max(built, key=lambda e: e.get("tris_l0", 0))
+        mn, mx = e["min"], e["max"]
+        cx, cy, cz = (mn[0] + mx[0]) / 2.0, mn[1], (mn[2] + mx[2]) / 2.0
+        s["target"] = {"uuid": e.get("uuid"), "min": mn, "max": mx}
+        # near frame: the real building
+        call("POST", "/api/daynight/set", {"enabled": True, "paused": True, "timeOfDay": 12.0})
+        call("POST", "/api/camera", {"mode": "free", "position": {"x": cx - 25.0, "y": cy + 12.0, "z": cz - 25.0},
+                                     "yaw": 45.0, "pitch": -15.0})
+        time.sleep(3.0)
+        s["shot_near"] = shot("d4g_structlod_near.png")
+        s["near_entry"] = next((x for x in lodrep().get("entries", []) if x.get("uuid") == e.get("uuid")), None)
+        s["solid_in_band_near"] = lodrep().get("solid_in_band")
+        # far: 250 m away, looking back (the streamed region follows the camera; the building's chunks leave it)
+        fx, fz = cx - 180.0, cz - 180.0
+        call("POST", "/api/camera", {"mode": "free", "position": {"x": fx, "y": cy + 40.0, "z": fz}, "yaw": 45.0, "pitch": -8.0})
+        for _ in range(30):
+            time.sleep(2.0)
+            st = call("POST", P, {"stream_status": True})
+            ent = next((x for x in lodrep().get("entries", []) if x.get("uuid") == e.get("uuid")), {})
+            if ent.get("last_min_fade", 0) > 0.9:
+                break
+        s["stream_far"] = (st or {}).get("region")
+        s["far_entry"] = ent
+        s["fps_far"] = fps()
+        s["shot_far"] = shot("d4g_structlod_far.png")
+    out["S"] = s
+
+
 def main():
     out = {"project": sys.argv[1] if len(sys.argv) > 1 else "?", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
     what = sys.argv[2] if len(sys.argv) > 2 else "all"
@@ -257,6 +322,8 @@ def main():
         mirror(out)
     if what in ("fell", "all"):
         fell(out)
+    if what in ("structlod", "all"):
+        structlod(out)
     print(json.dumps(out)[:6000])
     with open(os.path.join(EVID, "voxfound_d4g_live.jsonl"), "a") as f:
         f.write(json.dumps(out) + "\n")

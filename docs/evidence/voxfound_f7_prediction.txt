@@ -2230,3 +2230,16 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   away (streaming focus follows; the tavern's chunks leave the region): a frame shows the tavern's proxy where it
   stood (before the fix: nothing there), last_min_fade -> 1 once its chunks are gone; back at the tavern no proxy is
   drawn solid over the real building (solid_in_band 0).
+  S6 RESULT. MISS in the premise first: TavernTest is not a streaming world -- it never had far terrain or proxies
+     (the far tier configures from ChunkManager's streaming generator, set only for world.streaming); the run there
+     stayed in state 0 for the right reason. The REAL gap was bigger: on a switched STREAMING world the loader that set
+     that generator returns early, so since D4 far terrain, far trees, structure proxies (and fauna / water's bake)
+     never configured -- lod_report on WorldForgeTest: far terrain 0 tiles. Fixed: the boot hands ChunkManager the
+     switched world's generator (recipe applied) when world.streaming (adoptStreamingGenerator; today's streaming
+     generation stays off). Then (WorldForgeTest copy): far terrain 113 tiles resident, 358 far-tree instances (0 / 0
+     before); the 14 WorldForge structures wait in state 0 while outside the region (correct: extraction needs
+     residency); visiting a site, 4 reach state 2 within ~15 s (tris_l0 14,116 for the measured one). Near (35 m,
+     resident): readiness 1.0, min_fade 0.0003 -- the real 1/8 m buildings, no proxy over them (d4g_structlod_near30).
+     Far (104 m, its chunks out of the region): min_fade 1.0 -- the proxy houses stand among the far trees and far
+     terrain (d4g_structlod_far100; before: nothing there). Gap kept: a structure never visited has no proxy (the old
+     tier's rule too); the driver's solid_in_band read a key the route does not return (not measured).

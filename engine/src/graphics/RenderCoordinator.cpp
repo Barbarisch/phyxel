@@ -47,6 +47,7 @@
 #include "core/HydrologyMap.h"
 #include "core/WaterProfile.h"   // v4 W1: per-body appearance profile + hydrology texture packing
 #include "core/TemplateLodChain.h"
+#include "core/voxfound/WorldReads.h"
 #include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/Cube.h"
@@ -588,9 +589,69 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
     bool extractedThisFrame = false;   // extraction is main-thread: at most one per frame
     for (auto& [uuid, e] : structureLod) {
         // ---- 1. Extract the structure's voxels once its chunks are resident. -----------
-        // (Extraction read today's Chunk cubes and waited for them to be resident. D4 deleted the Chunk store; with
-        // none ever resident no structure was extracted, so a structure stays in state 0 and draws no proxy.)
-        (void)extractedThisFrame;
+        // D4 follow-up S6: from the SWITCHED world (today's Chunk cubes went with D4; until S6 every structure stayed
+        // in state 0 and a settlement beyond the region vanished). Each cube's 1/9 m micro cells (the chain's raster)
+        // take the 1/8 m voxel under their centre (the micro_cells rule, Application); materials are palette indices
+        // named "#<index>", resolved to textures through the preview's face table when the meshes are built.
+        const auto* reads = chunkManager->voxFoundReads();
+        if (e.state == 0 && !extractedThisFrame && reads && m_voxFoundPreview) {
+            bool allResident = true;
+            const glm::ivec3 c0 = glm::ivec3(glm::floor(glm::vec3(e.mn) / 32.0f)),
+                             c1 = glm::ivec3(glm::floor(glm::vec3(e.mx) / 32.0f));
+            for (int cx = c0.x; cx <= c1.x && allResident; ++cx)
+                for (int cy = c0.y; cy <= c1.y && allResident; ++cy)
+                    for (int cz = c0.z; cz <= c1.z && allResident; ++cz)
+                        allResident = reads->hasChunk({cx, cy, cz});
+            if (allResident) {
+                Core::TemplateLodChain::MicroSoup soup;
+                std::unordered_map<uint8_t, uint16_t> ids;
+                for (int x = e.mn.x; x <= e.mx.x; ++x)
+                    for (int y = e.mn.y; y <= e.mx.y; ++y)
+                        for (int z = e.mn.z; z <= e.mx.z; ++z) {
+                            const glm::ivec3 cube(x, y, z);
+                            if (!reads->hasVoxelAt(cube)) continue;   // an empty cube: no micro to read
+                            const glm::ivec3 rel = cube - e.mn;
+                            for (int mx2 = 0; mx2 < 9; ++mx2)
+                                for (int my = 0; my < 9; ++my)
+                                    for (int mz = 0; mz < 9; ++mz) {
+                                        const glm::ivec3 v = cube * 8 + glm::ivec3((mx2 * 8 + 4) / 9, (my * 8 + 4) / 9,
+                                                                                   (mz * 8 + 4) / 9);
+                                        const uint8_t m = reads->voxel(v);
+                                        if (!m) continue;
+                                        auto it = ids.find(m);
+                                        if (it == ids.end()) {
+                                            it = ids.emplace(m, uint16_t(soup.materials.size())).first;
+                                            soup.materials.push_back("#" + std::to_string(m));
+                                        }
+                                        soup.micros.push_back({rel * 9 + glm::ivec3(mx2, my, mz), it->second});
+                                    }
+                        }
+                if (!soup.micros.empty()) {
+                    extractedThisFrame = true;
+                    e.state = 1;
+                    e.merged = s_proxyMeshMerge;
+                    TreeLodMeshRegistry::MeshOptions meshOpt;
+                    meshOpt.merge = e.merged;
+                    std::vector<uint32_t> faceTex = m_voxFoundPreview->faceTex;   // palette index -> face words
+                    e.job = std::async(std::launch::async, [soup = std::move(soup), meshOpt, faceTex]() {
+                        const auto levels = Core::TemplateLodChain::buildFromSoup(
+                            soup, Core::TemplateLodChain::structureConfig());
+                        std::array<TreeLodMeshRegistry::CpuMesh, Core::TemplateLodChain::kLevelCount> out;
+                        const auto resolve = [&faceTex](const std::string& mat, int face) -> uint16_t {
+                            const size_t m = mat.size() > 1 ? size_t(std::stoul(mat.substr(1))) : 0;
+                            const size_t k = m * 6 + size_t(std::clamp(face, 0, 5));
+                            return k < faceTex.size() ? uint16_t(faceTex[k] & 0xFFFFu) : uint16_t(0);
+                        };
+                        for (size_t i = 0; i < out.size() && i < levels.size(); ++i)
+                            out[i] = TreeLodMeshRegistry::buildLevelMesh(levels[i], resolve,
+                                                                         glm::vec3(-0.5f, 0.0f, -0.5f), meshOpt);
+                        return out;
+                    });
+                } else {
+                    e.state = 3;   // resident and empty: nothing to draw (state 3 = no proxy)
+                }
+            }
+        }
         // ---- 2. Land finished builds (GPU upload, main thread). ------------------------
         if (e.state == 1 && e.job.valid() &&
             e.job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
@@ -630,8 +691,10 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // The shader's smoothstep edge0 (pc.fadeIn.x); 0 = no pipeline = never skip.
         const float fadeGateEnd0 = treeLodPipeline ? treeLodPipeline->params().fadeNear0 : 0.0f;
         const auto gate = structureGateProbe(
-            e.mn, e.mx, cameraPos, fadeGateEnd, [](const glm::ivec3&) {
-                return false;   // today's Chunk residency (none since D4)
+            e.mn, e.mx, cameraPos, fadeGateEnd, [this, reads](const glm::ivec3& p) {
+                // S6: the switched world draws a chunk while it is in the region (preview shown)
+                return reads && m_voxFoundPreview && m_voxFoundPreview->shown &&
+                       reads->hasChunk(glm::ivec3(glm::floor(glm::vec3(p) / 32.0f)));
             });
         const float target = (gate.votes == 0 || gate.ready) ? 1.0f : 0.0f;
         e.readiness += (target - e.readiness) * 0.06f;

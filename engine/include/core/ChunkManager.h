@@ -241,6 +241,12 @@ public:
     const char* playBoundsSource() const;
     // The generator (valid after configureStreamingGeneration(true)); null when off.
     WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
+    /// D4 follow-up S6: a switched STREAMING world hands its generator (recipe applied) to the far tiers -- far terrain,
+    /// far trees, structure proxies, fauna, water read getStreamingGenerator(); the loader that set it returns early
+    /// on a switched world, so since D4 they never configured. Does not enable today's streaming generation.
+    void adoptStreamingGenerator(const WorldGenerator& g) {
+        if (!m_worldGenerator) m_worldGenerator = std::make_unique<WorldGenerator>(g);
+    }
 
     const ChunkStreamingManager& streamingManagerRO() const { return m_streamingManager; }
     /// No deferred DB chunk loads exist since D4 (kept for the loading-state route).
