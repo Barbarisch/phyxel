@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "core/MaterialRegistry.h"
 
 #include "core/DamageSystem.h"
 #include "core/DebrisRuntime.h"
@@ -109,6 +110,11 @@ TEST(WaterCouplingTest, BlastBesideThePondMovesItAndItSettles) {
     // gate is the energy: it must DECAY (>= 5x from the first second to 30 s) and never grow back in
     // the last 10 s. The surface noise that keeps it from reading flat (films over not-quite-full
     // interior cells) is a measured, logged defect of the core (B open row), printed here.
+    // HERMETIC (2026-11-28, WaterCore.md 2771's prescribed fix): DamageSystem::blastSpeed reads Stone's toughness from the
+    // global registry -- alone the registry was empty (fallback toughness 60: 4.07 m/s, drop 0.29) and after any test that
+    // loaded materials.json it held Stone's 110 (3.0 m/s, drop 0.221), so the result depended on test order. The test now
+    // loads the shipped materials itself: the 3.0 m/s its comment below always specified.
+    Phyxel::Core::MaterialRegistry::instance().loadFromJson("resources/materials.json");
     const PondRun r = runPond(4.0f + 3.0f);
     std::printf("  S8 unit: near-side drop %.3f m, far-side rise %.3f m (first second); KE %.4f at 1 s -> %.4f at 30 s (late max %.4f); flat (1 cm) at %.2f s; mass %.9f -> %.9f, faces %ld\n",
                 r.nearDropMax, r.farRiseMax, r.ke1, r.ke30, r.keMaxLate, r.flatAt, r.m0, r.m1, r.faces);
@@ -116,7 +122,9 @@ TEST(WaterCouplingTest, BlastBesideThePondMovesItAndItSettles) {
     // second) - the bound is that measurement, not the spec row's number (a 1.4 cm miss, reported to the owner)
     // 0.275 with the all-faces transport (2026-10-13, WaterCore.md 26.5) - the bound is that measurement (the spec row's
     // 0.3 is missed by 2.5 cm, reported to the owner with the A/B)
-    EXPECT_GE(r.nearDropMax, 0.27f) << "the shock pushes the near side down and away";
+    // 0.22 (2026-11-28): the bar re-derived on the SHIPPED materials (0.221 m measured; the 0.275 / 0.27 above was measured on
+    // the empty registry's 4.07 m/s blast). The spec row's 0.3 is missed by 7.9 cm - reported to the owner (WaterCore.md).
+    EXPECT_GE(r.nearDropMax, 0.22f) << "the shock pushes the near side down and away";
     EXPECT_GT(r.farRiseMax, 0.0f);
     EXPECT_LT(r.ke30, r.ke1 / 5.0) << "the slosh's energy decays";
     EXPECT_LT(r.keMaxLate, r.ke1 / 3.0) << "and does not grow back";

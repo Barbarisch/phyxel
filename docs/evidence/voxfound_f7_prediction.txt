@@ -2309,3 +2309,19 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      (min_fade 1.0, tris_l0 40,964 -- voxels from the stored chunks); the far frame's forest hides the building at 257 m.
      Seen, not explained: a dithered stipple on the ground around the proxies in the near frame (the far tile / proxy
      overlap is the likely cause; not measured).
+
+  S13 (the suite's three red rows, investigated; prediction before the fix). WaterCouplingTest.BlastBesideThePond is NOT a
+  calibration failure as I recorded at D4 -- it is ORDER-DEPENDENT: DamageSystem::blastSpeed reads Stone's toughness from
+  the global registry; alone (empty registry, fallback toughness 60) the blast is 4.07 m/s and the drop 0.29 m; after any
+  test that loads materials.json (AtlasManagerTest, measured by bisect) Stone's real 110 gives 3.0 m/s (what the test's
+  own comment specifies) and the drop 0.221 m. WaterCore.md 2771 prescribes the fix: the test loads the shipped materials
+  and its bar is re-derived. Prediction: hermetic, the test reads 0.221 m in EVERY order (alone and in the full suite);
+  the bar becomes 0.22 m (the shipped-config measurement, the owner's 'bound = measurement' rule; the spec row's 0.3 is
+  missed by 7.9 cm -- reported, as the owner's earlier misses were); every other assertion unchanged and passing.
+  The two integration rows (GpuFlipBulkParityAndRunup 1.19 vs 1.22; ShortWaveMatchesAllFine 11.4 % vs 10 %) are the
+  WaterCore owner's recorded 'known two' open physics rows (WaterCore.md 32.1 onward), deterministic, identical on main:
+  not changed here -- their bounds belong to that workstream.
+  S13 RESULT: hermetic -- 0.221 m alone AND after AtlasManagerTest (both pass the re-derived 0.22). FULL SUITES (after S8-S13):
+     unit 4,425 / 0 -- GREEN; integration 188 / 2 -- only GpuFlipBulkParityAndRunup and ShortWaveMatchesAllFine, the
+     WaterCore owner's recorded known two (deterministic, identical on main). F7's 'full suite green' now fails ONLY on
+     those two WaterCore physics rows.
