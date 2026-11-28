@@ -90,7 +90,8 @@ void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool
 }
 
 void ChunkManager::cleanup() {
-    // Nothing to tear down: the chunk store went with D4.
+    // The chunk store went with D4; the world's per-world registries go with it (a scene switch calls this).
+    m_flamingPoints.clear();
 }
 
 } // namespace Phyxel

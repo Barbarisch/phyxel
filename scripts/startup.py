@@ -139,4 +139,10 @@ def on_start():
     phyxel.Logger.info("Script", "Audio Demo loaded. Type 'audio_demo.help()' for commands.")
 
 if __name__ == "__main__":
-    on_start()
+    # The demo (world_gen + a spider the camera follows) is the no-project editor's. Inside a project the world is
+    # the project's game.json: the spawned spider pulled the camera -- and the switched world's boot region -- to
+    # (40,50,40) in every project (docs/evidence/voxfound_f7_prediction.txt, D4 FOLLOW-UPS S1).
+    if globals().get("PHYXEL_PROJECT_MODE", False):
+        phyxel.Logger.info("Script", "Project open: startup demo skipped (console helpers loaded)")
+    else:
+        on_start()

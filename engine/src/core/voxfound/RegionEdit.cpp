@@ -449,9 +449,11 @@ RegionEdit::Stats RegionEdit::applyImpl(glm::ivec3 lo, glm::ivec3 hi, const std:
                         p[a] = layer;
                         p[ua] = u;
                         p[va] = v;
-                        const bool solid = c.store.at(p) != 0;
-                        if (nb.border.solid(a, -s, u, v) == solid) continue;
+                        const uint8_t bm = c.store.at(p);
+                        const bool solid = bm != 0, clr = solid && m_cards.isClear(bm);   // D4 follow-up: glass
+                        if (nb.border.solid(a, -s, u, v) == solid && nb.border.clear(a, -s, u, v) == clr) continue;
                         nb.border.set(a, -s, u, v, solid);
+                        nb.border.setClear(a, -s, u, v, clr);
                         flipped = true;
                     }
                 if (!flipped && !m_legacyBorder) continue;

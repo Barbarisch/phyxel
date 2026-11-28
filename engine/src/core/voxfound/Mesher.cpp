@@ -14,13 +14,16 @@ namespace {
 
 // Material of the exposed face of voxel p looking along (axis, dir), or 0 when there is no face.
 // A card voxel (leaf, F2.3) draws no faces, but its neighbours still see it as solid.
+// D4 follow-up: a CLEAR neighbour (glass) does not hide an opaque voxel's face (CardSet::clear).
 uint8_t faceAt(const VoxelGrid& g, Edges outside, glm::ivec3 p, int axis, int dir, const CardSet* cards) {
     const uint8_t m = g.mat[g.idx(p)];
     if (m == 0 || (cards && cards->has(m))) return 0;
+    const bool pClear = cards && cards->isClear(m);
     glm::ivec3 q = p;
     q[axis] += dir;
-    if (!g.in(q)) return outside.solidOutside(p, axis, dir) ? 0 : m;
-    return g.mat[g.idx(q)] == 0 ? m : 0;
+    if (!g.in(q)) return outside.hidesOutside(p, axis, dir, pClear) ? 0 : m;
+    const uint8_t qm = g.mat[g.idx(q)];
+    return (qm == 0 || (!pClear && cards && cards->isClear(qm))) ? m : 0;
 }
 
 glm::ivec3 axisPoint(int axis, int s, int u, int v) {
@@ -56,10 +59,12 @@ template <class Rd>
 uint8_t faceAtR(const Rd& r, Edges outside, glm::ivec3 p, int axis, int dir, const CardSet* cards) {
     const uint8_t m = r.at(p);
     if (m == 0 || (cards && cards->has(m))) return 0;
+    const bool pClear = cards && cards->isClear(m);
     glm::ivec3 q = p;
     q[axis] += dir;
-    if (!r.in(q)) return outside.solidOutside(p, axis, dir) ? 0 : m;
-    return r.at(q) == 0 ? m : 0;
+    if (!r.in(q)) return outside.hidesOutside(p, axis, dir, pClear) ? 0 : m;
+    const uint8_t qm = r.at(q);
+    return (qm == 0 || (!pClear && cards && cards->isClear(qm))) ? m : 0;
 }
 template <class Rd>
 RunsDelta runsPlanLazy(const Rd& r, Edges outside, const RunsPlan& plan, const CardSet* cards) {
@@ -441,7 +446,18 @@ uint32_t sprigHash24(glm::ivec3 c) {
 void Neighbours::resize(glm::ivec3 d, bool s) {
     dim = d;
     for (int a = 0; a < 3; ++a)
-        for (int k = 0; k < 2; ++k) bits[2 * a + k].assign((planeBits(d, a) + 31) / 32, s ? ~0u : 0u);
+        for (int k = 0; k < 2; ++k) {
+            bits[2 * a + k].assign((planeBits(d, a) + 31) / 32, s ? ~0u : 0u);
+            clearBits[2 * a + k].assign((planeBits(d, a) + 31) / 32, 0u);
+        }
+}
+
+void Neighbours::setClear(int axis, int dir, int u, int v, bool c) {
+    auto& plane = clearBits[2 * axis + (dir > 0)];
+    if (plane.size() != bits[2 * axis + (dir > 0)].size()) plane.assign(bits[2 * axis + (dir > 0)].size(), 0u);
+    const size_t b = size_t(u) + size_t(dim[(axis + 1) % 3]) * size_t(v);
+    uint32_t& w = plane[b >> 5];
+    w = c ? (w | (1u << (b & 31))) : (w & ~(1u << (b & 31)));
 }
 
 void Neighbours::set(int axis, int dir, int u, int v, bool s) {
@@ -466,7 +482,8 @@ VoxelGrid subGrid(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size) {
     return g;
 }
 
-Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond) {
+Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond,
+                        const CardSet* cards) {
     Neighbours n;
     n.resize(size, false);
     for (int a = 0; a < 3; ++a) {
@@ -480,6 +497,7 @@ Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, 
                     w[va] += v;
                     const bool s = world.in(w) ? world.mat[world.idx(w)] != 0 : beyond == Outside::Skip;
                     n.set(a, dir, u, v, s);
+                    if (s && cards && world.in(w) && cards->isClear(world.mat[world.idx(w)])) n.setClear(a, dir, u, v, true);
                 }
     }
     return n;

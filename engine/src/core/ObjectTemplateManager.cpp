@@ -644,6 +644,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     const bool vfWrite = isStatic && m_chunkManager && static_cast<bool>(m_chunkManager->voxFoundWrite());   // F7.15
     std::vector<std::pair<glm::ivec3, std::string>> vfCells;
     std::vector<glm::ivec3> vfTmp;
+    std::vector<glm::vec3> vfFlaming;   // D4 follow-up: state=flaming voxels' world centres (the store has no state)
     for (const auto& tCube : tmpl->cubes) {
         if (routeKinematic && isMovablePart(tCube.partId)) {
             // Local-space (unrotated) voxel descriptor. We pin world placement
@@ -692,6 +693,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             vfTmp.clear();
             Core::VoxFound::placementVoxels(parentPos, 1, subPos, {}, vfTmp);
             for (const auto& v : vfTmp) vfCells.push_back({v, tSub.material});
+            if (tSub.state == 1) vfFlaming.push_back((glm::vec3(parentPos * 3 + subPos) + glm::vec3(0.5f)) / 3.0f);
             continue;
         }
         // (no Chunk write: the Chunk 1/9 m subcube store was deleted in D3c-5)
@@ -721,11 +723,14 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             vfTmp.clear();
             Core::VoxFound::placementVoxels(parentPos, 2, subPos, microPos, vfTmp);
             for (const auto& v : vfTmp) vfCells.push_back({v, tMicro.material});
+            if (tMicro.state == 1)
+                vfFlaming.push_back((glm::vec3(parentPos * 9 + subPos * 3 + microPos) + glm::vec3(0.5f)) / 9.0f);
             continue;
         }
         // (no Chunk write: the Chunk 1/9 m microcube store was deleted in D3c-5)
     }
     if (vfWrite && !vfCells.empty()) m_chunkManager->voxFoundWrite()(vfCells, "spawn_template:" + name);   // F7.15
+    if (vfWrite && !vfFlaming.empty()) m_chunkManager->addFlamingPoints(vfFlaming);   // the fire VFX's embers
 
     // --------------------------------------------------------------------
     // Phase C0b: emit movable parts as KinematicVoxelObjects.

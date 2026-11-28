@@ -283,6 +283,12 @@ public:
     void setVoxFoundTreeCell(VoxFoundTreeCellFn fn) { m_voxFoundTreeCell = std::move(fn); }
     const VoxFoundTreeCellFn& voxFoundTreeCell() const { return m_voxFoundTreeCell; }
     const VoxFoundWriteFn& voxFoundWrite() const { return m_voxFoundWrite; }
+    /// D4 follow-up: the switched world's store carries material only (no voxel state), so voxels spawned with
+    /// state=flaming register their world centres here; the fire VFX keeps those whose cell is still solid
+    /// (occupiedMicro), so breaking a fire puts its flames out. Cleared with the world (cleanup). Not persisted.
+    void addFlamingPoints(const std::vector<glm::vec3>& pts) { m_flamingPoints.insert(m_flamingPoints.end(), pts.begin(), pts.end()); }
+    const std::vector<glm::vec3>& flamingPoints() const { return m_flamingPoints; }
+    void clearFlamingPoints() { m_flamingPoints.clear(); }
 
     // Cleanup
     void cleanup();
@@ -296,6 +302,7 @@ public:
 private:
     const Core::VoxFound::WorldReads* m_voxFoundReads = nullptr;
     VoxFoundWriteFn m_voxFoundWrite;   // F7.13
+    std::vector<glm::vec3> m_flamingPoints;   // D4 follow-up: state=flaming voxels' world centres (see addFlamingPoints)
     VoxFoundClearBoxesFn m_voxFoundClearBoxes;
     VoxFoundTreeCellFn m_voxFoundTreeCell;   // F7.14
 };

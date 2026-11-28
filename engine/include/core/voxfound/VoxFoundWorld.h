@@ -8,6 +8,7 @@
 // same-named pointers the host binds. Hosted by the editor (Application) and, next, by GameShell.
 #include <functional>
 #include "core/voxfound/WorldReads.h"
+#include "core/voxfound/EmissiveLights.h"
 #include <array>
 #include <chrono>
 #include "core/Types.h"
@@ -311,6 +312,43 @@ public:
     bool voxFoundApiEdit(const std::string& action, const nlohmann::json& params, nlohmann::json& response);
     /// F7.6c: GET /api/world/voxel on the switched world -- the 8^3 block of cube (x, y, z)
     nlohmann::json voxFoundQuery(int x, int y, int z) const;
+    // D4 follow-up: the editor's probes and realized-world validators read the switched world (they read today's
+    // Chunk cubes until D4). A cube = its 8^3 block of 1/8 m voxels.
+    struct CubeContent {
+        size_t solid = 0;                              // solid voxels of 512
+        std::map<std::string, size_t> byMaterial;      // material name -> voxels
+        std::string majority;                          // the most common material ("" if empty)
+    };
+    CubeContent cubeContent(const glm::ivec3& cube) const;
+    /// The region holds the cube's engine chunk (resident: its content is known, air included).
+    bool cubeResident(const glm::ivec3& cube) const;
+    /// The highest FULL cube (512 solid voxels) in column (x, z) within the region's vertical extent; INT_MIN if none.
+    int surfaceCubeY(int x, int z) const;
+    /// The material of world 1/8 m voxel v ("" = air or not resident).
+    std::string voxelMaterial(const glm::ivec3& v) const;
+    /// D4 follow-up (U3.2 on the switched world): the region's emissive lights, recomputed when the drawn revision
+    /// changes (throttled to 4 Hz) and handed to the renderer. Reports the last scan's cost.
+    void voxFoundEmissiveTick();
+    /// D4 follow-up: the axe chop on the switched world (today's carveChopKerf went with the Chunk store). blade = the
+    /// axe head (world metres); fwd = the swing's horizontal direction; depthM = this swing's bite. Contact = the
+    /// nearest Log / Leaf voxel within 0.3 m of the blade (Leaf: feedback only). The kerf: Log voxels in a blade-
+    /// sized channel from that frontier along fwd (depth, +-0.15 m tall, +-0.2 m wide) become air. Severed (a bounded
+    /// Log flood from just above the kerf no longer reaches below it) -> the crown is released through the switched
+    /// world's break at near-zero energy (extraction lifts the unanchored crown out as a body).
+    nlohmann::json voxFoundChop(const glm::vec3& blade, const glm::vec3& fwd, float depthM, bool release = false);
+    /// RegionEdit::assemble on the region preview, recording which chunks changed (null = all) for the incremental
+    /// emissive rescan -- every assemble of voxFoundEdit into voxFoundPreview goes through here.
+    void voxFoundAssemble(const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed = nullptr);
+    std::map<std::array<int, 3>, std::vector<Core::VoxFound::EmissiveLight>> voxFoundEmissiveByChunk;
+    std::set<std::array<int, 3>> voxFoundEmissiveDirty;
+    bool voxFoundEmissiveFull = true;
+    std::vector<glm::ivec3> voxFoundEmissiveCoords;
+    std::vector<float> voxFoundEmissiveTable;   // the palette's emitter t's at the last scan (a change = full)
+    size_t voxFoundEmissiveChunksScanned = 0;
+    uint64_t voxFoundEmissiveRevision = ~0ull;
+    std::chrono::steady_clock::time_point voxFoundEmissiveLast{};
+    double voxFoundEmissiveScanMs = 0.0;
+    size_t voxFoundEmissiveCount = 0;
     /// F7.6b: undo (true) / redo (false) the switched world's last edit; false when the history has none
     bool voxFoundUndoRedo(bool undo, nlohmann::json& r);
     // F5.3 bodies lab (POST /api/debug/voxfound_bodies, editor/src/VoxFoundBodiesLab.cpp)

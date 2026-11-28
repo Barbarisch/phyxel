@@ -9,6 +9,7 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "../core/CubeWorldReads.h"
 
 using namespace Phyxel;
 using Phyxel::Scene::AnimatedVoxelCharacter;
@@ -43,8 +44,14 @@ struct GateWorld {
             cm.configureStreamingGeneration(true, WorldGenerator::GenerationType::Flat, 1);
     }
 
-    // (addResidentChunk made today's Chunk resident in chunkMap; the Chunk store went with D4, and with it the two
-    // tests that need a resident chunk -- FallsThroughKnownAirAndLands, ResumesWhenTerrainStreamsIn.)
+    // Make the chunk at `coord` RESIDENT. Since D4 residency is the switched world's: its store has the chunk
+    // (docs/VoxelFoundationPlan.md -- the region's chunks; ChunkManager::voxFoundReads). Content-free -- residency and
+    // collision are deliberately independent here.
+    Phyxel::Testing::CubeWorldReads world;
+    void addResidentChunk(const glm::ivec3& coord) {
+        world.addChunk(coord);
+        world.install(cm);
+    }
 
     // Register a 32x32 collision floor at world y = `floorY` under chunk (0,*,0).
     void addFloorGrid(int floorY) {
@@ -78,6 +85,38 @@ TEST(CharacterResidencyGateTest, HoldsOverUnstreamedTerrain) {
     pump(*ch, 120);
     EXPECT_NEAR(ch->getPosition().y, 40.0f, 0.01f)
         << "character fell through unstreamed terrain (2 s of updates)";
+}
+
+// Resident chunk BELOW the feet = the world under the character is known -> normal
+// gravity applies even though the feet chunk itself is absent (a jump above the
+// streamed surface band must not freeze mid-air). Ported to the switched world's residency (D4); RED before the
+// hold read it: the hold answered TRUE on every streaming world (no Chunk was ever resident since D2).
+TEST(CharacterResidencyGateTest, FallsThroughKnownAirAndLands) {
+    GateWorld w(/*streaming=*/true);
+    w.addResidentChunk(glm::ivec3(0, 0, 0));   // the chunk holding the floor
+    w.addFloorGrid(15);
+    auto ch = w.makeCharacter(glm::vec3(16.0f, 40.0f, 16.0f));   // feet chunk (0,1,0) absent
+    pump(*ch, 240);
+    EXPECT_NEAR(ch->getPosition().y, 16.0f, 0.2f)
+        << "character should fall through known air and ground on the floor";
+    EXPECT_TRUE(ch->isGrounded());
+}
+
+// The hold releases the moment the world arrives: stream the ground in under a
+// held character and it settles onto it.
+TEST(CharacterResidencyGateTest, ResumesWhenTerrainStreamsIn) {
+    GateWorld w(/*streaming=*/true);
+    auto ch = w.makeCharacter(glm::vec3(16.0f, 40.0f, 16.0f));
+    pump(*ch, 60);
+    ASSERT_NEAR(ch->getPosition().y, 40.0f, 0.01f) << "hold failed before stream-in";
+
+    w.addResidentChunk(glm::ivec3(0, 0, 0));
+    w.addResidentChunk(glm::ivec3(0, 1, 0));
+    w.addFloorGrid(15);
+    pump(*ch, 240);
+    EXPECT_NEAR(ch->getPosition().y, 16.0f, 0.2f)
+        << "character should settle onto terrain once it streams in";
+    EXPECT_TRUE(ch->isGrounded());
 }
 
 // Non-streaming worlds keep legacy behavior: absence of a chunk is not evidence of

@@ -49,6 +49,12 @@ struct CardSet {
     uint32_t bits[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     void set(uint8_t m) { bits[m >> 5] |= 1u << (m & 31); }
     bool has(uint8_t m) const { return (bits[m >> 5] >> (m & 31)) & 1u; }
+    /// D4 follow-up (glass): CLEAR materials (transparent, not cards: today's alpha < 0.99 -- Glass). A clear voxel
+    /// draws its own faces but does not hide an OPAQUE neighbour's face (it is seen through); clear-clear faces stay
+    /// hidden (a pane is one surface). The face rule everywhere: q hides p iff q solid and not (q clear and p opaque).
+    uint32_t clear[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    void setClear(uint8_t m) { clear[m >> 5] |= 1u << (m & 31); }
+    bool isClear(uint8_t m) const { return (clear[m >> 5] >> (m & 31)) & 1u; }
 };
 
 /// What lies outside the grid. Air: the area is an object in empty space (every outer face is drawn).
@@ -72,6 +78,15 @@ struct Neighbours {
         return (bits[2 * axis + (dir > 0)][b >> 5] >> (b & 31)) & 1u;
     }
     void set(int axis, int dir, int u, int v, bool s);
+    /// D4 follow-up (glass): is the border voxel CLEAR (CardSet::isClear)? Same layout as bits; all zero unless a
+    /// builder knows the materials (neighboursOf with cards, RegionEdit's edits, forEachStoredChunk with isClear).
+    std::vector<uint32_t> clearBits[6];
+    bool clear(int axis, int dir, int u, int v) const {
+        const auto& w = clearBits[2 * axis + (dir > 0)];
+        const size_t b = size_t(u) + size_t(dim[(axis + 1) % 3]) * size_t(v);
+        return (b >> 5) < w.size() && ((w[b >> 5] >> (b & 31)) & 1u);
+    }
+    void setClear(int axis, int dir, int u, int v, bool c);
 };
 
 /// What lies outside a grid: one Outside mode for every side, or the real neighbours. Built implicitly from either,
@@ -85,12 +100,20 @@ struct Edges {
     bool solidOutside(glm::ivec3 p, int axis, int dir) const {
         return n ? n->solid(axis, dir, p[(axis + 1) % 3], p[(axis + 2) % 3]) : mode == Outside::Skip;
     }
+    /// The face rule across the border: the outside voxel hides p's face iff solid and not (clear and p opaque).
+    bool hidesOutside(glm::ivec3 p, int axis, int dir, bool pClear) const {
+        if (!n) return mode == Outside::Skip;
+        const int u = p[(axis + 1) % 3], v = p[(axis + 2) % 3];
+        return n->solid(axis, dir, u, v) && !(n->clear(axis, dir, u, v) && !pClear);
+    }
 };
 
 /// The chunk [lo, lo + size) of a larger grid, and its border solidity from that grid. Voxels beyond the larger grid
 /// are air for Outside::Air and solid for Outside::Skip.
 VoxelGrid subGrid(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size);
-Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond);
+/// cards (optional): its clear materials fill the clear planes.
+Neighbours neighboursOf(const VoxelGrid& world, glm::ivec3 lo, glm::ivec3 size, Outside beyond,
+                        const CardSet* cards = nullptr);
 
 /// `cards` (optional, every mesher below): voxels of these materials emit no faces but still hide others.
 std::vector<Quad> meshCulled(const VoxelGrid& g, Edges outside, const CardSet* cards = nullptr);

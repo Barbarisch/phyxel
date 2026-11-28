@@ -43,7 +43,12 @@ def ground_points(rnd, rg, n):
     lo = [rg["from"][0] * 32 + 6, rg["from"][2] * 32 + 6]
     hi = [rg["to"][0] * 32 + 26, rg["to"][2] * 32 + 26]
     pts = []
+    tries = 0
     while len(pts) < n:
+        tries += 1
+        if tries > 50 * n + 500:   # D4 follow-up S1: a world with no ground <= 34 hung this loop for 3 days
+            raise SystemExit("ground_points: %d of %d ground columns in %d tries -- wrong world? region %s"
+                             % (len(pts), n, tries, rg))
         x, z = rnd.randint(lo[0], hi[0]), rnd.randint(lo[1], hi[1])
         t = call("POST", P, {"column_top": [[x, z]]})["column_top"][0][1]
         if t <= 34:   # ground, not canopy

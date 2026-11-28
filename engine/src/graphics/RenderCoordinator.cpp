@@ -1234,6 +1234,37 @@ void RenderCoordinator::render() {
     drawFrame();
 }
 
+void RenderCoordinator::refreshVoxFoundDrawn() {
+    const auto* pv = m_voxFoundPreview;
+    const uint64_t rev = pv ? pv->revision : ~0ull;
+    if (pv == m_vfDrawnPreview && rev == m_vfDrawnRevision) return;
+    m_vfDrawnPreview = pv;
+    m_vfDrawnRevision = rev;
+    m_vfDrawnChunks.clear();
+    m_vfDrawnColumns.clear();
+    if (!pv || !pv->shown) return;
+    constexpr int64_t kOff = 1ll << 20;
+    for (const auto& c : pv->chunks) {
+        if (c.faceCount == 0 && c.sprigCount == 0) continue;
+        m_vfDrawnChunks.insert((uint64_t(c.chunk.x + kOff) << 42) | (uint64_t(c.chunk.y + kOff) << 21) |
+                               uint64_t(c.chunk.z + kOff));
+        m_vfDrawnColumns.insert((uint64_t(int64_t(c.chunk.x) + (1ll << 30)) << 32) |
+                                uint64_t(int64_t(c.chunk.z) + (1ll << 30)));
+    }
+}
+
+bool RenderCoordinator::voxFoundChunkDrawn(const glm::ivec3& chunk) {
+    refreshVoxFoundDrawn();
+    constexpr int64_t kOff = 1ll << 20;
+    return m_vfDrawnChunks.count((uint64_t(chunk.x + kOff) << 42) | (uint64_t(chunk.y + kOff) << 21) |
+                                 uint64_t(chunk.z + kOff)) > 0;
+}
+
+bool RenderCoordinator::voxFoundColumnDrawn(int cx, int cz) {
+    refreshVoxFoundDrawn();
+    return m_vfDrawnColumns.count((uint64_t(int64_t(cx) + (1ll << 30)) << 32) | uint64_t(int64_t(cz) + (1ll << 30))) > 0;
+}
+
 void RenderCoordinator::updateVfx(float dt) {
     // Director first: it drains last frame's events and fires new emissions
     // (spawning into vfxSystem), which the integrate pass below then ticks.
@@ -1244,7 +1275,15 @@ void RenderCoordinator::updateVfx(float dt) {
     // own list at bake time) and let the fire manager reconcile flame tongues.
     // sync() only spawns/dismisses on change, so a steady fire costs ~nothing.
     if (fireEmitters && chunkManager) {
-        std::vector<glm::vec3> flaming;   // today's Chunks cached their flaming voxels; none since D4
+        // Since D4 the embers are the switched world's: state=flaming voxels register at spawn
+        // (ChunkManager::addFlamingPoints); one burns while its 1 m cube still holds matter there (a lone micro
+        // can convert to no 1/8 m voxel under its own centre, so the cube is the test).
+        std::vector<glm::vec3> flaming;
+        for (const auto& p : chunkManager->flamingPoints()) {
+            const glm::ivec3 c(static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)), static_cast<int>(std::floor(p.z)));
+            if (chunkManager->hasVoxelAt(c)) flaming.push_back(p);
+        }
+        m_flamingBurning = flaming.size();
         fireEmitters->sync(flaming);
     }
 
@@ -1276,7 +1315,12 @@ void RenderCoordinator::updateVfx(float dt) {
             h = (h ^ b) * 1099511628211ull;
         };
         size_t count = 0;
-        (void)mix;   // today's Chunks cached their emissive voxels; none since D4
+        for (const auto& e : m_voxFoundEmissive) {   // the switched world's (D4 follow-up; was today's Chunks')
+            mix(e.worldPos.x); mix(e.worldPos.y); mix(e.worldPos.z);
+            mix(e.color.r); mix(e.color.g); mix(e.color.b);
+            mix(e.intensity); mix(e.radius); mix(e.extent);
+            ++count;
+        }
         const auto hashEnd = std::chrono::steady_clock::now();
         m_emitterStats.hashMs = std::chrono::duration<double, std::milli>(hashEnd - reconcileStart).count();
         m_emitterStats.emitters = count;
@@ -1284,6 +1328,11 @@ void RenderCoordinator::updateVfx(float dt) {
             for (int id : m_emissiveLightIds) lightManager.removeLight(id);
             m_emissiveLightIds.clear();
             m_emissiveLightIds.reserve(count);
+            for (const auto& e : m_voxFoundEmissive) {
+                const int id = lightManager.addPointLight(LightSource::EmissiveVoxel, e.worldPos, e.color, e.intensity,
+                                                           e.radius, e.extent);
+                if (id >= 0) m_emissiveLightIds.push_back(id);
+            }
             m_emissiveLightHash = h;
             m_emitterStats.lastRebuildMs = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - hashEnd).count();
@@ -1427,7 +1476,7 @@ void RenderCoordinator::renderFarTerrain() {
     if (farTerrainManager->params().enabled && !farTerrainManager->isConfigured() &&
         chunkManager && chunkManager->getStreamingGenerator()) {
         farTerrainManager->setChunkCoverageFn(
-            [](const glm::ivec2& minXZ, const glm::ivec2& maxXZ) {
+            [this](const glm::ivec2& minXZ, const glm::ivec2& maxXZ) {
                 // True iff EVERY 32x32 column in the rect actually RENDERS near-field
                 // geometry: some chunk there has uploaded faces (numInstances > 0). The
                 // contract must be "suppress only what the near field visibly draws" —
@@ -1442,8 +1491,12 @@ void RenderCoordinator::renderFarTerrain() {
                 const int cx1 = int(std::floor((maxXZ.x - 1) / 32.0f));
                 const int cz0 = int(std::floor(minXZ.y / 32.0f));
                 const int cz1 = int(std::floor((maxXZ.y - 1) / 32.0f));
-                (void)cx0; (void)cx1; (void)cz0; (void)cz1;
-                return false;   // today's Chunk geometry (none since D4): no column is covered
+                // Since D4 the near field is the switched world's: a column renders when one of its region
+                // chunks has drawn faces (voxFoundColumnDrawn).
+                for (int cz = cz0; cz <= cz1; ++cz)
+                    for (int cx = cx0; cx <= cx1; ++cx)
+                        if (!voxFoundColumnDrawn(cx, cz)) return false;
+                return true;
             });
         farTerrainManager->configure(*chunkManager->getStreamingGenerator());
     }
@@ -1527,7 +1580,11 @@ void RenderCoordinator::renderFarTerrain() {
         FarTreeResidencyMask mask;
         mask.originChunk = FarTreeResidencyMask::originFor(camChunk);
         mask.enabled = true;
-        // (columns with today's Chunk geometry were set here; none since D4)
+        refreshVoxFoundDrawn();   // the switched world's drawn columns (today's Chunks' until D4)
+        for (const uint64_t k : m_vfDrawnColumns) {
+            const int cx = int(int64_t(k >> 32) - (1ll << 30)), cz = int(int64_t(k & 0xFFFFFFFFull) - (1ll << 30));
+            mask.set(cx, cz);
+        }
         lastFrameStats.farTreeMaskResidentColumns = mask.residentCount();
         if (farTreePipeline) farTreePipeline->setResidencyMask(mask);
         if (treeLodPipeline) treeLodPipeline->setResidencyMask(mask);
@@ -1562,7 +1619,8 @@ void RenderCoordinator::renderFarTerrain() {
                 ++votes;
                 bool any = false;
                 for (float y = t.aabbMin.y - 32.0f; y <= t.aabbMax.y + 31.0f && !any; y += 32.0f) {
-                    any = false;   // today's Chunk geometry (none since D4)
+                    any = voxFoundChunkDrawn(glm::ivec3(int(std::floor(qx[ix] / 32.0f)), int(std::floor(y / 32.0f)),
+                                                        int(std::floor(qz[iz] / 32.0f))));
                 }
                 ready = any;
             }
@@ -1843,9 +1901,33 @@ bool RenderCoordinator::isGrassEnabled() const {
 }
 
 void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
-    // Re-rendered today's visible Chunks with the OIT pipeline (glass). D4 deleted the Chunk store; with no
-    // Chunk ever visible the pass already returned here. The OIT targets are still cleared/composited by drawFrame.
-    (void)frameIndex;
+    // D4 follow-up: the switched world's glass. Its face words carry the transparent bit (VoxFoundWorld
+    // voxFoundTransparentBit), so voxel.frag discarded those fragments in the opaque passes; here the visible ranges
+    // are drawn again through transparent_voxel.frag, which keeps exactly those (flags & 2). Level 0 only (the OIT
+    // shader has no LOD discard). Skipped when no material in the table is transparent (the common case) -- the
+    // pass's targets are still cleared and composited by drawFrame.
+    lastFrameStats.voxFoundOitFaces = 0;
+    if (!m_voxFoundPreview || !m_voxFoundPreview->shown || !camera || m_voxFoundTexBuffer == VK_NULL_HANDLE) return;
+    if (!m_voxFoundMapped && !m_voxFoundFacesDevice) return;
+    bool anyTransparent = false;
+    for (const uint32_t w : m_voxFoundPreview->faceTex)
+        if (w & (2u << 16)) { anyTransparent = true; break; }
+    if (!anyTransparent || !renderPipeline->ensureVoxFoundOitPipeline()) return;
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundOitPipeline());
+    vulkanDevice->bindVertexBuffers(frameIndex);
+    vulkanDevice->bindIndexBuffer(frameIndex);
+    vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+    renderPipeline->bindVoxFoundFaceTex(cmd, m_voxFoundTexBuffer);
+    for (const auto& r : voxFoundVisibleRanges()) {
+        if (r.faceCount == 0) continue;
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), camera->relativeTo(r.originMetres), 0u,
+                                    glm::vec3(r.originMetres));
+        const VkDeviceSize off = VkDeviceSize(r.firstFace) * sizeof(Core::VoxFound::PackedFace);
+        vkCmdBindVertexBuffers(cmd, 1, 1, &m_voxFoundBuffer, &off);
+        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), r.faceCount, 0);
+        lastFrameStats.voxFoundOitFaces += r.faceCount;
+    }
 }
 
 bool RenderCoordinator::scanForMirrorVoxels() {

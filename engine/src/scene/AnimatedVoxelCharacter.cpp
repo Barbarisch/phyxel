@@ -6,6 +6,7 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "core/ChunkManager.h"
+#include "core/voxfound/WorldReads.h"
 #include "core/DamageSystem.h"
 #include "core/GpuParticlePhysics.h"
 #include "core/water/WadeDrag.h"
@@ -76,11 +77,14 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // keeps a jump above the streamed surface band under normal gravity. Static
         // worlds return false — legacy behavior untouched.
         if (!m_chunkManager || !m_chunkManager->isStreamingGenerationEnabled()) return false;
-        // The residency test read today's Chunk map (feet chunk / chunk below). D4 deleted that store; with no
-        // Chunk ever resident both lookups were absent, so on a streaming world this hold answered TRUE -- and
-        // still does, unchanged. D4 finding (reported): this LIVE hold depended on the Chunk store; the
-        // switched world's residency (its region's chunks) is what should answer it.
-        return true;
+        // Residency is the switched world's: its region's chunks (WorldReads::hasChunk, air chunks included). This
+        // read today's Chunk map until D4; with no Chunk ever resident since D2 it answered TRUE on every streaming
+        // world -- gravity off for every character there. With no switched world up nothing is resident: hold.
+        const auto* reads = m_chunkManager->voxFoundReads();
+        if (!reads) return true;
+        auto fd = [](float v) { return static_cast<int>(std::floor(v / 32.0f)); };
+        const glm::ivec3 feet(fd(worldPosition.x), fd(worldPosition.y), fd(worldPosition.z));
+        return !reads->hasChunk(feet) && !reads->hasChunk(feet - glm::ivec3(0, 1, 0));
     }
 
     void AnimatedVoxelCharacter::applyDebrisPush(const glm::vec3& impulse) {

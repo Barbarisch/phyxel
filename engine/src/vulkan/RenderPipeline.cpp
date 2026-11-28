@@ -1155,6 +1155,10 @@ void RenderPipeline::cleanup() {
         vkDestroyPipeline(device, oitPipeline, nullptr);
         oitPipeline = VK_NULL_HANDLE;
     }
+    if (voxFoundOitPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, voxFoundOitPipeline, nullptr);
+        voxFoundOitPipeline = VK_NULL_HANDLE;
+    }
 
     if (oitFragShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, oitFragShaderModule, nullptr);
@@ -1419,6 +1423,11 @@ void RenderPipeline::bindOITPipeline(VkCommandBuffer commandBuffer) {
 
 bool RenderPipeline::createOITPipeline(VkRenderPass oitRenderPass) {
     VkDevice device = vulkanDevice.getDevice();
+    m_oitRenderPass = oitRenderPass;
+    if (voxFoundOitPipeline != VK_NULL_HANDLE) {   // rebuilt against the new pass on its next use
+        vkDestroyPipeline(device, voxFoundOitPipeline, nullptr);
+        voxFoundOitPipeline = VK_NULL_HANDLE;
+    }
 
     // Load transparent_voxel.frag shader
     auto fragCode = Utils::readFile("shaders/transparent_voxel.frag.spv");
@@ -1548,6 +1557,117 @@ bool RenderPipeline::createOITPipeline(VkRenderPass oitRenderPass) {
         return false;
     }
     LOG_INFO("RenderPipeline", "OIT transparent pipeline created");
+    return true;
+}
+
+bool RenderPipeline::ensureVoxFoundOitPipeline() {
+    if (voxFoundOitPipeline != VK_NULL_HANDLE) return true;
+    if (m_oitRenderPass == VK_NULL_HANDLE || oitFragShaderModule == VK_NULL_HANDLE) return false;
+    if (!ensureVoxFoundPipeline("shaders/voxfound_face.vert.spv")) return false;   // the layout, set 1, the vert module
+    VkDevice device = vulkanDevice.getDevice();
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = voxFoundVertModule;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = oitFragShaderModule;
+    stages[1].pName = "main";
+    // the voxfound input: the cube vertex buffer (binding 0) + the 8 B PackedFace (binding 1), as ensureVoxFoundPipeline
+    const auto vb = Vertex::getBindingDescription();
+    const auto va = Vertex::getAttributeDescriptions();
+    VkVertexInputBindingDescription fb{};
+    fb.binding = 1;
+    fb.stride = 8;
+    fb.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    std::vector<VkVertexInputBindingDescription> binds = {vb, fb};
+    std::vector<VkVertexInputAttributeDescription> attrs(va.begin(), va.end());
+    for (uint32_t i = 0; i < 2; ++i) {
+        VkVertexInputAttributeDescription a{};
+        a.binding = 1;
+        a.location = 1 + i;
+        a.format = VK_FORMAT_R32_UINT;
+        a.offset = 4 * i;
+        attrs.push_back(a);
+    }
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = uint32_t(binds.size());
+    vi.pVertexBindingDescriptions = binds.data();
+    vi.vertexAttributeDescriptionCount = uint32_t(attrs.size());
+    vi.pVertexAttributeDescriptions = attrs.data();
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1;
+    vps.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rs{};   // the OIT pass's: no cull (both sides), as createOITPipeline
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.lineWidth = 1.0f;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable = VK_TRUE;
+    ds.depthWriteEnable = VK_FALSE;
+    ds.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOpEqual();
+    VkPipelineColorBlendAttachmentState accum{};
+    accum.blendEnable = VK_TRUE;
+    accum.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    accum.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    accum.colorBlendOp = VK_BLEND_OP_ADD;
+    accum.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    accum.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    accum.alphaBlendOp = VK_BLEND_OP_ADD;
+    accum.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                           VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendAttachmentState reveal{};
+    reveal.blendEnable = VK_TRUE;
+    reveal.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    reveal.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+    reveal.colorBlendOp = VK_BLEND_OP_ADD;
+    reveal.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    reveal.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    reveal.alphaBlendOp = VK_BLEND_OP_ADD;
+    reveal.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+    std::array<VkPipelineColorBlendAttachmentState, 2> atts = {accum, reveal};
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 2;
+    cb.pAttachments = atts.data();
+    std::vector<VkDynamicState> dynStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = uint32_t(dynStates.size());
+    dyn.pDynamicStates = dynStates.data();
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2;
+    gpi.pStages = stages;
+    gpi.pVertexInputState = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState = &ms;
+    gpi.pDepthStencilState = &ds;
+    gpi.pColorBlendState = &cb;
+    gpi.pDynamicState = &dyn;
+    gpi.layout = voxFoundLayout;
+    gpi.renderPass = m_oitRenderPass;
+    gpi.subpass = 0;
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &voxFoundOitPipeline) != VK_SUCCESS) {
+        voxFoundOitPipeline = VK_NULL_HANDLE;
+        LOG_ERROR("RenderPipeline", "voxfound OIT pipeline creation failed");
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "voxfound OIT (glass) pipeline created");
     return true;
 }
 

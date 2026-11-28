@@ -310,6 +310,12 @@ GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats) {
                 return t;
             }
             const uint8_t m = mat(name);
+            if (line.find("state=flaming") != std::string::npos) {   // its centre's 1/8 m cell (rebased below)
+                const glm::vec3 centre = kind == "C" ? glm::vec3(c) + glm::vec3(0.5f)
+                                       : kind == "S" ? glm::vec3(c) + (glm::vec3(s3) + glm::vec3(0.5f)) / 3.0f
+                                                     : glm::vec3(c) + (glm::vec3(s3 * 3 + m3) + glm::vec3(0.5f)) / 9.0f;
+                st.flamingVoxels.push_back(glm::ivec3(glm::floor(centre * float(kVoxelsPerM))));
+            }
             if (kind == "C") {
                 cubes[c] = m;
                 ++st.cubes;
@@ -349,6 +355,7 @@ GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats) {
     }
     glm::ivec3 lo(std::numeric_limits<int>::max());
     for (const auto& [p, m] : cells) lo = glm::min(lo, p);
+    for (auto& f : st.flamingVoxels) f -= lo;
     // z runs of one material -> boxes (the map is ordered x, y, z)
     for (auto it = cells.begin(); it != cells.end();) {
         GridTemplate::Box b;
@@ -1289,7 +1296,8 @@ bool convertPxb2(const uint8_t* data, size_t size, BlockStore& out, std::vector<
 RegionBuild forEachStoredChunk(const std::function<bool(glm::ivec3, std::vector<uint8_t>&)>& readBlob,
                                glm::ivec3 lo, glm::ivec3 hi,
                                const std::function<void(const RegionChunk&, const std::vector<std::string>&)>& each,
-                               StoredRegionStats* stats, std::string* err) {
+                               StoredRegionStats* stats, std::string* err,
+                               const std::function<bool(const std::string&)>& isClear) {
     RegionBuild rb;
     StoredRegionStats st;
     std::map<std::tuple<int, int, int>, BlockStore> stores;
@@ -1375,7 +1383,11 @@ RegionBuild forEachStoredChunk(const std::function<bool(glm::ivec3, std::vector<
                                 p[a] = sd < 0 ? N - 1 : 0;
                                 p[ua] = u;
                                 p[va] = v;
-                                if (nb->second.at(p) != 0) rc.border.set(a, sd, u, v, true);
+                                const uint8_t bm = nb->second.at(p);
+                                if (bm == 0) continue;
+                                rc.border.set(a, sd, u, v, true);
+                                if (isClear && bm < rb.palette.size() && isClear(rb.palette[bm]))
+                                    rc.border.setClear(a, sd, u, v, true);
                             }
                     }
                 each(rc, rb.palette);

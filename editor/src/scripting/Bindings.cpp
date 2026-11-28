@@ -62,9 +62,26 @@ static struct BindingsRegistration {
     }
 } s_bindingsReg;
 
+// This file lives in the phyxel_editor STATIC library and nothing referenced any of its symbols, so the linker dropped
+// the whole object file -- with it the PYBIND11_EMBEDDED_MODULE registration and s_bindingsReg: every script failed
+// with "No module named 'phyxel'" (found live 2026-11-24). Application calls this anchor so the object is linked.
+void linkPythonBindings() {}
+
 } // namespace Phyxel
 
 using namespace Phyxel;
+
+namespace {
+// A 1 m cube on the switched world: its 8^3 1/8 m voxels through ChunkManager's write hook (F7.13), material
+// "" = air. Returns the voxels changed; 0 when no world is up (no hook).
+size_t writeCube(ChunkManager& cm, const glm::ivec3& cube, const std::string& material, const std::string& label) {
+    if (!cm.voxFoundWrite()) return 0;
+    std::vector<std::pair<glm::ivec3, std::string>> voxels;
+    voxels.reserve(512);
+    for (int k = 0; k < 512; ++k) voxels.push_back({cube * 8 + glm::ivec3(k >> 6, (k >> 3) & 7, k & 7), material});
+    return cm.voxFoundWrite()(voxels, label);
+}
+}  // namespace
 
 PYBIND11_EMBEDDED_MODULE(phyxel, m) {
     m.doc() = "Phyxel Game Engine API";
@@ -99,17 +116,18 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
 
     // Expose ChunkManager
     py::class_<ChunkManager>(m, "ChunkManager")
-        // Today's Chunk store went with D4. These wrote into it (and it refused chunk creation while switched, so
-        // they returned false); they keep their names and still return false.
-        .def("add_cube", [](ChunkManager&, int, int, int) {
-            return false;
-        }, "Removed with today's Chunk store (D4): always False")
-        .def("add_cube_with_material", [](ChunkManager&, int, int, int, const std::string&) {
-            return false;
-        }, "Removed with today's Chunk store (D4): always False")
-        .def("remove_cube", [](ChunkManager&, int, int, int) {
-            return false;
-        }, "Removed with today's Chunk store (D4): always False");
+        // A 1 m cube at world cube (x, y, z) = its 8^3 1/8 m voxels on the switched world, through the same write
+        // hook every generator uses (F7.13); True when any voxel changed. Without the hook (no world up) False.
+        .def("add_cube", [](ChunkManager& cm, int x, int y, int z) {
+            return writeCube(cm, glm::ivec3(x, y, z), "Default", "python_add_cube") > 0;
+        }, "Place a 1 m cube (Default) on the switched world")
+        .def("add_cube_with_material", [](ChunkManager& cm, int x, int y, int z, const std::string& material) {
+            return writeCube(cm, glm::ivec3(x, y, z), material.empty() ? std::string("Default") : material,
+                             "python_add_cube") > 0;
+        }, "Place a 1 m cube of `material` on the switched world")
+        .def("remove_cube", [](ChunkManager& cm, int x, int y, int z) {
+            return writeCube(cm, glm::ivec3(x, y, z), std::string(), "python_remove_cube") > 0;
+        }, "Clear a 1 m cube on the switched world");
 
     // Expose ObjectTemplateManager
     py::class_<ObjectTemplateManager>(m, "ObjectTemplateManager")

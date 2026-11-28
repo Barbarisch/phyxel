@@ -3,6 +3,7 @@
 #endif
 // docs/VoxelFoundationPlan.md step 7 D3-core -- moved verbatim from editor/src/Application.cpp (the switched world).
 #include "core/voxfound/VoxFoundWorld.h"
+#include "core/voxfound/EmissiveLights.h"
 #include <unordered_map>
 #include "core/voxfound/WorldReads.h"
 #include "core/voxfound/OccupancyFromStore.h"
@@ -152,6 +153,7 @@
 
 namespace Phyxel {
 std::unique_ptr<IWorldEditor> makeRegionWorldEditor(VoxFoundWorld& app);   // F7.4 (defined with RegionWorldEditor)
+uint32_t voxFoundTransparentBit(const std::string& name);   // D4 follow-up (glass), below
 
 
 // docs/VoxelFoundationPlan.md F2.2 -- POST /api/debug/voxfound_preview (registered in registerMatSimCommands).
@@ -463,6 +465,27 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
             response = {{"today_world_disabled", ChunkStreamingManager::todayWorldDisabled()},
                         {"create_refused", ChunkManager::s_createRefused.load()},
                         {"today_chunks_resident", 0}};   // no Chunk store since D4
+            return;
+        }
+        if (cmd.params.contains("chop")) {   // D4 follow-up: the axe chop, driven directly (tests)
+            const auto& c = cmd.params["chop"];
+            const glm::vec3 blade(c.value("x", 0.0f), c.value("y", 0.0f), c.value("z", 0.0f));
+            glm::vec3 d(0.0f, 0.0f, 1.0f);
+            if (c.contains("dir")) d = glm::vec3(c["dir"][0].get<float>(), c["dir"][1].get<float>(), c["dir"][2].get<float>());
+            response = voxFoundChop(blade, d, c.value("depth", 0.36f), c.value("release", false));
+            return;
+        }
+        if (cmd.params.value("emissive_status", false)) {   // D4 follow-up (U3.2 on the switched world)
+            nlohmann::json ls = nlohmann::json::array();
+            if (renderCoordinator)
+                for (const auto& e : renderCoordinator->voxFoundEmissiveLights())
+                    if (ls.size() < 16)
+                        ls.push_back({{"pos", {e.worldPos.x, e.worldPos.y, e.worldPos.z}}, {"intensity", e.intensity},
+                                      {"radius", e.radius}, {"extent", e.extent}});
+            response = {{"emissive_lights", voxFoundEmissiveCount}, {"scan_ms", voxFoundEmissiveScanMs},
+                        {"chunks_scanned", voxFoundEmissiveChunksScanned},
+                        {"flaming_burning", renderCoordinator ? renderCoordinator->flamingBurning() : 0},
+                        {"first", ls}, {"flaming_points", chunkManager ? chunkManager->flamingPoints().size() : 0}};
             return;
         }
         if (cmd.params.contains("grass_refresh_stub")) {   // F7.30 (tests): edits leave the grass alone (the red)
@@ -902,7 +925,7 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
                         if (pending) voxFoundHistory.commit(read);
                         if (voxFoundBuilder)
                             for (size_t i : all.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
-                        voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &all.changed);
+                        voxFoundAssemble(voxFoundLeafTex, &all.changed);
                         auto& e = voxFoundWriterLog[label];
                         ++e.first;
                         e.second += voxels;
@@ -1241,7 +1264,8 @@ void VoxFoundWorld::handleVoxFoundPreview(const Core::APICommand& cmd, nlohmann:
         // F2.5: the 8 B record is drawn as-is; the texture comes from this device table (Preview.h).
         voxFoundPreview.faceTex.assign(kFaceTexWords, 0u);
         for (size_t m = 0; m < tex.size() && m < 256; ++m)
-            for (int f = 0; f < 6; ++f) voxFoundPreview.faceTex[m * 6 + f] = tex[m][f];
+            for (int f = 0; f < 6; ++f)
+                voxFoundPreview.faceTex[m * 6 + f] = tex[m][f] | (m ? voxFoundTransparentBit(area.palette[m]) : 0u);
         voxFoundPreview.faces = packed;
         voxFoundPreview.chunks.clear();   // one area: drawn at originMetres
         voxFoundEdit.clear();             // F2.16: edits are for region previews
@@ -1306,11 +1330,12 @@ int VoxFoundWorld::voxFoundMaterial(const std::string& name, std::string* err) {
         voxFoundLeafTex.resize(voxFoundPalette.size(), 0);
         for (int f = 0; f < 6; ++f) {
             const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(name, f);
-            voxFoundPreview.faceTex[m * 6 + size_t(f)] = t;
+            voxFoundPreview.faceTex[m * 6 + size_t(f)] = t | voxFoundTransparentBit(name);
             if (f == 0) voxFoundLeafTex[m] = t;
         }
         CardSet cards = voxFoundEdit.cards(), see = voxFoundEdit.seeThrough();
         if (md->billboarded) cards.set(uint8_t(m));
+        else if (md->alpha < 0.99f) cards.setClear(uint8_t(m));   // D4 follow-up: glass is seen through
         if (md->billboarded || md->alpha < 0.99f) see.set(uint8_t(m));
         voxFoundEdit.setMaterialSets(cards, see);
     }
@@ -1438,7 +1463,7 @@ nlohmann::json VoxFoundWorld::loadVoxFoundSaved(bool fromDb) {
         voxels += st.voxelsChanged;
         bytes += blob.size();
     }
-    if (loaded) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    if (loaded) voxFoundAssemble(voxFoundLeafTex);
     return {{"loaded_chunks", loaded}, {"from_stream_cache", fromCache}, {"bytes", bytes}, {"voxels_written", voxels}, {"decode_ms", decodeMs},
             {"load_rebuild_ms", writeMs}, {"errors", errors}};
 }
@@ -1694,7 +1719,7 @@ nlohmann::json VoxFoundWorld::voxFoundPaintCells(const std::string& label,
     const bool recorded = pending && voxFoundHistory.commit(read);
     if (voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
+    voxFoundAssemble(voxFoundLeafTex, &st.changed);
     size_t bad = 0, clipped = 0;   // read back: every listed cell inside the region holds its material
     nlohmann::json badSamples = nlohmann::json::array();
     const glm::ivec3 rlo = voxFoundEdit.voxelLo(), rhi = voxFoundEdit.voxelHi();
@@ -1799,6 +1824,13 @@ nlohmann::json VoxFoundWorld::voxFoundSpawnTemplate(const nlohmann::json& params
     for (const auto& [p, m] : local) cells.push_back({origin + p, m});
     nlohmann::json r = voxFoundPaintCells("spawn_template:" + name, cells);
     r["success"] = r.value("error", std::string()).empty();
+    if (r["success"].get<bool>() && chunkManager && !csm.flamingVoxels.empty()) {   // D4 follow-up: the fire VFX's embers
+        std::vector<glm::vec3> pts;
+        for (const auto& f : csm.flamingVoxels)
+            pts.push_back((glm::vec3(origin + rotate(f)) + glm::vec3(0.5f)) / float(kVoxelsPerM));
+        chunkManager->addFlamingPoints(pts);
+        r["flaming_points"] = pts.size();
+    }
     r["world"] = "voxfound";
     r["template"] = path.empty() ? legacyPath : path;
     if (path.empty())
@@ -2316,7 +2348,7 @@ nlohmann::json VoxFoundWorld::voxFoundOverlayStored(const std::vector<glm::ivec3
         voxFoundLodMark(st);
         ++overlaid;
     }
-    if (overlaid) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    if (overlaid) voxFoundAssemble(voxFoundLeafTex);
     voxFoundOverlaidTotal += overlaid;
     return {{"overlaid", overlaid}, {"errors", errors}, {"retired_materials_as_default", unknownMapped}};
 }
@@ -2427,7 +2459,10 @@ void VoxFoundWorld::voxFoundStreamTick() {
     const glm::ivec3 a(rg["from"][0].get<int>(), rg["from"][1].get<int>(), rg["from"][2].get<int>());
     const glm::ivec3 b(rg["to"][0].get<int>(), rg["to"][1].get<int>(), rg["to"][2].get<int>());
     const glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
-    const glm::vec3 p = camera->getPosition();
+    // The focus: the camera, unless a streaming-focus holder (worldforge_build, a camera-path benchmark) holds it --
+    // the switched world honours ChunkManager's StreamingFocus as today's streaming did (D4 follow-up).
+    const glm::vec3 p = (chunkManager && chunkManager->hasStreamingFocusOverride()) ? chunkManager->streamingAnchor()
+                                                                                    : camera->getPosition();
     const glm::ivec3 fc(int(std::floor(p.x / 32.0f)), 0, int(std::floor(p.z / 32.0f)));
     // the focus must stay on the region's inner chunks (one chunk of margin each side in x and z)
     const bool inside = fc.x >= lo.x + 1 && fc.x <= hi.x - 1 && fc.z >= lo.z + 1 && fc.z <= hi.z - 1;
@@ -2598,7 +2633,7 @@ nlohmann::json VoxFoundWorld::voxFoundStreamSwap() {
     voxFoundLodDirty.clear();
     voxFoundPreview.anchorMetres = glm::dvec3(job.lo * kChunkM);
     voxFoundPreview.originMetres = glm::dvec3(job.lo * kChunkM);
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+    voxFoundAssemble(voxFoundLeafTex);
     for (const glm::ivec3& c : job.entering) ++voxFoundOccRevision[{c.x, c.y, c.z}];
     voxFoundRegionRequest["region"] = {{"from", {job.lo.x, job.lo.y, job.lo.z}}, {"to", {job.hi.x, job.hi.y, job.hi.z}}};
     nlohmann::json on;
@@ -2843,6 +2878,218 @@ nlohmann::json VoxFoundWorld::voxFoundQuery(int x, int y, int z) const {
     return r;
 }
 
+void VoxFoundWorld::voxFoundAssemble(const std::vector<uint16_t>& leafTex, const std::vector<size_t>* changed) {
+    if (changed) {
+        const auto coords = voxFoundEdit.chunkCoords();
+        for (const size_t i : *changed)
+            if (i < coords.size()) voxFoundEmissiveDirty.insert({coords[i].x, coords[i].y, coords[i].z});
+    } else {
+        voxFoundEmissiveFull = true;
+    }
+    voxFoundEdit.assemble(voxFoundPreview, leafTex, changed);
+}
+
+void VoxFoundWorld::voxFoundEmissiveTick() {
+    if (!renderCoordinator) return;
+    const bool up = chunkManager && chunkManager->voxFoundReads() && !voxFoundEdit.empty();
+    const uint64_t rev = up ? voxFoundPreview.revision : ~0ull - 1;
+    if (rev == voxFoundEmissiveRevision) return;
+    const auto now = std::chrono::steady_clock::now();
+    if (up && std::chrono::duration<double>(now - voxFoundEmissiveLast).count() < 0.25) return;   // throttle edits
+    voxFoundEmissiveLast = now;
+    voxFoundEmissiveRevision = rev;
+    voxFoundEmissiveChunksScanned = 0;
+    std::vector<Core::VoxFound::EmissiveLight> lights;
+    if (up) {
+        const auto em = Core::VoxFound::emitterMaterials(voxFoundPalette);
+        std::vector<float> table;
+        for (const auto& e : em) table.push_back(e.t);
+        const auto coords = voxFoundEdit.chunkCoords();
+        if (table != voxFoundEmissiveTable || coords != voxFoundEmissiveCoords) voxFoundEmissiveFull = true;
+        voxFoundEmissiveTable = table;
+        voxFoundEmissiveCoords = coords;
+        if (!Core::VoxFound::anyEmitter(em)) {   // the common no-glow world scans nothing
+            voxFoundEmissiveByChunk.clear();
+        } else {
+            if (voxFoundEmissiveFull) voxFoundEmissiveByChunk.clear();
+            for (const auto& c : coords) {
+                const std::array<int, 3> k{c.x, c.y, c.z};
+                if (!voxFoundEmissiveFull && !voxFoundEmissiveDirty.count(k)) continue;
+                auto& v = voxFoundEmissiveByChunk[k];
+                v.clear();
+                if (const auto* st = voxFoundEdit.chunkStore(c)) Core::VoxFound::emissiveLightsOfChunk(*st, c, em, v);
+                ++voxFoundEmissiveChunksScanned;
+            }
+            for (const auto& [k, v] : voxFoundEmissiveByChunk) lights.insert(lights.end(), v.begin(), v.end());
+        }
+        voxFoundEmissiveFull = false;
+        voxFoundEmissiveDirty.clear();
+    } else {
+        voxFoundEmissiveByChunk.clear();
+        voxFoundEmissiveFull = true;
+    }
+    voxFoundEmissiveScanMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+    voxFoundEmissiveCount = lights.size();
+    renderCoordinator->setVoxFoundEmissiveLights(std::move(lights));
+}
+
+nlohmann::json VoxFoundWorld::voxFoundChop(const glm::vec3& blade, const glm::vec3& fwdIn, float depthM, bool release) {
+    using namespace Core::VoxFound;
+    nlohmann::json r = {{"contact", false}};
+    if (!voxFoundWorldReads || voxFoundEdit.empty()) return {{"contact", false}, {"error", "no switched world"}};
+    auto isLog = [&](uint8_t m) { return m && m < voxFoundPalette.size() && voxFoundPalette[m].rfind("Log", 0) == 0; };
+    auto isLeaf = [&](uint8_t m) { return m && m < voxFoundPalette.size() && voxFoundPalette[m].rfind("Leaf", 0) == 0; };
+    const float vm = 1.0f / float(kVoxelsPerM);
+    const glm::ivec3 bv(glm::floor(blade * float(kVoxelsPerM)));
+    // contact: the nearest Log voxel centre within 0.3 m of the blade (the blade bites wood whenever it reaches wood,
+    // even through leaves); only without wood in reach, the nearest Leaf (feedback only)
+    float bestLog = 0.3f, bestLeaf = 0.3f;
+    glm::ivec3 hit(0), leafHit(0);
+    uint8_t hitMat = 0, leafMat = 0;
+    for (int dx = -3; dx <= 3; ++dx)
+        for (int dy = -3; dy <= 3; ++dy)
+            for (int dz = -3; dz <= 3; ++dz) {
+                const glm::ivec3 v = bv + glm::ivec3(dx, dy, dz);
+                const uint8_t m = voxFoundEdit.voxelAt(v);
+                const bool log = isLog(m), leaf = isLeaf(m);
+                if (!log && !leaf) continue;
+                const float d = glm::distance(blade, (glm::vec3(v) + 0.5f) * vm);
+                if (log && d <= bestLog) bestLog = d, hit = v, hitMat = m;
+                if (leaf && d <= bestLeaf) bestLeaf = d, leafHit = v, leafMat = m;
+            }
+    if (!hitMat && leafMat) hit = leafHit, hitMat = leafMat;
+    if (!hitMat) return r;
+    r["contact"] = true;
+    r["material"] = voxFoundPalette[hitMat];
+    r["contact_voxel"] = {hit.x, hit.y, hit.z};
+    if (!isLog(hitMat)) { r["leaf"] = true; return r; }   // leaves: feedback only
+    // the kerf: a blade-sized channel from the frontier (the contact voxel) along the swing
+    glm::vec3 fwd(fwdIn.x, 0.0f, fwdIn.z);
+    fwd = glm::length(fwd) > 1e-4f ? glm::normalize(fwd) : glm::vec3(0.0f, 0.0f, 1.0f);
+    const glm::vec3 up(0.0f, 1.0f, 0.0f), side = glm::cross(up, fwd);
+    const glm::vec3 c = (glm::vec3(hit) + 0.5f) * vm;
+    const float halfH = 0.15f, halfW = 0.2f, back = 0.05f;
+    const int reach = int(std::ceil((depthM + halfW + halfH) * kVoxelsPerM)) + 1;
+    std::vector<std::pair<glm::ivec3, uint8_t>> air;
+    for (int dx = -reach; dx <= reach; ++dx)
+        for (int dy = -reach; dy <= reach; ++dy)
+            for (int dz = -reach; dz <= reach; ++dz) {
+                const glm::ivec3 v = hit + glm::ivec3(dx, dy, dz);
+                const glm::vec3 q = (glm::vec3(v) + 0.5f) * vm - c;
+                const float a = glm::dot(q, fwd);
+                if (a < -back || a > depthM || std::abs(q.y) > halfH || std::abs(glm::dot(q, side)) > halfW) continue;
+                if (isLog(voxFoundEdit.voxelAt(v))) air.push_back({v, uint8_t(0)});
+            }
+    r["kerf_voxels"] = air.size();
+    if (!air.empty()) r["edit"] = voxFoundPaintCells("chop", air);
+    // severed? a bounded 6-connected Log flood from the Log just above the kerf: reaching below the kerf = still held
+    const int topY = hit.y + int(std::ceil(halfH * kVoxelsPerM)) + 1, botY = hit.y - int(std::ceil(halfH * kVoxelsPerM)) - 1;
+    // seeds: THIS trunk's cross-section just above the kerf -- the Log voxels at layer topY over the channel's line
+    // (from 0.5 m behind the contact to 3 m ahead, +-0.2 m lateral), flooded within that one layer over Log (bounded).
+    // A raster-order seed could be an unrelated branch; a whole-slab seed could be a neighbouring tree's trunk.
+    std::vector<glm::ivec3> stack;
+    {
+        std::vector<glm::ivec3> layer;
+        std::set<std::pair<int, int>> inLayer;
+        for (float a = -0.5f; a <= 3.0f; a += vm * 0.5f)
+            for (float l = -halfW; l <= halfW; l += vm * 0.5f) {
+                const glm::vec3 q = c + fwd * a + side * l;
+                const glm::ivec3 v(int(std::floor(q.x * kVoxelsPerM)), topY, int(std::floor(q.z * kVoxelsPerM)));
+                if (isLog(voxFoundEdit.voxelAt(v)) && inLayer.insert({v.x, v.z}).second) layer.push_back(v);
+            }
+        for (size_t i = 0; i < layer.size() && layer.size() < 20000; ++i) {
+            static const glm::ivec3 n4[4] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
+            for (const auto& d : n4) {
+                const glm::ivec3 w = layer[i] + d;
+                if (isLog(voxFoundEdit.voxelAt(w)) && inLayer.insert({w.x, w.z}).second) layer.push_back(w);
+            }
+        }
+        stack = layer;
+        r["cross_section"] = layer.size();
+    }
+    bool reachedBelow = stack.empty();   // nothing above the kerf: nothing to fell
+    std::set<std::tuple<int, int, int>> seen;
+    const size_t kCap = 200000;
+    while (!stack.empty() && !reachedBelow && seen.size() < kCap) {
+        const glm::ivec3 v = stack.back();
+        stack.pop_back();
+        if (!seen.insert({v.x, v.y, v.z}).second) continue;
+        if (v.y <= botY) { reachedBelow = true; break; }
+        // 26-connected: a rasterised curved shell (trees are shells) is often joined only at edges / corners on the
+        // 1/8 m grid -- a 6-connected flood read such a trunk as cut through (found live: a false fell)
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz) {
+                    if (!dx && !dy && !dz) continue;
+                    const glm::ivec3 w = v + glm::ivec3(dx, dy, dz);
+                    if (!seen.count({w.x, w.y, w.z}) && isLog(voxFoundEdit.voxelAt(w))) stack.push_back(w);
+                }
+    }
+    const bool severed = !reachedBelow && seen.size() < kCap;
+    r["flood"] = seen.size();
+    r["severed"] = severed;
+    // RELEASE IS OPT-IN (found live 2026-11-24): on a generated redwood the Log flood called a 0.4 m channel through a
+    // ~1.5 m trunk "severed" (false), the break extracted 3 unrelated loose pieces 14 m away while the crown stayed
+    // (anchored through its leaves), and the frame rate fell ~60 -> ~16 fps. The swing carves only until felling is
+    // designed properly; the report still says what the flood found.
+    if (severed && release) {   // release the crown: the switched world's break, energy near zero
+        nlohmann::json rep;
+        const bool ok = voxFoundWorldBreak(c, 8.0f, 0.02f, fwd, &rep);
+        r["release"] = {{"ok", ok}, {"bodies", rep.value("bodies", -1)}, {"error", rep.value("error", std::string())}};
+    }
+    return r;
+}
+
+// D4 follow-up (glass on the switched world): a face word's flags half (bits 16-31 = voxel.frag's flags) carries the
+// TRANSPARENT bit (flags bit 1) for a transparent material -- today's chunk criterion (alpha < 0.99, not a billboarded
+// card). voxel.frag discards those fragments in the opaque passes; the OIT pass (transparent_voxel.frag) draws them.
+uint32_t voxFoundTransparentBit(const std::string& name) {
+    const auto* md = name.empty() ? nullptr : Core::MaterialRegistry::instance().getMaterial(name);
+    return (md && !md->billboarded && md->alpha < 0.99f) ? (2u << 16) : 0u;
+}
+
+VoxFoundWorld::CubeContent VoxFoundWorld::cubeContent(const glm::ivec3& cube) const {
+    CubeContent c;
+    std::array<size_t, 256> count{};
+    for (int i = 0; i < 8; ++i)
+        for (int j = 0; j < 8; ++j)
+            for (int k = 0; k < 8; ++k) {
+                const uint8_t m = voxFoundEdit.voxelAt(glm::ivec3(cube.x * 8 + i, cube.y * 8 + j, cube.z * 8 + k));
+                if (m) ++count[m], ++c.solid;
+            }
+    size_t best = 0;
+    for (size_t m = 1; m < count.size(); ++m) {
+        if (!count[m]) continue;
+        const std::string name = m < voxFoundPalette.size() ? voxFoundPalette[m] : std::string("?");
+        c.byMaterial[name] += count[m];
+        if (count[m] > best) best = count[m], c.majority = name;
+    }
+    return c;
+}
+
+bool VoxFoundWorld::cubeResident(const glm::ivec3& cube) const {
+    const auto* reads = chunkManager ? chunkManager->voxFoundReads() : nullptr;
+    if (!reads) return false;
+    auto fd = [](int a) { return a >= 0 ? a / 32 : -((-a + 31) / 32); };
+    return reads->hasChunk(glm::ivec3(fd(cube.x), fd(cube.y), fd(cube.z)));
+}
+
+int VoxFoundWorld::surfaceCubeY(int x, int z) const {
+    const auto* reads = chunkManager ? chunkManager->voxFoundReads() : nullptr;
+    if (!reads || reads->chunks().empty()) return INT_MIN;
+    int lo = INT_MAX, hi = INT_MIN;
+    for (const auto& c : reads->chunks()) lo = std::min(lo, c.y), hi = std::max(hi, c.y);
+    for (int y = hi * 32 + 31; y >= lo * 32; --y)
+        if (reads->typeAt(glm::ivec3(x, y, z)) == VoxelLocation::CUBE) return y;
+    return INT_MIN;
+}
+
+std::string VoxFoundWorld::voxelMaterial(const glm::ivec3& v) const {
+    const uint8_t m = voxFoundEdit.voxelAt(v);
+    if (!m) return std::string();
+    return m < voxFoundPalette.size() ? voxFoundPalette[m] : std::string("?");
+}
+
 // F7.6b: undo / redo on the switched world -- the history's differing cells written back through applyCells (the exact
 // incremental path), then the light occupancy, the resident device copies and the drawn lists as an edit does.
 bool VoxFoundWorld::voxFoundUndoRedo(bool undo, nlohmann::json& r) {
@@ -2861,7 +3108,7 @@ bool VoxFoundWorld::voxFoundUndoRedo(bool undo, nlohmann::json& r) {
     if (voxFoundBuilder)
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     const auto t1 = std::chrono::steady_clock::now();
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
+    voxFoundAssemble(voxFoundLeafTex, &st.changed);
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     r = {{"success", err.empty()}, {"world", "voxfound"}, {"operation", label}, {"voxels_restored", cells.size()},
@@ -2944,7 +3191,7 @@ void VoxFoundWorld::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json&
             }
             voxFoundEdit.replaceFaces(i, out);
         }
-        voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+        voxFoundAssemble(voxFoundLeafTex);
         response = {{"replaced_chunks", voxFoundEdit.chunkCount()}, {"faces", voxFoundPreview.liveFaces()},
                     {"wall_ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()}};
         return;
@@ -3033,7 +3280,7 @@ void VoxFoundWorld::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json&
         for (size_t i : st.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     const auto t1 = std::chrono::steady_clock::now();
     // F2.17: only the rebuilt chunks' spans; F3.5a: only those whose lists changed
-    voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex, &st.changed);
+    voxFoundAssemble(voxFoundLeafTex, &st.changed);
     const auto t2 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     nlohmann::json rebuilt = nlohmann::json::array();
@@ -3087,7 +3334,7 @@ void VoxFoundWorld::handleVoxFoundEdit(const nlohmann::json& ej, nlohmann::json&
             // "replace_with_full": draw the full rebuild's lists instead (the pixel A/B reference)
             if (ej.value("replace_with_full", false)) voxFoundEdit.replaceFaces(i, out);
         }
-        if (ej.value("replace_with_full", false)) voxFoundEdit.assemble(voxFoundPreview, voxFoundLeafTex);
+        if (ej.value("replace_with_full", false)) voxFoundAssemble(voxFoundLeafTex);
         response["verify"] = {{"face_mismatches", faceMiss}, {"sprig_mismatches", sprigMiss},
                               {"connectivity_mismatches", connMiss}, {"chunks", st.rebuilt.size()},
                               {"gpu_full_rebuild_ms_sum", gpuMs}};
@@ -3357,6 +3604,7 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
         for (size_t m = 1; m < pal.size(); ++m) {
             const auto* md = Core::MaterialRegistry::instance().getMaterial(pal[m]);
             if (md && md->billboarded) sp.cards.set(uint8_t(m));
+            else if (md && md->alpha < 0.99f) sp.cards.setClear(uint8_t(m));   // D4 follow-up: glass
             if (md && (md->billboarded || md->alpha < 0.99f)) seeThrough.set(uint8_t(m));
         }
         sp.worldOriginVoxel = rc.originVoxel;
@@ -3504,7 +3752,10 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
         }
         std::string convErr;
         rb = forEachStoredChunk([ws](glm::ivec3 c, std::vector<uint8_t>& out) { return ws->readChunkBlob(c, out); },
-                                lo, hi, onChunk, &stored, &convErr);
+                                lo, hi, onChunk, &stored, &convErr, [](const std::string& name) {
+                                    const auto* md = Core::MaterialRegistry::instance().getMaterial(name);
+                                    return md && !md->billboarded && md->alpha < 0.99f;   // D4: glass borders
+                                });
         if (!convErr.empty() && err.empty()) err = convErr;
     } else {
         // F7.9a: {"gen_threads":n} chunk areas on n worker threads (default 4; 1 = the old serial path);
@@ -3527,6 +3778,7 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
         for (size_t m = 1; m < rb.palette.size(); ++m) {
             const auto* md = Core::MaterialRegistry::instance().getMaterial(rb.palette[m]);
             if (md && md->billboarded) sp.cards.set(uint8_t(m));
+            else if (md && md->alpha < 0.99f) sp.cards.setClear(uint8_t(m));   // D4 follow-up: glass
         }
         sp.threshold24 = 0;   // leaves stay cards (no faces); their sprigs come from level 0
         const LodGrid regionL3 = regionMain[0];
@@ -3567,7 +3819,7 @@ void VoxFoundWorld::handleVoxFoundRegion(const Core::APICommand& cmd, int genera
     for (size_t m = 1; m < palette.size() && m < 256; ++m)
         for (int f = 0; f < 6; ++f) {
             const uint16_t t = Core::MaterialRegistry::instance().getTextureIndex(palette[m], f);
-            voxFoundPreview.faceTex[m * 6 + f] = t;
+            voxFoundPreview.faceTex[m * 6 + f] = t | voxFoundTransparentBit(palette[m]);
             if (f == 0) leafTex[m] = t;
         }
     voxFoundPalette = palette;   // F2.16: edits look materials up here (and may append)
@@ -3698,6 +3950,7 @@ void VoxFoundWorld::tick(float dt) {
         s_lastResident = resident;
     }
     voxFoundGrassRefreshTick();   // F7.30
+    voxFoundEmissiveTick();       // D4 follow-up: glow voxels are lights (U3.2)
     if (voxFoundBootPending && ++voxFoundBootFrames > 30) {  // F7.16: the boot mode, once the first frames ran
         voxFoundBootPending = false;
         try {   // F7.27: a boot that fails is REPORTED, never fatal (TavernTest: a null world field killed the app)

@@ -14,8 +14,26 @@ struct FacesPC {
     int32_t job[4];     // axis (3 = sprig pass, 4 = block pass), invocations, capacity, uniform-block skip
     uint32_t cards[8];  // CardSet bits (F2.3)
     int32_t origin[4];  // absolute cell of voxel 0; w = sprig keep threshold
+    uint32_t clear[8];  // D4 follow-up: CardSet::clear (transparent materials: seen through)
 };
-static_assert(sizeof(FacesPC) == 80, "voxfound_faces.comp push constants");
+static_assert(sizeof(FacesPC) == 112, "voxfound_faces.comp push constants");
+
+// The border buffer: the 6 solid planes, then the 6 clear planes (each padded to whole words, the kernel's order).
+size_t writeBorder(uint32_t* dst, const Neighbours& nbs, glm::ivec3 dim) {
+    size_t at = 0;
+    for (int k = 0; k < 6; ++k) {
+        const size_t w = (Neighbours::planeBits(dim, k / 2) + 31) / 32;
+        std::memcpy(dst + at, nbs.bits[k].data(), w * 4);
+        at += w;
+    }
+    for (int k = 0; k < 6; ++k) {
+        const size_t w = (Neighbours::planeBits(dim, k / 2) + 31) / 32;
+        if (nbs.clearBits[k].size() == w) std::memcpy(dst + at, nbs.clearBits[k].data(), w * 4);
+        else std::memset(dst + at, 0, w * 4);
+        at += w;
+    }
+    return at;
+}
 }  // namespace
 
 FaceBuilderGpu::FaceBuilderGpu() = default;
@@ -174,7 +192,7 @@ bool FaceBuilderGpu::ensureBuffers(size_t voxelWords, size_t faces, std::string*
         rebind = true;
     }
     if (!m_border.buf) {   // 6 planes of up to 256 x 256 bits: fixed, host-visible, written before each submit
-        if (!createBuffer(m_border, 6 * (size_t(kMaxChunkVoxels) * kMaxChunkVoxels / 32) * 4, true, err)) return false;
+        if (!createBuffer(m_border, 12 * (size_t(kMaxChunkVoxels) * kMaxChunkVoxels / 32) * 4, true, err)) return false;
         rebind = true;
     }
     if (!m_rows.buf) {   // F2.16 row jobs (rowsDelta grows it)
@@ -213,17 +231,14 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Edges outside, std::vector<Packed
     std::memcpy(m_stagingIn.mapped, g.mat.data(), n);
     if (outside.n) {   // F2.7 border planes, in the kernel's order (Mesher.h Neighbours), each whole words
         const Neighbours& nbs = *outside.n;
-        auto* dst = static_cast<uint32_t*>(m_border.mapped);
-        size_t at = 0;
         for (int k = 0; k < 6; ++k) {
             const size_t w = (Neighbours::planeBits(g.dim, k / 2) + 31) / 32;
             if (nbs.dim != g.dim || nbs.bits[k].size() != w) {
                 if (err) *err = "FaceBuilderGpu: Neighbours sized for another grid (dim or plane size differs)";
                 return false;
             }
-            std::memcpy(dst + at, nbs.bits[k].data(), w * 4);
-            at += w;
         }
+        writeBorder(static_cast<uint32_t*>(m_border.mapped), nbs, g.dim);
     }
 
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -266,6 +281,7 @@ bool FaceBuilderGpu::build(const VoxelGrid& g, Edges outside, std::vector<Packed
             pc.job[0] = axis; pc.job[1] = rows; pc.job[2] = int32_t(m_capacity); pc.job[3] = m_blockSkip ? 1 : 0;
             if (sprigs) {
                 std::memcpy(pc.cards, sprigs->cards.bits, sizeof(pc.cards));
+                std::memcpy(pc.clear, sprigs->cards.clear, sizeof(pc.clear));
                 pc.origin[0] = sprigs->worldOriginVoxel.x;
                 pc.origin[1] = sprigs->worldOriginVoxel.y;
                 pc.origin[2] = sprigs->worldOriginVoxel.z;
@@ -427,13 +443,7 @@ bool FaceBuilderGpu::rowsDelta(uint64_t key, const VoxelGrid& g, const Neighbour
     for (const VkBufferCopy& c : up) m_lastUploadBytes += size_t(c.size);
     {   // border planes, in the kernel's order
         if (border.dim != g.dim) { if (err) *err = "FaceBuilderGpu::rowsDelta: Neighbours sized for another grid"; return false; }
-        auto* dst = static_cast<uint32_t*>(m_border.mapped);
-        size_t at = 0;
-        for (int k = 0; k < 6; ++k) {
-            const size_t w = (Neighbours::planeBits(g.dim, k / 2) + 31) / 32;
-            std::memcpy(dst + at, border.bits[k].data(), w * 4);
-            at += w;
-        }
+        writeBorder(static_cast<uint32_t*>(m_border.mapped), border, g.dim);
     }
     bool ok = false;
     for (int attempt = 0; attempt < 2 && !ok; ++attempt) {
@@ -474,7 +484,10 @@ bool FaceBuilderGpu::rowsDelta(uint64_t key, const VoxelGrid& g, const Neighbour
             pc.dim[0] = g.dim.x; pc.dim[1] = g.dim.y; pc.dim[2] = g.dim.z;
             pc.dim[3] = 2;   // the border planes
             pc.job[0] = 5; pc.job[1] = int32_t(nRows); pc.job[2] = int32_t(m_capacity); pc.job[3] = 0;
-            if (cards) std::memcpy(pc.cards, cards->bits, sizeof(pc.cards));
+            if (cards) {
+                std::memcpy(pc.cards, cards->bits, sizeof(pc.cards));
+                std::memcpy(pc.clear, cards->clear, sizeof(pc.clear));
+            }
             m_faces->pushConstants(cmd, &pc, sizeof(pc));
             m_faces->dispatch(cmd, (uint32_t(nRows) + kGroup - 1) / kGroup);
         }

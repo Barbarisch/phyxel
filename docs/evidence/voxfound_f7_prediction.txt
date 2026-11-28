@@ -2108,3 +2108,39 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
        terrain and sky THROUGH the wall (no void, no black); FPS within ~10% of before. Shadows: glass faces still
        cast (the shadow pass has no flag discard) -- measured and recorded, not fixed here.
     Every existing unit / integration test stays as it was (the clear set is empty unless a palette has glass).
+  D4 FOLLOW-UP RESULTS (2026-11-28; every artifact from the engine's own routes on project COPIES, 8120):
+    E1 emissive (U3.2 on the switched world): a 1 m glow cube -> emissive_lights 1 (pos = the cube centre, radius
+       15, intensity 1), cleared -> 0; incremental scan (dirty chunks only; 90 ms full -> per-edit). Frames
+       d4f_glow_before / d4f_glow_on (night).
+    E2 fire: barony_campfire spawned static -> flaming_points 2 registered (template state=flaming); kept while the
+       cube holds matter, dropped on clear.
+    E3 residency: an animated character spawned 6 m up FALLS to the ground (y 22.45 -> 17.0 in 4 s; ground 16).
+       Unit: CharacterResidencyGate red first (y stayed 40, off by 24), green after.
+    E4 validators: validate_placed_objects 2 structures checked, 0 unverifiable, 0 ghosts; validate_world 0
+       errors; scan_micro / micro_cells / occupancy_cell / light_occupancy read the switched world.
+    E5 python: add_cube_with_material -> Gold 512 voxels; remove_cube -> 0 (the module is linked again).
+    E6 chop: contact + kerf on the switched world (23-27 Log voxels per swing); MISS: the sever test never fired on
+       a redwood (flood 142, severed false) and the opt-in release extracted unrelated bodies (FPS 60 -> 16): the
+       release is OFF by default; FELLING IS STILL OWED.
+    Far terrain: coverage / tree mask / tile readiness read the switched world's drawn chunks (applied; frames not
+       separately gated).
+    Packaging smoke: the 0-cluster sample did not recur in 6 runs; the wait-for-clusters fix stays DEFENSIVE (not
+       shown to fix the original sample). The package of old generated code builds (shim) and boots (214 clusters).
+    SUITES (after S1, before S2): unit 4,418 pass / 2 fail -- WaterCoupling.BlastBesideThePond (WaterCore calibration,
+       root-caused, not ours) and WorldReads.Cost (timing guard 53.3 ns vs 50 under a concurrent suite from another
+       checkout; solo 51.6 / 44.8 / 45.2 -- a ~10%-margin flake, guard NOT loosened). Integration 187 / 2 --
+       WaterCoreGpuParity + WaterTallCell, deterministic and identical on main (WaterCore-owned). The 3
+       SceneIntegration failures are fixed (null scene definition = empty world). F7's "full suite green" is NOT
+       met: 4 rows, all WaterCore-owned or timing; recorded, not hidden.
+    S2 RESULT (glass): T1 red then green -- ClearVoxelsShowTheFacesBehindThem 10 faces (stone top 0) before the
+       rule, 11 after; ClearVoxelsKeepChunksInvisible solid-only borders == whole before (no teeth), after: chunked
+       == whole and solid-only borders miss 965 faces (30,990 vs 30,025). Mesher 61 / 61. T2: FaceBuilderGpu 19 / 19
+       (my first ClearVoxelsEqualTheReference run failed on a TEST bug -- the resident key came from &loop-copy, so
+       grids shared a slot; fixed to a grid index). T3 live (TavernTest copy): Glass wall 6 x 3 x 1 m on generated
+       Grass (the driver's Stone floor did not land -- fill is air-only without "replace"; fixed for re-runs),
+       Bricks pillar behind: voxfound_oit_faces 0 -> 95,402 (MISS in meaning: that is every visible face
+       re-submitted to the OIT pass, the shader keeps the glass -- not a glass-face count); FPS 47.5 -> 50.4 (no
+       cost seen). Frames d4g_glass_before / after / top / side: the pillar, trees and ground show THROUGH the glass,
+       no void. MISS (predicted, now seen): the glass casts a FULL shadow (alpha 0.02 glass, black band on the
+       ground) -- the voxfound shadow pass has no face table bound; owed. The pixel-box metric is unreliable (it
+       projects with the full window; the viewport is an editor sub-panel) -- not used as evidence.

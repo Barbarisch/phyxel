@@ -28,6 +28,12 @@ public:
         if (m_cm) install(*m_cm);   // a new chunk changes what "loaded" means for the reads
     }
     void removeCube(const glm::ivec3& cube) { addCube(cube, 0); }
+    /// Make engine chunk `chunk` RESIDENT with no content (all air): the store has it, nothing is solid.
+    void addChunk(const glm::ivec3& chunk) {
+        if (m_stores.find(chunk) == m_stores.end())
+            m_stores.emplace(chunk, Core::VoxFound::BlockStore(glm::ivec3(Core::VoxFound::WorldReads::kChunkVoxels)));
+        if (m_cm) install(*m_cm);
+    }
     /// Route `cm`'s reads here (and keep them current as cubes are added).
     void install(ChunkManager& cm) {
         m_cm = &cm;

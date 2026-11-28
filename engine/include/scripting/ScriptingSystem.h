@@ -52,6 +52,9 @@ public:
     static void registerAppInstanceSetter(void(*setter)(Application*));
 
     void init();
+    // A project is open: startup.py sees PHYXEL_PROJECT_MODE = True and skips its dev demo (character spawn +
+    // world_gen), which belongs to the no-project editor -- a project's world is its game.json. Set before init().
+    void setProjectMode(bool on) { m_projectMode = on; }
     void update(float deltaTime);
     void shutdown();
 
@@ -74,6 +77,7 @@ private:
     std::unique_ptr<py::scoped_interpreter> m_interpreter;
     py::object m_completer;
     py::object m_globals; // Persistent global namespace
+    bool m_projectMode = false;
     std::vector<std::string> m_logBuffer;
 
     static void (*s_setAppInstance)(Application*);

@@ -75,6 +75,9 @@ struct CsmTemplateStats {
     size_t cubes = 0, subcubes = 0, microcubes = 0, tintsDropped = 0, otherLines = 0, rescued = 0;
     std::map<std::string, double> volumeIn;   // m^3 per material (a cube = 1, a subcube = 1/27, a microcube = 1/729)
     std::map<std::string, size_t> voxelsOut;  // 1/8 m voxels per material (512 = 1 m^3)
+    /// D4 follow-up: the 1/8 m cell (rebased like the boxes) under each `state=flaming` voxel's centre -- the store
+    /// keeps material only, so the spawner registers these for the fire VFX (ChunkManager::addFlamingPoints).
+    std::vector<glm::ivec3> flamingVoxels;
 };
 GridTemplate loadCsmTemplate(const std::string& path, CsmTemplateStats* stats = nullptr);
 /// One subdivided cube: 9^3 ninths (index a * 81 + b * 9 + d, a = x) -> 8^3 voxels (index x * 64 + y * 8 + z).
@@ -193,6 +196,11 @@ public:
         m = uint8_t(e & 0xFF);
         return true;
     }
+    /// A detailed block's 512 materials (index (z & 7) + 8 ((y & 7) + 8 (x & 7)), as at()); nullptr when uniform.
+    const uint8_t* detailedMaterials(glm::ivec3 b) const {
+        const uint64_t e = m_dir[blockIndex(b)];
+        return (e & kDetailed) ? m_pool[uint32_t(e & 0xFFFFFFFFull)].mat : nullptr;
+    }
     void set(glm::ivec3 p, uint8_t material);
     uint8_t get(glm::ivec3 p) const;             // out of range reads air
     bool blockSolidAny(glm::ivec3 block) const;  // §3.2 solidity summary: any solid voxel in this block
@@ -263,7 +271,8 @@ struct StoredRegionStats {
 RegionBuild forEachStoredChunk(const std::function<bool(glm::ivec3, std::vector<uint8_t>&)>& readBlob,
                                glm::ivec3 chunkLo, glm::ivec3 chunkHi,
                                const std::function<void(const RegionChunk&, const std::vector<std::string>&)>& each,
-                               StoredRegionStats* stats = nullptr, std::string* err = nullptr);
+                               StoredRegionStats* stats = nullptr, std::string* err = nullptr,
+                               const std::function<bool(const std::string&)>& isClear = {});   // D4: glass borders
 
 
 /// Compares every voxel. Returns the number of mismatches (first few described in `why`).

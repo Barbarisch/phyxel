@@ -38,7 +38,15 @@ layout(push_constant) uniform PC {
     uvec4 cards0;  // CardSet bits 0-127: materials drawn as leaf cards (no faces; F2.3)
     uvec4 cards1;  // CardSet bits 128-255
     ivec4 origin;  // xyz = absolute cell of voxel (0,0,0); w = sprig keep threshold (24-bit hash)
+    uvec4 clear0;  // D4 follow-up: CardSet::clear bits 0-127 (transparent materials: seen through)
+    uvec4 clear1;  // bits 128-255
 } pc;
+
+bool isClear(uint m) {
+    const uint w = m >> 5u;
+    const uint word = w < 4u ? pc.clear0[w] : pc.clear1[w - 4u];
+    return ((word >> (m & 31u)) & 1u) != 0u;
+}
 
 bool isCard(uint m) {
     const uint w = m >> 5u;
@@ -63,9 +71,9 @@ bool inGrid(ivec3 p) {
 }
 
 // Is the voxel one step from in-grid voxel p along (axis, dir), outside the grid, solid? (== Edges::solidOutside)
-bool solidOutside(ivec3 p, int axis, int dir) {
-    if (pc.dim.w != 2) return pc.dim.w == 1;
-    uint off = 0u;
+// One border bit: plane (axis, dir) of the plane set starting at word `base` (0 = solidity, clearBase() = clear).
+bool borderBit(uint base, ivec3 p, int axis, int dir) {
+    uint off = base;
     for (int a = 0; a <= axis; ++a) {
         const uint words = (uint(pc.dim[(a + 1) % 3] * pc.dim[(a + 2) % 3]) + 31u) >> 5;
         if (a < axis) off += 2u * words;
@@ -73,6 +81,20 @@ bool solidOutside(ivec3 p, int axis, int dir) {
     }
     const uint b = uint(p[(axis + 1) % 3] + pc.dim[(axis + 1) % 3] * p[(axis + 2) % 3]);
     return ((borderBits[off + (b >> 5)] >> (b & 31u)) & 1u) != 0u;
+}
+uint clearBase() {   // D4 follow-up: the clear planes follow the 6 solid planes
+    uint t = 0u;
+    for (int a = 0; a < 3; ++a) t += 2u * ((uint(pc.dim[(a + 1) % 3] * pc.dim[(a + 2) % 3]) + 31u) >> 5);
+    return t;
+}
+bool solidOutside(ivec3 p, int axis, int dir) {
+    if (pc.dim.w != 2) return pc.dim.w == 1;
+    return borderBit(0u, p, axis, dir);
+}
+// The face rule across the border (== Edges::hidesOutside): solid and not (clear and p opaque).
+bool hidesOutside(ivec3 p, int axis, int dir, bool pClear) {
+    if (pc.dim.w != 2) return pc.dim.w == 1;
+    return borderBit(0u, p, axis, dir) && !(borderBit(clearBase(), p, axis, dir) && !pClear);
 }
 
 int AX, UA, VA, DIR, S;
@@ -85,10 +107,12 @@ uint faceAt(int u, int v) {
     p[VA] = v;
     const uint m = matAt(p);
     if (m == 0u || isCard(m)) return 0u;   // a card voxel draws no faces (it still hides others below)
+    const bool pClear = isClear(m);
     ivec3 q = p;
     q[AX] += DIR;
-    if (!inGrid(q)) return solidOutside(p, AX, DIR) ? 0u : m;
-    return matAt(q) == 0u ? m : 0u;
+    if (!inGrid(q)) return hidesOutside(p, AX, DIR, pClear) ? 0u : m;
+    const uint qm = matAt(q);
+    return (qm == 0u || (!pClear && isClear(qm))) ? m : 0u;   // a clear neighbour shows an opaque face (glass)
 }
 
 ivec3 blockDim() { return (pc.dim.xyz + 7) >> 3; }
@@ -133,7 +157,10 @@ void main() {
                 for (int z = lo.z; z < hi.z; ++z) {
                     const uint m = matAt(ivec3(x, y, z));
                     if (m == 0u) hidesAll = false;
-                    else if (!isCard(m)) emitsNothing = false;
+                    else {
+                        if (isClear(m)) hidesAll = false;   // glass shows the faces behind it
+                        if (!isCard(m)) emitsNothing = false;
+                    }
                 }
         blockFlags[bi] = (emitsNothing ? 1u : 0u) | (hidesAll ? 2u : 0u);
         return;

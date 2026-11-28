@@ -379,7 +379,9 @@ void SceneManager::executeLoad() {
     }
 
     // 2. Build the definition to load. Merge playerDefaults if scene doesn't specify player.
-    json defToLoad = scene->definition;
+    // A scene added at runtime with no definition (SceneDefinition's default is a null JSON) is an EMPTY world
+    // scene, not an invalid one: the loader requires an object.
+    json defToLoad = scene->definition.is_object() ? scene->definition : json::object();
     if (!defToLoad.contains("player") && !manifest_.playerDefaults.is_null()) {
         defToLoad["player"] = manifest_.playerDefaults;
     }
@@ -402,8 +404,18 @@ void SceneManager::executeLoad() {
     // camera rig follows the player; setting the camera here used to be the ONLY restore.
     if (auto reIt = reentryStates_.find(targetSceneId_); reIt != reentryStates_.end() && reIt->second.visited) {
         const auto& rs = reIt->second;
-        LOG_INFO("SceneManager", "Re-entered '{}': player spawned where they left ({}, {}, {})",
-                 targetSceneId_, rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ);
+        const bool havePlayer = subsystems_->entityRegistry && subsystems_->entityRegistry->getEntity("player");
+        if (havePlayer) {
+            LOG_INFO("SceneManager", "Re-entered '{}': player spawned where they left ({}, {}, {})",
+                     targetSceneId_, rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ);
+        } else if (subsystems_->camera) {
+            // The other half of the unload's camera fallback: a scene with no 'player' entity recorded the CAMERA
+            // position when it was left, so the camera is what goes back (the loader's authored camera block would
+            // otherwise put it at the scene's start on every return).
+            subsystems_->camera->setPosition(glm::vec3(rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ));
+            LOG_INFO("SceneManager", "Re-entered '{}' (no player entity): camera restored to ({}, {}, {})",
+                     targetSceneId_, rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ);
+        }
     }
 
     // 5. Rebuild navigation grid

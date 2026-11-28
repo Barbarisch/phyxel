@@ -393,7 +393,7 @@
     },
     "voxfound_body.vert": {
       "built": true,
-      "sources": "d933a286973728cf1d662d31198760fa6d9b5cef7a7b9b29ad3950b4e6f463f6",
+      "sources": "e8c1405135ad610313964522be9655d52e7598b0e4333bc77e682e6d212596cd",
       "spv_present": true
     },
     "voxfound_body_shadow.vert": {
@@ -433,7 +433,7 @@
     },
     "voxfound_faces.comp": {
       "built": true,
-      "sources": "7250b85f922486f3ceca2e3b0069c8a4da869da767b7b8561948b7f6b45c3f5b",
+      "sources": "9f6766971578bd10dd52bf975a92e886b90c29c6fa6dfc3ee0314fdf803e4d17",
       "spv_present": true
     },
     "voxfound_foliage.vert": {

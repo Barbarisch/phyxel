@@ -180,6 +180,7 @@ float tallBandClamp(float m) { return m <= 0.0f ? 0.0f : std::clamp(m, 4.0f / 9.
 #endif
 
 namespace Phyxel {
+void linkPythonBindings();   // scripting/Bindings.cpp
 
 /**
  * Application Constructor
@@ -362,6 +363,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
 
     // Create ScriptingSystem (initialized later, but created here for dependency injection)
+    linkPythonBindings();   // keeps scripting/Bindings.cpp (the `phyxel` module) in the link -- see there
     scriptingSystem = std::make_unique<ScriptingSystem>(this);
 
     // STEP 6: CREATE RenderCoordinator (DEPENDS ON INITIALIZED PIPELINES)
@@ -659,6 +661,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // would hang or error when no game world is loaded (asset/anim/interaction editors).
     if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
         LOG_INFO("Application", "Initializing scripting system...");
+        scriptingSystem->setProjectMode(!projectDir_.empty());
         scriptingSystem->init();
         LOG_INFO("Application", "Scripting system initialized successfully");
     } else {
@@ -8204,7 +8207,8 @@ static bool handlePlacedObjectCommand(
     nlohmann::json& response,
     Core::PlacedObjectManager* placedObjectManager,
     ChunkManager* chunkManager,
-    Core::SnapshotManager* snapshotManager)
+    Core::SnapshotManager* snapshotManager,
+    const VoxFoundWorld* vfw)   // D4 follow-up: the probes read the switched world
 {
     if (cmd.action == "list_placed_objects") {
         if (!placedObjectManager) {
@@ -8243,13 +8247,19 @@ static bool handlePlacedObjectCommand(
                 b.max = o.boundingMax;
                 boxes.push_back(b);
             }
-            // Material lookup at a world CUBE coordinate (empty string if no cube there).
-            // These probes read today's Chunk cubes; D4 deleted the Chunk store, and with no Chunk every probe
-            // answered "nothing here" -- as they still do. D4 finding: the validators need the switched world's reads.
-            Core::MaterialAt matAt = [](int, int, int) -> std::string { return std::string(); };
-            // Micro-aware predicate: does world cube (x,y,z) contain `mat` at cube/subcube/microcube
-            // level? (Chimney/wall Stone are sub/microcubes, invisible to the full-cube lookup.)
-            Core::CubeHasMaterial hasMat = [](int, int, int, const std::string&) -> bool { return false; };
+            // Material lookup at a world CUBE coordinate (empty string if no FULL cube there). Since D4 these probes
+            // read the switched world (a cube = its 8^3 block of 1/8 m voxels; VoxFoundWorld::cubeContent).
+            Core::MaterialAt matAt = [vfw](int x, int y, int z) -> std::string {
+                if (!vfw) return std::string();
+                const auto c = vfw->cubeContent(glm::ivec3(x, y, z));
+                return c.solid == 512 ? c.majority : std::string();
+            };
+            // Fine-aware predicate: does world cube (x,y,z) contain `mat` in any of its voxels? (Chimney / wall
+            // Stone are partial blocks, invisible to the full-cube lookup.)
+            Core::CubeHasMaterial hasMat = [vfw](int x, int y, int z, const std::string& mat) -> bool {
+                if (!vfw) return false;
+                return vfw->cubeContent(glm::ivec3(x, y, z)).byMaterial.count(mat) > 0;
+            };
             std::vector<Core::PlacedBox> fireplaces;
             for (const auto& b : boxes)
                 if (Core::RealizedWorldValidator::isHearth(b.type)) fireplaces.push_back(b);
@@ -8260,12 +8270,18 @@ static bool handlePlacedObjectCommand(
             rep.merge(Core::RealizedWorldValidator::checkChimneyOverHearth(fireplaces, hasMat));
             rep.merge(Core::RealizedWorldValidator::checkPathUnderFootprint(structs, hasMat));
             // Terrain surface height at a column (highest solid full cube; terrain is full cubes).
-            Core::SurfaceHeight surfaceH = [](int, int) -> int { return INT_MIN; };
+            Core::SurfaceHeight surfaceH = [vfw](int x, int z) -> int { return vfw ? vfw->surfaceCubeY(x, z) : INT_MIN; };
             rep.merge(Core::RealizedWorldValidator::checkYardFlatness(structs, surfaceH));
             rep.merge(Core::RealizedWorldValidator::checkFloorFlush(structs, surfaceH));
 
-            // Fence posts: count Log micro/subcubes in a world cube (fences are Log micros).
-            auto logCount = [](int, int, int) -> int { return 0; };
+            // Fence posts: Log in a world cube, in 1/9 m micro units as the >= 10 threshold was set (fences were Log
+            // micros): Log voxels x 729 / 512 (the same volume at 1/8 m).
+            auto logCount = [vfw](int x, int y, int z) -> int {
+                if (!vfw) return 0;
+                const auto c = vfw->cubeContent(glm::ivec3(x, y, z));
+                const auto it = c.byMaterial.find("Log");
+                return it == c.byMaterial.end() ? 0 : static_cast<int>((it->second * 729 + 256) / 512);
+            };
             std::vector<Core::FencePost> fencePosts;
             const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
             // A fence NEVER runs inside a building â€” it rings the yard on the plot edge. So Log micros
@@ -8373,7 +8389,13 @@ static bool handlePlacedObjectCommand(
                 const glm::ivec3 r(mx - wc.x * 9, my - wc.y * 9, mz - wc.z * 9);   // 0..8 in the cube
                 const glm::ivec3 sp(r.x / 3, r.y / 3, r.z / 3), mp(r.x % 3, r.y % 3, r.z % 3);
                 nlohmann::json cell = {{"x", mx}, {"y", my}, {"z", mz}, {"material", nullptr}, {"level", "air"}};
-                (void)sp; (void)mp; (void)wc;   // today's Chunk cube went with D4: every cell reads air
+                (void)sp; (void)mp; (void)wc;
+                if (vfw) {   // the switched world: the 1/8 m voxel under the micro cell's centre (occupiedMicro's rule)
+                    auto fd8 = [](int a) { return a >= 0 ? a / 9 : -((-a + 8) / 9); };
+                    auto v8 = [&](int m) { return fd8(m * 8 + 4) ; };   // floor((m + 0.5) * 8 / 9)
+                    const std::string mat = vfw->voxelMaterial(glm::ivec3(v8(mx), v8(my), v8(mz)));
+                    if (!mat.empty()) { cell["material"] = mat; cell["level"] = "voxel"; }
+                }
                 out.push_back(cell);
             }
             response = {{"cells", out}, {"count", out.size()}};
@@ -8397,8 +8419,14 @@ static bool handlePlacedObjectCommand(
             for (int x = lox; x <= hix && budget > 0; ++x)
             for (int y = loy; y <= hiy && budget > 0; ++y)
             for (int z = loz; z <= hiz && budget > 0; ++z) {
-                // Today's Chunk store went with D4: no cube is ever found (every cell skipped, as with no chunk).
-                if (budget > 0) continue;
+                if (!vfw) continue;   // the switched world's cube content (since D4; counts are 1/8 m voxels of 512)
+                const auto cc = vfw->cubeContent(glm::ivec3(x, y, z));
+                if (cc.byMaterial.empty()) continue;
+                std::vector<std::string> keys;
+                for (const auto& kv : cc.byMaterial) keys.push_back(kv.first);
+                cells.push_back({{"x", x}, {"y", y}, {"z", z}, {"materials", keys}, {"counts", cc.byMaterial},
+                                 {"units", "voxel"}});
+                --budget;
             }
             response = {{"cells", cells}, {"count", cells.size()}};
         }
@@ -8461,11 +8489,46 @@ static bool handlePlacedObjectCommand(
             for (const auto& o : placedObjectManager->list()) {
                 if (o.category != "structure") continue;
                 ++checked;
-                // Residency was today's Chunk map; D4 deleted it and none was ever resident, so every structure
-                // record is reported unverifiable, never a ghost (the ghost probes read today's Chunk cubes).
-                unverifiable.push_back(o.id);
+                // Residency: the switched world's region holds every chunk of the box (VoxFoundWorld::cubeResident).
+                bool resident = static_cast<bool>(vfw);
+                auto fd32 = [](int a) { return a >= 0 ? a / 32 : -((-a + 31) / 32); };
+                for (int cx = fd32(o.boundingMin.x); cx <= fd32(o.boundingMax.x) && resident; ++cx)
+                    for (int cy = fd32(o.boundingMin.y); cy <= fd32(o.boundingMax.y) && resident; ++cy)
+                        for (int cz = fd32(o.boundingMin.z); cz <= fd32(o.boundingMax.z) && resident; ++cz)
+                            if (!vfw->cubeResident(glm::ivec3(cx * 32, cy * 32, cz * 32))) resident = false;
+                if (!resident) { unverifiable.push_back(o.id); continue; }
+                bool isGhost;
+                if (o.metadata.contains("assembly_plan") && o.metadata["assembly_plan"].contains("origin") &&
+                    o.metadata["assembly_plan"].contains("plan")) {
+                    // v2 structure: probe where the ANATOMY says exterior walls must be (any voxel there).
+                    const auto& m = o.metadata["assembly_plan"];
+                    const glm::ivec3 org(m["origin"][0].get<int>(), m["origin"][1].get<int>(), m["origin"][2].get<int>());
+                    const Core::AssemblyPlan plan = Core::AssemblyPlan::fromJson(m["plan"]);
+                    int wallCells = 0, wallHits = 0;
+                    for (const auto& w : plan.walls) {
+                        if (w.type != "exterior") continue;
+                        ++wallCells;
+                        if (vfw->cubeContent(org + glm::ivec3(w.x0, w.baseY, w.z0)).solid > 0) ++wallHits;
+                    }
+                    isGhost = (wallCells > 0 && wallHits == 0);
+                } else {
+                    // Legacy record (no plan): NON-FLORA evidence in the box (a tree overlapping it is not a building).
+                    auto isFlora = [](const std::string& mat) { return mat.rfind("Log", 0) == 0 || mat.rfind("Leaf", 0) == 0; };
+                    int evidence = 0;
+                    for (int x = o.boundingMin.x; x <= o.boundingMax.x && evidence < 8; ++x)
+                        for (int y = o.boundingMin.y; y <= o.boundingMax.y && evidence < 8; ++y)
+                            for (int z = o.boundingMin.z; z <= o.boundingMax.z && evidence < 8; ++z) {
+                                const auto cc = vfw->cubeContent(glm::ivec3(x, y, z));
+                                if (cc.solid && !isFlora(cc.majority)) ++evidence;
+                            }
+                    isGhost = (evidence < 8);
+                }
+                if (isGhost) {
+                    ghosts.push_back({{"id", o.id}, {"template", o.templateName},
+                                      {"position", {{"x", o.position.x}, {"y", o.position.y}, {"z", o.position.z}}}});
+                    if (repair) toRemove.push_back(o.id);
+                }
             }
-            (void)repair;
             for (const auto& gid : toRemove) {
                 placedObjectManager->remove(gid);
                 LOG_INFO_FMT("PlacedObjects", "validate: removed ghost record '" << gid << "'");
@@ -8740,8 +8803,34 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             json partialCells = json::array();   // so a camera can be AIMED at a partial cell
             int minFill = 730, maxFill = -1;
             for (const auto& wp : cells) {
-                // The CPU side was today's Chunk occupancy grid; D4 deleted it (no chunk: every cell skipped).
-                (void)wp; continue;
+                // The CPU side is the switched world's store since D4 (ChunkManager::occupiedMicro: the 1/8 m voxel
+                // under each 1/9 m micro cell's centre -- the sampling the light occupancy is fed with).
+                if (!chunkManager || !vfw || !vfw->cubeResident(wp)) continue;
+                int cpu = 0, gpu = 0, bad = 0;
+                for (int my = 0; my < 9; ++my)
+                for (int mx = 0; mx < 9; ++mx)
+                for (int mz = 0; mz < 9; ++mz) {
+                    const glm::ivec3 m(wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz);
+                    const bool c = chunkManager->occupiedMicro(m);
+                    const bool g = renderCoordinator->lightOccupancySolidAt(m);
+                    if (c) ++cpu;
+                    if (g) ++gpu;
+                    if (c != g) ++bad;
+                }
+                ++audited;
+                minFill = std::min(minFill, cpu);
+                maxFill = std::max(maxFill, cpu);
+                if (cpu == 729) ++fullySolid;
+                else if (cpu == 0) ++empty;
+                else {
+                    ++partial;
+                    if (partialCells.size() < 12) partialCells.push_back({{"world", {wp.x, wp.y, wp.z}}, {"fill", cpu}});
+                }
+                if (bad > 0) {
+                    ++disagreeing;
+                    if (failures.size() < 5)
+                        failures.push_back({{"world", {wp.x, wp.y, wp.z}}, {"cpu", cpu}, {"gpu", gpu}, {"bad", bad}});
+                }
             }
             response["mixed_audit"] = {
                 {"sampled",        cells.size()},
@@ -8762,9 +8851,20 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
             const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
                                 cmd.params.value("z", 0));
-            // The CPU side was today's Chunk occupancy grid; D4 deleted it.
-            response["cell_error"] = "no chunk at cell";
-            (void)wp;
+            // The CPU side is the switched world's store since D4 (ChunkManager::occupiedMicro).
+            if (!chunkManager || !vfw || !vfw->cubeResident(wp)) { response["cell_error"] = "cell not resident"; return true; }
+            int cpu = 0, gpu = 0, bad = 0;
+            json mismatches = json::array();
+            for (int my = 0; my < 9; ++my)
+            for (int mx = 0; mx < 9; ++mx)
+            for (int mz = 0; mz < 9; ++mz) {
+                const glm::ivec3 m(wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz);
+                const bool c = chunkManager->occupiedMicro(m), g = renderCoordinator->lightOccupancySolidAt(m);
+                cpu += c; gpu += g;
+                if (c != g) { ++bad; if (mismatches.size() < 16) mismatches.push_back({mx, my, mz, c, g}); }
+            }
+            response["cell"] = {{"world", {wp.x, wp.y, wp.z}}, {"cpu", cpu}, {"gpu", gpu}, {"bad", bad},
+                                {"mismatches", mismatches}};
             return true;
         }
         return true;
@@ -8776,9 +8876,17 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         // diff instead of a theory about what the character collides with.
         const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
                             cmd.params.value("z", 0));
-        // Today's Chunk occupancy grid went with D4: there is never a chunk at the cell.
-        (void)wp;
-        response = {{"error", "no chunk at cell"}};
+        // Since D4 the content is the switched world's (the Chunk occupancy grid went with the Chunk store): the
+        // cube's 1/8 m voxels by material, and its 729 micro cells as the occupancy reads them (occupiedMicro).
+        if (!vfw || !chunkManager || !vfw->cubeResident(wp)) { response = {{"error", "cell not resident"}}; return true; }
+        const auto cc = vfw->cubeContent(wp);
+        int micro = 0;
+        for (int i = 0; i < 729; ++i)
+            micro += chunkManager->occupiedMicro(glm::ivec3(wp.x * 9 + i / 81, wp.y * 9 + (i / 9) % 9, wp.z * 9 + i % 9));
+        response = {{"cell", {wp.x, wp.y, wp.z}},
+                    {"content", {{"solid_voxels", cc.solid}, {"of", 512}, {"materials", cc.byMaterial},
+                                 {"cube", cc.solid == 512}, {"cube_material", cc.solid == 512 ? cc.majority : std::string()}}},
+                    {"grid", {{"micro_filled", micro}, {"of", 729}}}};
         return true;
     } else if (action == "break_voxel") {
         // D3c-4: the 1/9 m test-hook break (a today-store CubeLocation) was removed with its store; the switched
@@ -9223,6 +9331,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             response = {
                 {"mirror_pass_ran",          s.mirrorPassRan},
                 {"reflection_draw_calls",    s.reflectionDrawCalls},
+                {"voxfound_oit_faces",       s.voxFoundOitFaces},
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
@@ -9655,11 +9764,32 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     // height, and the kerf's blade-hugging bite window then sat entirely in
     // air â€” the live micros-carved=0 whiff pattern. Detection runs every strike
     // frame, so a near-miss frame just retries as the blade sweeps in.)
-    // The bite probed today's Chunk cubes (and DamageSystem's Chunk wood scan) and carved a kerf in them
-    // (DamageSystem::carveChopKerf). D4 deleted the Chunk store and those paths; with no Chunk the probe found no
-    // wood, so the swing never registered contact -- it still does not (D4 finding: no 1/8 m chop path yet).
-    (void)axeHead; (void)fwd; (void)isTrunk; (void)isFlora; (void)heldDef;
-    return false;
+    // Since D4 the bite is the switched world's (VoxFoundWorld::voxFoundChop: contact within 0.3 m of the blade,
+    // a blade-sized kerf in the 1/8 m Log voxels from the notch frontier, the crown released as a body when the
+    // cut severs the trunk). Today's carveChopKerf went with the Chunk store.
+    (void)isTrunk; (void)isFlora;
+    if (!vfw) return false;
+    const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
+    const float kDepthPerChopPoint = 0.06f;   // axe damage 6 -> ~0.36 m bite per swing
+    const nlohmann::json ch = vfw->voxFoundChop(axeHead, fwd, chopPower * kDepthPerChopPoint);
+    if (!ch.value("contact", false)) return false;   // no contact this frame -- the swing continues
+    const bool trunk = !ch.value("leaf", false);
+    const glm::vec3 hitCenter = axeHead;
+    if (renderCoordinator) {
+        if (auto* vfx = renderCoordinator->getVfxSystem()) {
+            VfxBurstParams chips;
+            chips.count = 14; chips.speed = 3.0f; chips.speedVar = 1.5f; chips.upBias = 0.35f;
+            chips.gravity = -9.0f; chips.drag = 1.5f; chips.lifetime = 0.5f; chips.lifetimeVar = 0.2f;
+            chips.size = 0.07f; chips.sizeVar = 0.03f; chips.intensity = 0.05f;
+            chips.color = trunk ? glm::vec3(0.45f, 0.30f, 0.16f) : glm::vec3(0.25f, 0.45f, 0.15f);
+            chips.shape = VfxShape::Cone; chips.direction = -fwd; chips.coneAngleDeg = 55.0f; chips.posJitter = glm::vec3(0.15f);
+            vfx->spawnBurst(hitCenter, chips);
+        }
+    }
+    if (auto* sndReg = runtime ? runtime->getSoundRegistry() : nullptr)
+        sndReg->playEvent(trunk ? "chop.impact.trunk" : "chop.impact.leaves", hitCenter);
+    LOG_INFO("Chop", "Axe bite " + ch.dump());
+    return true;
 }
 
 void Application::updateNpcHeldItems() {
@@ -14949,8 +15079,8 @@ void Application::registerWorldForgeCommands() {
             if (!gen) return false;
             auto resident = [&](int wx, int wz) {
                 const int sy = gen->sampleSurface(wx, wz).surfaceY;
-                (void)sy; (void)wx; (void)wz;   // today's Chunk residency (none since D4 -- see the D4 report)
-                return false;
+                // the switched world's residency: its region holds the surface chunk (today's Chunk map until D4)
+                return vfw && vfw->cubeResident(glm::ivec3(wx, sy, wz));
             };
             const int hw = site.width / 2, hd = site.depth / 2;
             return resident(site.pos.x, site.pos.y) &&
@@ -14973,7 +15103,9 @@ void Application::registerWorldForgeCommands() {
         // leave ghost voxels without assembly_plan records on reload; locations are what
         // make the site's residents respawnable).
         d.checkpointWorld = [this] {
-            // (today's Chunk save went with D4)
+            // The switched world's edited chunks into the DB (today's Chunk save until D4) -- F3.3's save, the world
+            // stays up -- so a checkpoint's voxels and records land together.
+            if (vfw) { nlohmann::json saved; vfw->handleVoxFoundSave(saved); }
             saveWaterMeta();   // 35: the water's records ride every chunk save
             if (auto* ws = chunkManager->m_streamingManager.getWorldStorage()) {
                 if (placedObjectManager) placedObjectManager->saveToDb(ws->getDb());
@@ -18189,7 +18321,7 @@ void Application::processAPICommands() {
             // PLACED OBJECT COMMANDS (extracted to reduce nesting depth)
             // ================================================================
             } else if (handlePlacedObjectCommand(cmd, response,
-                           placedObjectManager.get(), chunkManager, snapshotManager.get())) {
+                           placedObjectManager.get(), chunkManager, snapshotManager.get(), vfw.get())) {
                 // handled
 
             } else if (handlePlacedObjectHierarchyCommands(cmd, response, placedObjectManager.get())) {

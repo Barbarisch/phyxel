@@ -34,6 +34,10 @@ TEST_F(AtlasManagerTest, BuildAtlasFromSourcePNGs) {
 
     // Texture-array layout: one baseSize² RGBA layer per texture, stored layer-major.
     // class 0 = 512px (terrain/standard materials).
+    // G-114: a BC7 cache hit skips the PNG decode and leaves `pixels` empty BY DESIGN (AtlasInfo docs: "empty
+    // until ensurePixels()"); this test predated the cache and failed on every machine with a warm cache. Ask
+    // for the pixels the documented way, then hold the decoded layout to the same exact size.
+    atlas.ensurePixels(0);
     const auto& info = atlas.getAtlasInfo(0);
     const int expectedCount = MaterialRegistry::instance().getTextureCount(0);
     EXPECT_GT(expectedCount, 0);

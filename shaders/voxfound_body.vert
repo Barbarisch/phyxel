@@ -144,7 +144,7 @@ void main() {
     vTint = vec3(1.0);
     vState = 0u;
     textureIndex = texWord & 0xFFFFu;
-    flags = ((texWord >> 16) & 0xFFFFu) | (1u << 16);   // bit 16: a body face (LOD bit 23 stays clear)
+    flags = ((texWord >> 16) & 0xFFFDu) | (1u << 16);   // D4 follow-up: never the transparent bit (no OIT pass for bodies)   // bit 16: a body face (LOD bit 23 stays clear)
     texCoord = uv;
     vSkyLight = 1.0;
 }

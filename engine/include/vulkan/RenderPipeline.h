@@ -100,6 +100,11 @@ public:
     VkPipeline getDebugGraphicsPipeline() const { return debugGraphicsPipeline; }
     VkPipeline getDebugLinePipeline() const { return debugLinePipeline; }
     VkPipeline getOITPipeline() const { return oitPipeline; }
+    /// D4 follow-up (glass on the switched world): the OIT pass over the voxfound face records -- createOITPipeline's
+    /// state (blend, read-only depth, no cull) with voxfound_face.vert's instance input and layout. Rebuilt lazily after
+    /// every createOITPipeline (its render pass).
+    bool ensureVoxFoundOitPipeline();
+    VkPipeline getVoxFoundOitPipeline() const { return voxFoundOitPipeline; }
     VkPipeline getMirrorPipeline() const { return mirrorPipeline; }
     VkPipeline getReflectionScenePipeline() const { return reflectionScenePipeline; }
     VkPipelineLayout getMirrorPipelineLayout() const { return mirrorPipelineLayout; }
@@ -149,6 +154,8 @@ private:
     VkPipeline debugLinePipeline = VK_NULL_HANDLE;      // Debug line/raycast visualization pipeline
     VkPipeline oitPipeline = VK_NULL_HANDLE;            // Weighted Blended OIT transparent pass
     VkShaderModule oitFragShaderModule = VK_NULL_HANDLE;
+    VkPipeline voxFoundOitPipeline = VK_NULL_HANDLE;   // D4 follow-up (glass)
+    VkRenderPass m_oitRenderPass = VK_NULL_HANDLE;      // the pass the OIT pipelines were last built against
     VkPipeline mirrorPipeline = VK_NULL_HANDLE;          // Reflective mirror surface pass
     VkPipeline reflectionScenePipeline = VK_NULL_HANDLE; // Scene rendered from reflected camera
     VkPipelineLayout mirrorPipelineLayout = VK_NULL_HANDLE; // Layout with set 0 + set 1 (reflection)

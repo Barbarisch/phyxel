@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/voxfound/EmissiveLights.h"
 #include "core/WaterSpanGridKey.h"
 #include "core/Types.h"
 #include "core/LodService.h"
@@ -110,6 +111,11 @@ public:
     /// Per-frame budget for the dirty-chunk mesh drain (ms; default 6). A host raises it
     /// while a loading screen hides the frame time (G-181) and restores it after.
     void setDirtyChunkBudgetMs(double ms) { m_dirtyChunkBudgetMs = ms; }
+    /// D4 follow-up (U3.2): the switched world's emissive lights (VoxFoundWorld::voxFoundEmissiveTick); reconciled
+    /// into LightManager by updateVfx on change.
+    void setVoxFoundEmissiveLights(std::vector<Core::VoxFound::EmissiveLight> l) { m_voxFoundEmissive = std::move(l); }
+    const std::vector<Core::VoxFound::EmissiveLight>& voxFoundEmissiveLights() const { return m_voxFoundEmissive; }
+    size_t flamingBurning() const { return m_flamingBurning; }   // embers the fire VFX was last synced with
     double dirtyChunkBudgetMs() const { return m_dirtyChunkBudgetMs; }
 
     /// Capacity of the shared character instance buffer, in PARTS (not characters) —
@@ -440,6 +446,7 @@ public:
     struct RenderStats {
         bool   mirrorPassRan         = false;
         int    reflectionDrawCalls   = 0;
+        uint32_t voxFoundOitFaces    = 0;   // D4 follow-up: switched-world faces re-drawn in the OIT (glass) pass
         int    mirrorGeomDrawCalls   = 0;
         int    visibleChunkCount     = 0;
         int    totalVisibleFaces     = 0;   // per-face instances across visible chunks (greedy-merged cubes count as 1)
@@ -936,6 +943,19 @@ public:
 
 private:
     double m_dirtyChunkBudgetMs = 6.0;   // see setDirtyChunkBudgetMs
+    std::vector<Core::VoxFound::EmissiveLight> m_voxFoundEmissive;   // D4 follow-up (U3.2)
+    // D4 follow-up: the near field's DRAWN chunks are the switched world's (Preview chunks with faces) -- the far
+    // terrain coverage, the far-tree residency mask and the LOD tree hand-off read them (they read today's Chunks'
+    // instance counts until D4). Rebuilt when the preview's revision moves.
+    uint64_t m_vfDrawnRevision = ~0ull;
+    const void* m_vfDrawnPreview = nullptr;
+    std::unordered_set<uint64_t> m_vfDrawnChunks, m_vfDrawnColumns;
+    void refreshVoxFoundDrawn();
+public:
+    bool voxFoundChunkDrawn(const glm::ivec3& chunk);
+    bool voxFoundColumnDrawn(int cx, int cz);
+private:
+    size_t m_flamingBurning = 0;
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
 

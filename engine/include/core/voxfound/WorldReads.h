@@ -39,6 +39,8 @@ public:
     uint8_t voxel(glm::ivec3 v) const;
     /// The chunks the store has (engine chunk coordinates): what "loaded" means for the routed reads.
     const std::vector<glm::ivec3>& chunks() const { return m_chunks; }
+    /// Is engine chunk `chunk` resident (the store has it, air included)? The switched world's residency.
+    bool hasChunk(glm::ivec3 chunk) const { return m_storeOf && m_storeOf(chunk) != nullptr; }
 
 private:
     StoreOf m_storeOf;

@@ -78,7 +78,8 @@ sys.stderr = LogCatcher()
         try {
             py::module::import("sys").attr("path").attr("append")(Core::AssetManager::instance().scriptsDir());
             
-            // Try to load startup script
+            // Try to load startup script (it reads PHYXEL_PROJECT_MODE: no dev demo inside a project)
+            m_globals["PHYXEL_PROJECT_MODE"] = py::bool_(m_projectMode);
             py::eval_file(Core::AssetManager::instance().resolveScript("startup.py"), m_globals);
             Utils::Logger::getInstance().log(Utils::LogLevel::Info, "ScriptingSystem", "Loaded scripts/startup.py");
         } catch (const std::exception& e) {

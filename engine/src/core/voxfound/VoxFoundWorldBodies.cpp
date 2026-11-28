@@ -239,7 +239,7 @@ bool VoxFoundWorld::voxFoundBodiesBuildRegion(const Core::VoxFound::VoxelGrid& g
     voxFoundPreview.clusterBlocks = 4;
     voxFoundPreview.shown = true;
     lab.leafTex.assign(sizeof(kLabTextures) / sizeof(kLabTextures[0]), 0);
-    voxFoundEdit.assemble(voxFoundPreview, lab.leafTex);
+    voxFoundAssemble(lab.leafTex);
     ++voxFoundPreview.revision;
     renderCoordinator->setVoxFoundPreview(&voxFoundPreview);
     lab.previewFaces = faces;
@@ -404,7 +404,7 @@ bool VoxFoundWorld::voxFoundBodiesRestPass(bool force, const Core::VoxFound::Res
             for (size_t i : es.changed)
                 if (std::find(changed.begin(), changed.end(), i) == changed.end()) changed.push_back(i);
         }
-        voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &changed);
+        voxFoundAssemble(lab.leafTex, &changed);
         size_t pf = 0;
         for (size_t i = 0; i < voxFoundEdit.chunkCount(); ++i) pf += voxFoundEdit.chunk(i).faces.size();
         lab.previewFaces = pf;
@@ -483,7 +483,7 @@ size_t VoxFoundWorld::voxFoundFluidEdit(bool all) {
     for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
     voxFoundOccBump(es.rebuilt);
     voxFoundLodMark(es);   // F7.6d   // F7.5
-    voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
+    voxFoundAssemble(lab.leafTex, &es.changed);
     return cells.size();
 }
 
@@ -531,7 +531,7 @@ nlohmann::json VoxFoundWorld::voxFoundSettleRubble() {
         for (size_t i : es.rebuilt) voxFoundBuilder->forgetResident(voxFoundEdit.residentKey(i));
         voxFoundOccBump(es.rebuilt);
         voxFoundLodMark(es);
-        voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
+        voxFoundAssemble(lab.leafTex, &es.changed);
     }
     return {{"settled", ss.placed}, {"stacked", ss.flooded}, {"unplaced", ss.unplaced}, {"remainder_units", ss.remainderUnits}};
 }
@@ -860,7 +860,7 @@ void VoxFoundWorld::handleVoxFoundBodies(const Core::APICommand& cmd, nlohmann::
             voxFoundOccBump(es.rebuilt);
     voxFoundLodMark(es);   // F7.6d
             lab.leafTex = voxFoundLeafTex;
-            voxFoundEdit.assemble(voxFoundPreview, lab.leafTex, &es.changed);
+            voxFoundAssemble(lab.leafTex, &es.changed);
             lab.fluidDrawn.assign(lab.world.size(), 0);
             voxFoundFluidEdit(false);
         } else if (!voxFoundBodiesRebuildWorld(&err)) {

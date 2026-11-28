@@ -878,8 +878,9 @@ TEST_F(VoxFoundFaceBuilderGpu, ClearVoxelsEqualTheReference) {
     sp.worldOriginVoxel = {11, -40, 900};
     sp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
     const glm::ivec3 dims[] = {{24, 20, 28}, {33, 65, 17}, {64, 40, 48}, {256, 9, 5}};
-    size_t clearFaces = 0;
+    size_t clearFaces = 0, gridIndex = 0;
     for (const glm::ivec3 d : dims) {
+        ++gridIndex;   // the resident key per grid (a fresh key = a full voxel upload)
         VoxelGrid g = box(d);
         for (int x = 0; x < d.x; ++x)
             for (int y = 0; y < d.y; ++y)
@@ -919,7 +920,7 @@ TEST_F(VoxFoundFaceBuilderGpu, ClearVoxelsEqualTheReference) {
             const RunsDelta cpu = meshRunsPlan(g, Edges(nb), plan, &sp.cards);
             std::vector<PackedFace> dev;
             std::string err;
-            ASSERT_TRUE(gpu.rowsDelta(9000u + uint64_t(&d - dims), g, nb, lo, hi, plan, &sp.cards, dev, &err)) << err;
+            ASSERT_TRUE(gpu.rowsDelta(9000u + uint64_t(gridIndex), g, nb, lo, hi, plan, &sp.cards, dev, &err)) << err;
             ASSERT_EQ(keys(cpu.added), keys(dev)) << name << " edit " << it << ": " << firstDiff(keys(cpu.added), keys(dev));
             std::vector<char> gone(faces.size(), 0);
             for (uint32_t i : plan.removed) gone[i] = 1;
