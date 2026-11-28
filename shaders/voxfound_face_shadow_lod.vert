@@ -15,12 +15,25 @@ layout(push_constant) uniform PushConstants {
     uint lodBits;           // voxel.frag flag bits: maxLevel << 20 | on << 23 | code << 24
     uint level;             // this draw's level
     float lodFloor;         // log2(8 * shadow texel): levels the map cannot tell apart from 1/8 m
+    uvec4 clear0;           // S9: CardSet::clear bits (transparent materials cast no shadow); offset 96
+    uvec4 clear1;
 } pushConstants;
+
+bool isClear(uint m) {
+    const uint w = m >> 5u;
+    const uint word = w < 4u ? pushConstants.clear0[w] : pushConstants.clear1[w - 4u];
+    return ((word >> (m & 31u)) & 1u) != 0u;
+}
 
 layout(location = 0) out vec3 outCamRel;
 const float kVoxel = 1.0 / 8.0;
 
 void main() {
+    if (isClear((inFaceB >> 16) & 0xFFu)) {   // S9: glass casts no shadow (as voxfound_face_shadow.vert)
+        gl_Position = vec4(0.0, 0.0, -1.0, 1.0);
+        outCamRel = vec3(0.0);
+        return;
+    }
     const uint axis = (inFaceA >> 24) & 3u;
     const bool pos = ((inFaceA >> 26) & 1u) != 0u;
     const vec3 o = vec3(float(inFaceA & 0xFFu), float((inFaceA >> 8) & 0xFFu), float((inFaceA >> 16) & 0xFFu));

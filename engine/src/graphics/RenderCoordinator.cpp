@@ -1970,6 +1970,31 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
     // shader has no LOD discard). Skipped when no material in the table is transparent (the common case) -- the
     // pass's targets are still cleared and composited by drawFrame.
     lastFrameStats.voxFoundOitFaces = 0;
+    lastFrameStats.voxFoundOitBodyFaces = 0;
+    // S9b: glass SHARDS (loose bodies) -- voxfound_body.vert keeps the transparent bit, so the opaque body pass
+    // discarded their glass fragments; here the bodies draw again through the OIT frag, which keeps exactly those
+    if (m_bodyFrameReady && m_voxFoundBodies && !m_voxFoundBodies->faces.empty() && m_voxFoundPreview &&
+        m_voxFoundTexBuffer != VK_NULL_HANDLE && camera) {
+        bool anyClear = false;
+        for (const uint32_t w : m_voxFoundPreview->faceTex)
+            if (w & (2u << 16)) { anyClear = true; break; }
+        if (anyClear && renderPipeline->ensureVoxFoundBodyOitPipeline()) {
+            VkCommandBuffer bc = vulkanDevice->getCommandBuffer(frameIndex);
+            vkCmdBindPipeline(bc, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getVoxFoundBodyOitPipeline());
+            vulkanDevice->bindVertexBuffers(frameIndex);
+            vulkanDevice->bindIndexBuffer(frameIndex);
+            vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+            renderPipeline->bindVoxFoundFaceTex(bc, m_voxFoundTexBuffer, m_bodyPoseBuffer, false,
+                                                VkDeviceSize(frameIndex) * m_bodyPoseSlot * sizeof(Core::VoxFound::BodyPose));
+            const VkDeviceSize boff = VkDeviceSize(frameIndex) * m_bodyFaceCapacity * sizeof(Core::VoxFound::BodyFace);
+            vkCmdBindVertexBuffers(bc, 1, 1, &m_bodyFaceBuffer, &boff);
+            vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), glm::vec3(0.0f),
+                                        m_voxFoundBodies->mutate ? 1u : 0u, glm::vec3(0.0f), 0.0f);
+            const uint32_t nb = uint32_t(m_voxFoundBodies->faces.size());
+            vkCmdDrawIndexed(bc, 36u, nb, 0, 0, 0);
+            lastFrameStats.voxFoundOitBodyFaces = nb;
+        }
+    }
     if (!m_voxFoundPreview || !m_voxFoundPreview->shown || !camera || m_voxFoundTexBuffer == VK_NULL_HANDLE) return;
     if (!m_voxFoundMapped && !m_voxFoundFacesDevice) return;
     bool anyTransparent = false;
@@ -3138,7 +3163,17 @@ void RenderCoordinator::castVoxFoundBodies(VkCommandBuffer cmd, ShadowMap& map, 
     vulkanDevice->bindIndexBuffer(currentFrame);
     const VkDeviceSize off = VkDeviceSize(currentFrame) * m_bodyFaceCapacity * sizeof(Core::VoxFound::BodyFace);
     vkCmdBindVertexBuffers(cmd, 1, 1, &m_bodyFaceBuffer, &off);   // F5.5c: this frame's face copy
-    struct { glm::mat4 lightSpaceMatrix; glm::vec3 chunkBaseOffset; uint32_t useChunkDataSsbo; uint32_t drawIndexBase; } pc;
+    struct {
+        glm::mat4 lightSpaceMatrix;
+        glm::vec3 chunkBaseOffset;
+        uint32_t useChunkDataSsbo;
+        uint32_t drawIndexBase;
+        uint32_t pad[3];
+        uint32_t clear[8];   // S9b: glass shards cast no shadow (voxfound_body_shadow.vert)
+    } pc{};
+    if (m_voxFoundPreview)
+        for (size_t m = 0; m < 256 && m * 6 < m_voxFoundPreview->faceTex.size(); ++m)
+            if (m_voxFoundPreview->faceTex[m * 6] & (2u << 16)) pc.clear[m >> 5] |= 1u << (m & 31);
     pc.lightSpaceMatrix = lightSpaceMatrix;
     pc.chunkBaseOffset = glm::vec3(0.0f);
     pc.useChunkDataSsbo = 0u;
@@ -3675,6 +3710,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
                 ShadowMap::VoxFoundLodShadowPC lpc{};
                 lpc.lightSpaceMatrix = lightSpaceMatrix;
                 lpc.lodBits = Core::VoxFound::lodFlagBits(0, pv.lodMaxLevel, code);
+                std::memcpy(lpc.clear, pc.clear, sizeof(lpc.clear));   // S9: the same clear set as the plain casters
                 lpc.lodFloor = Core::VoxFound::lodTexelFloor(2.0f * cullRadius / float(std::max(1u, map.getWidth())));
                 m_voxFoundShadowFloor[ci] = lpc.lodFloor;
                 const glm::dvec3 cam(camera->getPosition());

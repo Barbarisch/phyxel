@@ -453,6 +453,7 @@ public:
         bool   mirrorPassRan         = false;
         int    reflectionDrawCalls   = 0;
         uint32_t voxFoundOitFaces    = 0;   // D4 follow-up: switched-world faces re-drawn in the OIT (glass) pass
+        uint32_t voxFoundOitBodyFaces = 0;  // S9b: loose-body faces re-drawn in the OIT pass (glass shards)
         int    mirrorGeomDrawCalls   = 0;
         int    visibleChunkCount     = 0;
         int    totalVisibleFaces     = 0;   // per-face instances across visible chunks (greedy-merged cubes count as 1)

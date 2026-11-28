@@ -52,7 +52,10 @@ public:
         uint32_t lodBits;            // the voxel.frag flag bits: maxLevel << 20 | 1 << 23 | code << 24
         uint32_t level;              // this draw's level
         float lodFloor;              // log2(8 * texel): the coarsest level the shadow map cannot tell from 1/8 m
+        uint32_t pad[2] = {0, 0};
+        uint32_t clear[8] = {0, 0, 0, 0, 0, 0, 0, 0};   // S9: transparent materials cast no shadow (std430 offset 96)
     };
+    static_assert(sizeof(VoxFoundLodShadowPC) == 128, "voxfound_face_shadow_lod.vert push constants");
     /// F2.12: a set of the chunk-data layout (set 0 of getPipelineLayout) bound to an external per-draw origin table
     /// (the preview's per-cluster chunk origins), for voxfound_face_shadow.vert's multidraw path. Rewritten (after a
     /// device wait) when the buffer or its generation changes (a recycled handle must not skip the rewrite). VK_NULL_HANDLE on failure.

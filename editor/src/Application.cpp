@@ -9335,6 +9335,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mirror_pass_ran",          s.mirrorPassRan},
                 {"reflection_draw_calls",    s.reflectionDrawCalls},
                 {"voxfound_oit_faces",       s.voxFoundOitFaces},
+                {"voxfound_oit_body_faces",  s.voxFoundOitBodyFaces},
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},

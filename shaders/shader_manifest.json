@@ -398,12 +398,12 @@
     },
     "voxfound_body.vert": {
       "built": true,
-      "sources": "de548a7fa4388adad1f823705992eb998066ded14f0c1c01dd55e1c19ce756b0",
+      "sources": "fbfe6d7f69ae44dd2a5f62abeb7e0f5f3fd576d3c2a9ca10fd1ca7f421050c1c",
       "spv_present": true
     },
     "voxfound_body_shadow.vert": {
       "built": true,
-      "sources": "a83d36ec77e927047c73e17b821150f152671069e480c007b28d1d624978be34",
+      "sources": "4c00b802295bfa6e72ce2b154ff1ef1ee59a674e19c752e811484a8c8393f386",
       "spv_present": true
     },
     "voxfound_cull.comp": {
@@ -433,7 +433,7 @@
     },
     "voxfound_face_shadow_lod.vert": {
       "built": true,
-      "sources": "844ab3d3a1107c2869a5e640f25afd91655c5f7f00ebd97d3812a8cb012f8e9e",
+      "sources": "fb6c2127ff93954d1fdfecefbfe2e451526bd2fbee0bf38219260917a7cef327",
       "spv_present": true
     },
     "voxfound_faces.comp": {

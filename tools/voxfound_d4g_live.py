@@ -313,15 +313,55 @@ def structlod(out):
     out["S"] = s
 
 
+def shards(out):
+    """S9b: a 2 x 2 x 2 m block (Glass, then Stone as the control) on a Stone floor, broken by /api/damage/apply."""
+    cam = call("GET", "/api/camera")
+    cx, cz = int(cam["position"]["x"]), int(cam["position"]["z"])
+    res = {}
+    for k, (mat, ox) in enumerate((("Glass", 0), ("Stone", 8))):
+        gx, gz = cx + 4 + ox, cz + 8
+        sy = int(call("GET", "/api/world/terrain_height?x=%d&z=%d" % (gx, gz)).get("surface_y", 20))
+        call("POST", "/api/daynight/set", {"enabled": True, "paused": True, "timeOfDay": 12.0})
+        call("POST", "/api/world/clear", {"x1": gx - 3, "y1": sy + 1, "z1": gz - 3, "x2": gx + 4, "y2": sy + 6, "z2": gz + 4})
+        call("POST", "/api/world/fill", {"x1": gx - 3, "y1": sy, "z1": gz - 3, "x2": gx + 4, "y2": sy, "z2": gz + 4,
+                                         "material": "Stone", "replace": True})
+        call("POST", "/api/world/fill", {"x1": gx, "y1": sy + 1, "z1": gz, "x2": gx + 1, "y2": sy + 2, "z2": gz + 1, "material": mat})
+        pose = {"x": gx - 4.0, "y": sy + 4.0, "z": gz - 4.0}
+        call("POST", "/api/camera", {"mode": "free", "position": pose, "yaw": 45.0, "pitch": -30.0})
+        time.sleep(2.0)
+        r = {"pose": pose, "shot_before": shot("d4g_shards_%s_before.png" % mat.lower())}
+        st = call("GET", "/api/render/stats")
+        r["oit_body_before"] = st.get("voxfound_oit_body_faces") if isinstance(st, dict) else None
+        br = call("POST", "/api/damage/apply", {"x": gx + 1.0, "y": sy + 2.0, "z": gz + 1.0, "radius": 1.5, "energy": 300.0})
+        r["break"] = {k2: br.get(k2) for k2 in ("broken", "debris", "bodies", "error")} if isinstance(br, dict) else br
+        time.sleep(0.6)
+        st = call("GET", "/api/render/stats")
+        r["oit_body_after"] = st.get("voxfound_oit_body_faces") if isinstance(st, dict) else None
+        r["bodies"] = {k2: v for k2, v in (call("POST", "/api/debug/voxfound_bodies", {"status": True}) or {}).items()
+                       if k2 in ("bodies", "awake", "voxels")}
+        r["shot_after"] = shot("d4g_shards_%s_after.png" % mat.lower())
+        time.sleep(3.0)
+        r["shot_settled"] = shot("d4g_shards_%s_settled.png" % mat.lower())
+        st = call("GET", "/api/render/stats")
+        r["oit_body_settled"] = st.get("voxfound_oit_body_faces") if isinstance(st, dict) else None
+        res[mat] = r
+    out["SH"] = res
+
+
 def main():
     out = {"project": sys.argv[1] if len(sys.argv) > 1 else "?", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
     what = sys.argv[2] if len(sys.argv) > 2 else "all"
+    if what == "glasslod":   # S9: the LOD casters on (lod_auto + lod_casters), then the glass rig
+        out["lod"] = call("POST", P, {"lod_auto": True, "lod_casters": True})
+        glass(out)
     if what in ("glass", "all"):
         glass(out)
     if what in ("mirror", "all"):
         mirror(out)
     if what in ("fell", "all"):
         fell(out)
+    if what in ("shards", "all"):
+        shards(out)
     if what in ("structlod", "all"):
         structlod(out)
     print(json.dumps(out)[:6000])

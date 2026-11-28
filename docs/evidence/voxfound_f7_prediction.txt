@@ -2260,3 +2260,18 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   spawned'; the same with PHYXEL_STARTUP_DEMO=1 logs 'Characters spawned' (control).
   S8 RESULT: as predicted -- no project: 'Startup demo skipped' + 'Project launcher will show'; PHYXEL_STARTUP_DEMO=1:
      'Characters spawned successfully!' (control).
+
+  S9 PREDICTION (glass shadows in the remaining paths + glass shards; before the code). (a) The LOD-caster path gets the
+  same clear check (push 88 -> 128 B). (b) Loose bodies: glass shards were drawn OPAQUE (voxfound_body.vert masked the
+  transparent bit) and cast; now the bit stays (the opaque body pass discards them), a body OIT pipeline draws them in
+  the OIT pass, voxfound_body_shadow.vert skips clear materials. Live (TavernTest copy): a 2 x 2 x 2 m Glass block broken
+  by /api/damage/apply: render stats voxfound_oit_body_faces > 0 while shards exist (0 before the break); frames show
+  see-through shards (not solid); no shard shadow on the ground. A Stone block broken the same way: shards opaque, cast.
+  S9 RESULT: (a) the LOD-caster path carries the clear check but is UNREACHABLE in any shipped boot -- the switched world
+     builds level 0 only (lod_auto refused: 'coarser levels not built', levels_built 1); not live-verified, compile only.
+     (b) TavernCopy: a 2 x 2 x 2 m Glass block broken (4,123 voxels, 103 shard bodies): voxfound_oit_body_faces 0 -> 864;
+     frames d4g_shards_glass_before / after / settled: see-through shards, no shadow on the floor (the intact block casts
+     none either, S5). Control: a Stone block (32,053 voxels, 280 bodies) -- opaque shards, a shadow. Seen, not predicted:
+     the broken glass reads MILKY (each shard body draws its own inner faces; the OIT layers stack); once the palette holds
+     glass every body face is re-submitted to the OIT pass (20,711 after the Stone break -- the frag keeps the glass), the
+     same cost pattern as the faces. Editor status bar 7 FPS while 280 Stone bodies were awake (not measured by route).

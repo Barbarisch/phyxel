@@ -105,6 +105,8 @@ public:
     /// every createOITPipeline (its render pass).
     bool ensureVoxFoundOitPipeline();
     VkPipeline getVoxFoundOitPipeline() const { return voxFoundOitPipeline; }
+    bool ensureVoxFoundBodyOitPipeline();   // S9b: glass shards (loose bodies) in the OIT pass
+    VkPipeline getVoxFoundBodyOitPipeline() const { return voxFoundBodyOitPipeline; }
     /// D4 follow-up S3 (mirrors on the switched world): the REFLECTION pass over the voxfound faces
     /// (voxfound_face.vert + voxel.frag, back-culled: the reflected view flips winding) and the MIRROR surface pass
     /// (voxfound_face.vert + mirror_voxel_vf.frag, the reflection sampler at set 2 -- set 1 is the face table),
@@ -163,6 +165,7 @@ private:
     VkPipeline oitPipeline = VK_NULL_HANDLE;            // Weighted Blended OIT transparent pass
     VkShaderModule oitFragShaderModule = VK_NULL_HANDLE;
     VkPipeline voxFoundOitPipeline = VK_NULL_HANDLE;   // D4 follow-up (glass)
+    VkPipeline voxFoundBodyOitPipeline = VK_NULL_HANDLE;   // S9b (glass shards)
     VkRenderPass m_oitRenderPass = VK_NULL_HANDLE;      // the pass the OIT pipelines were last built against
     VkPipeline voxFoundReflectionPipeline = VK_NULL_HANDLE;   // S3
     VkPipeline voxFoundMirrorPipeline = VK_NULL_HANDLE;       // S3

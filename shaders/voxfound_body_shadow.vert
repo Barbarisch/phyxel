@@ -16,7 +16,15 @@ layout(push_constant) uniform PushConstants {
     vec3 chunkBaseOffset;   // unused (poses are camera-relative already)
     uint useChunkDataSsbo;  // unused
     uint drawIndexBase;     // this frame's first pose
+    uvec4 clear0;           // S9b: CardSet::clear bits -- glass shards cast no shadow (offset 96)
+    uvec4 clear1;
 } pushConstants;
+
+bool isClear(uint m) {
+    const uint w = m >> 5u;
+    const uint word = w < 4u ? pushConstants.clear0[w] : pushConstants.clear1[w - 4u];
+    return ((word >> (m & 31u)) & 1u) != 0u;
+}
 
 struct BodyPose {
     vec4 q;
@@ -31,6 +39,10 @@ layout(std430, set = 0, binding = 0) readonly buffer VoxFoundBodyPoses {
 vec3 rotateByQuat(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
 
 void main() {
+    if (isClear((inFaceB >> 16) & 0xFFu)) {   // S9b: glass shards cast no shadow
+        gl_Position = vec4(0.0, 0.0, -1.0, 1.0);
+        return;
+    }
     const BodyPose P = poses[pushConstants.drawIndexBase + inBody];
     const uint axis = (inFaceA >> 24) & 3u;
     const bool pos = ((inFaceA >> 26) & 1u) != 0u;
