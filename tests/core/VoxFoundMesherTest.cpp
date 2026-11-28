@@ -303,6 +303,41 @@ TEST(VoxFoundMesher, CardVoxelsEmitNoFacesButStillHideTheirNeighbours) {
     EXPECT_GT(coverageErrors(g, Outside::Air, meshRuns(g, Outside::Air), nullptr, &cards), 0u);
 }
 
+// ---- D4 follow-up: CLEAR (transparent, e.g. Glass) voxels -- the face rule sees through them ----
+// q hides p's face iff q is solid and NOT (q clear and p opaque): stone under glass keeps its top face (seen through
+// the glass), glass on stone loses its bottom face, glass-glass faces stay hidden (a pane is one surface, not N).
+
+TEST(VoxFoundMesher, ClearVoxelsShowTheFacesBehindThem) {
+    // Stone (1) at (1,1,1), glass (3) on its +y side. Predicted with clear = {3}: stone 6 faces (its top is seen
+    // through the glass), glass 5 (its bottom rests on opaque stone) = 11. Control (no clear): 5 + 5 = 10.
+    VoxelGrid g = box({3, 4, 3});
+    g.set({1, 1, 1}, 1);
+    g.set({1, 2, 1}, 3);
+    CardSet cs;
+    cs.setClear(3);
+    EXPECT_TRUE(cs.isClear(3));
+    EXPECT_FALSE(cs.isClear(1));
+    EXPECT_FALSE(cs.has(3));   // clear is not a card: glass draws its own faces
+    EXPECT_EQ(meshCulled(g, Outside::Air).size(), 10u);
+    const auto culled = meshCulled(g, Outside::Air, &cs);
+    EXPECT_EQ(culled.size(), 11u);
+    int stoneTop = 0, glassBottom = 0;
+    for (const Quad& q : culled) {
+        if (q.material == 1 && q.axis == 1 && q.dir > 0) ++stoneTop;
+        if (q.material == 3 && q.axis == 1 && q.dir < 0) ++glassBottom;
+    }
+    EXPECT_EQ(stoneTop, 1);
+    EXPECT_EQ(glassBottom, 0);
+    EXPECT_EQ(meshRuns(g, Outside::Air, &cs).size(), 11u);
+    EXPECT_EQ(meshGreedy(g, Outside::Air, 0, &cs).size(), 11u);
+    std::string why;
+    EXPECT_EQ(coverageErrors(g, Outside::Air, meshRuns(g, Outside::Air, &cs), &why, &cs), 0u) << why;
+    // a 3-voxel glass pane: its internal faces stay hidden (14 faces, as any material)
+    VoxelGrid pane = box({5, 3, 3});
+    for (int x = 1; x <= 3; ++x) pane.set({x, 1, 1}, 3);
+    EXPECT_EQ(meshCulled(pane, Outside::Air, &cs).size(), 14u);
+}
+
 TEST(VoxFoundMesher, RunMergeWithCardsIsExact) {
     std::mt19937 rng(23);
     VoxelGrid g = box({20, 18, 22});
@@ -580,6 +615,40 @@ TEST(VoxFoundMesher, ChunksAreInvisible) {
         EXPECT_FALSE(oldWay == whole) << name;
         std::printf("[mesher] chunks invisible (%s): whole %zu unit faces; chunks without neighbours %zu; "
                     "sprigs %zu\n", name, whole.size(), oldWay.size(), sprWhole.size());
+    }
+}
+
+TEST(VoxFoundMesher, ClearVoxelsKeepChunksInvisible) {
+    // borderWorld with every 7th solid voxel turned to glass (4): the chunked mesh, each chunk with its Neighbours
+    // (solid + clear planes from the region), equals the whole-region mesh unit face for unit face. Teeth: the
+    // neighbours without clear planes (solidity only) show the seams.
+    VoxelGrid world = borderWorld();
+    size_t glass = 0;
+    for (size_t i = 0; i < world.size(); ++i)
+        if (world.mat[i] == 1 && (i * 2654435761u >> 7) % 7 == 0) world.mat[i] = 4, ++glass;
+    CardSet cs;
+    cs.set(2);
+    cs.setClear(4);
+    const glm::ivec3 sz(16, 16, 16);
+    for (Outside beyond : {Outside::Air, Outside::Skip}) {
+        std::vector<UnitFace> whole, chunked, solidOnly;
+        addUnitFaces(meshCulled(world, beyond, &cs), {0, 0, 0}, whole);
+        for (int x = 0; x < world.dim.x; x += sz.x)
+            for (int y = 0; y < world.dim.y; y += sz.y)
+                for (int z = 0; z < world.dim.z; z += sz.z) {
+                    const glm::ivec3 lo(x, y, z), size = glm::min(sz, world.dim - lo);
+                    const VoxelGrid sub = subGrid(world, lo, size);
+                    addUnitFaces(meshRuns(sub, neighboursOf(world, lo, size, beyond, &cs), &cs), lo, chunked);
+                    addUnitFaces(meshRuns(sub, neighboursOf(world, lo, size, beyond), &cs), lo, solidOnly);
+                }
+        std::sort(whole.begin(), whole.end());
+        std::sort(chunked.begin(), chunked.end());
+        std::sort(solidOnly.begin(), solidOnly.end());
+        EXPECT_GT(glass, 100u);
+        EXPECT_TRUE(chunked == whole) << "chunked " << chunked.size() << " vs whole " << whole.size();
+        EXPECT_FALSE(solidOnly == whole);
+        std::printf("[mesher] clear voxels: %zu glass, whole %zu unit faces, solid-only borders %zu\n", glass,
+                    whole.size(), solidOnly.size());
     }
 }
 

@@ -2083,3 +2083,28 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
   (ScriptingSystem exposes PHYXEL_PROJECT_MODE; the console helpers still load). With it: VoxFoundGate8 boots its
   region around chunk (256,*,7) (lo [254,0,5]); the boot camera x ~8192; G1 finds ground <= 34 and returns
   {} / {}, 0 lost, max apply <= ~0.45 s, as at D4. No project log line "Characters spawned successfully!".
+  S1 RESULT (G1 alone, before the full battery): PASS as predicted -- boot camera (8192, 70, 230), region
+     [254,0,5]..[257,1,8], log "Project open: startup demo skipped"; G1 {} / {}, 0 lost, max apply 0.393 s, median
+     0.305 s. ground_points now refuses after 50n+500 tries instead of looping forever (the 3-day hang).
+     Gap kept: the no-project LAUNCHER flow still runs the demo before a project is picked (as before D4).
+
+  S2 PREDICTION (glass on the switched world; written before the code). Design: a CLEAR set in CardSet (materials
+  with alpha < 0.99 that are not cards: Glass, the only one in materials.json, alpha 0.02). Face rule everywhere
+  (meshCulled / meshGreedy / meshRuns / the plans / voxfound_faces.comp): q hides p's face iff q is solid and NOT
+  (q clear and p opaque). Neighbours gains six clear planes (border voxel clear?); RegionEdit keeps them current on
+  edits; forEachStoredChunk fills them from the stored neighbour (isClear by name); generated terrain + flora emit
+  no clear material (planes stay 0). GPU: push constants 80 -> 112 B (clear0/clear1), the border buffer 6 -> 12
+  planes, a block holding a clear voxel no longer "hides everything". Render: the face words carry voxel.frag's
+  transparent flag (bit 1), so the opaque passes discard glass and the OIT pass (transparent_voxel.frag over the
+  voxfound records, a new pipeline on voxfound_face.vert) draws it; loose bodies keep glass opaque.
+    T1 (unit, red first): ClearVoxelsShowTheFacesBehindThem -- stone under glass 11 faces (control 10), the stone top
+       present, the glass bottom absent, a 3-voxel pane 14; ClearVoxelsKeepChunksInvisible -- borderWorld with every
+       7th solid voxel glass: chunked == whole (both Outside modes), solid-only borders != whole. Red: wrong counts
+       (11 -> 10) and chunked != whole until the rule lands.
+    T2 (integration): ClearVoxelsEqualTheReference -- GPU whole builds (block skip on and off) and 12 row-delta
+       edits per grid == the CPU reference on 4 grids with random solid/clear border planes.
+    T3 (live, TavernTest copy): a 6 x 3 x 1 m Glass wall filled on the ground through the switched world: the
+       stats show voxfound_oit_faces > 0 (0 before the fill); frames before / after at one stated pose show the
+       terrain and sky THROUGH the wall (no void, no black); FPS within ~10% of before. Shadows: glass faces still
+       cast (the shadow pass has no flag discard) -- measured and recorded, not fixed here.
+    Every existing unit / integration test stays as it was (the clear set is empty unless a palette has glass).

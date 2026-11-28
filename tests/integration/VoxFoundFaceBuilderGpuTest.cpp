@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <limits>
 #include <random>
+#include <array>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -861,6 +862,79 @@ TEST_F(VoxFoundFaceBuilderGpu, RowsDeltaEqualsTheCpuPlan) {
     EXPECT_GT(hits, 100u) << "resident slots should hit most of the time";
     EXPECT_LT(hits, 240u) << "12 grids over 8 slots must miss sometimes";
     std::printf("[rowsDelta] 240 edits over 12 grids: %zu rows, %zu faces added, %zu resident hits\n", rows, added, hits);
+}
+
+// D4 follow-up (glass): CLEAR materials (CardSet::setClear) -- the GPU builder (whole builds with Neighbours that
+// carry clear planes, and the row-list delta) equals meshRuns' face rule (Mesher.h: q hides p iff q solid and not
+// (q clear and p opaque)), incl. clear material 255 (the high word) and the uniform-block skip (a block of glass
+// no longer "hides everything").
+TEST_F(VoxFoundFaceBuilderGpu, ClearVoxelsEqualTheReference) {
+    std::mt19937 rng(4417u);
+    auto rnd = [&](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    SprigParams sp;
+    sp.cards.set(2);
+    sp.cards.setClear(3);
+    sp.cards.setClear(255);
+    sp.worldOriginVoxel = {11, -40, 900};
+    sp.threshold24 = sprigThreshold24(kSprigsPerM2, kVoxelsPerM);
+    const glm::ivec3 dims[] = {{24, 20, 28}, {33, 65, 17}, {64, 40, 48}, {256, 9, 5}};
+    size_t clearFaces = 0;
+    for (const glm::ivec3 d : dims) {
+        VoxelGrid g = box(d);
+        for (int x = 0; x < d.x; ++x)
+            for (int y = 0; y < d.y; ++y)
+                for (int z = 0; z < d.z; ++z) {
+                    const unsigned r = unsigned(rnd(0, 99));
+                    uint8_t m = r < 30 ? 1 : r < 40 ? 2 : r < 55 ? 3 : r < 58 ? 255 : 0;
+                    if (x < 16 && y < 16 && z < 16) m = 3;   // a whole 8^3-aligned glass region (the block skip)
+                    g.set({x, y, z}, m);
+                }
+        Neighbours nb;
+        nb.resize(d, false);
+        for (int a = 0; a < 3; ++a)
+            for (int s : {-1, 1})
+                for (int v = 0; v < d[(a + 2) % 3]; ++v)
+                    for (int u = 0; u < d[(a + 1) % 3]; ++u) {
+                        const int r = rnd(0, 2);   // 0 air, 1 opaque, 2 clear
+                        if (r) nb.set(a, s, u, v, true);
+                        if (r == 2) nb.setClear(a, s, u, v, true);
+                    }
+        const std::string name = std::to_string(d.x) + "x" + std::to_string(d.y) + "x" + std::to_string(d.z);
+        for (bool skip : {false, true}) {
+            gpu.setUniformBlockSkip(skip);
+            same(g, Edges(nb), name + (skip ? " block skip" : ""), &sp);
+        }
+        for (const Quad& q : meshRuns(g, Edges(nb), &sp.cards)) clearFaces += q.material == 3 || q.material == 255;
+        // the delta: a few edits, each plan re-meshed on the device == the CPU plan
+        std::vector<PackedFace> faces;
+        for (const Quad& q : meshRuns(g, Edges(nb), &sp.cards)) faces.push_back(packFace(q));
+        for (int it = 0; it < 12; ++it) {
+            const glm::ivec3 c(rnd(0, d.x - 1), rnd(0, d.y - 1), rnd(0, d.z - 1));
+            const glm::ivec3 lo = glm::max(c - 3, glm::ivec3(0)), hi = glm::min(c + 3, d - 1);
+            const uint8_t m = uint8_t(std::array<int, 4>{0, 1, 3, 255}[size_t(rnd(0, 3))]);
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z) g.set({x, y, z}, m);
+            const RunsPlan plan = planRunsDelta(d, faces, lo, hi);
+            const RunsDelta cpu = meshRunsPlan(g, Edges(nb), plan, &sp.cards);
+            std::vector<PackedFace> dev;
+            std::string err;
+            ASSERT_TRUE(gpu.rowsDelta(9000u + uint64_t(&d - dims), g, nb, lo, hi, plan, &sp.cards, dev, &err)) << err;
+            ASSERT_EQ(keys(cpu.added), keys(dev)) << name << " edit " << it << ": " << firstDiff(keys(cpu.added), keys(dev));
+            std::vector<char> gone(faces.size(), 0);
+            for (uint32_t i : plan.removed) gone[i] = 1;
+            std::vector<PackedFace> next;
+            for (size_t i = 0; i < faces.size(); ++i)
+                if (!gone[i]) next.push_back(faces[i]);
+            next.insert(next.end(), dev.begin(), dev.end());
+            faces.swap(next);
+        }
+        std::vector<PackedFace> full;
+        for (const Quad& q : meshRuns(g, Edges(nb), &sp.cards)) full.push_back(packFace(q));
+        EXPECT_EQ(keys(faces), keys(full)) << name << " after the edits";
+    }
+    gpu.setUniformBlockSkip(true);
+    EXPECT_GT(clearFaces, 1000u);
 }
 
 // F2.17 (§4.6 item 10): the cull tables updated in place. A table of 4,000 clusters (6 chunks, 3 levels, a solid/leaf
