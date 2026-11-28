@@ -720,10 +720,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       D4 FOLLOW-UPS (2026-11-28, voxfound_f7_prediction.txt "D4 FOLLOW-UPS"): emissive lights + fire, residency
       hold, validators, Python add/remove_cube, far terrain, chop contact+kerf, GLASS (clear set in the face
       rule + OIT pass) all fed + live-checked. scripts/startup.py demo now skipped in projects (it moved the
-      boot region to the origin once Python linked again). NOW NEXT (owed, in order): mirrors on the voxfound
-      faces (bit 10 + a set-2 mirror frag + reflection pass draw); glass shadow (shadow pass lacks the face
-      table); chop felling (sever test + release); structure LOD proxies. Suites: unit 2 fail (WaterCoupling,
-      WorldReads.Cost timing flake), integration 2 (WaterCore rows, also red on main).
+      boot region to the origin once Python linked again). S3-S6 (2026-11-28): mirrors (4 old mirror-pass
+      defects fixed: camera-relative reflection, reflection UBO, its descriptor set, Y-flip; clip plane),
+      glass casts no shadow, axe felling (per-tree notch + crown release), far terrain / far trees /
+      structure proxies on switched streaming worlds (the generator handed over). NOW NEXT: reflection
+      sky / grass / leaf cards / characters in mirrors; suites carry only WaterCore-owned rows.
       -- generation
       writes only the new store, D3 the 1/9 m writers go, D4 the store + readers + opt-out go (61 files, 38 tests).
       NEXT (owed, in order): the

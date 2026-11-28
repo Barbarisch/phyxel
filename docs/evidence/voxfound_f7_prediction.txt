@@ -2243,3 +2243,6 @@ D4 DONE -- step 7 (the deletion) complete: today's 1/9 m store, its classes, wri
      Far (104 m, its chunks out of the region): min_fade 1.0 -- the proxy houses stand among the far trees and far
      terrain (d4g_structlod_far100; before: nothing there). Gap kept: a structure never visited has no proxy (the old
      tier's rule too); the driver's solid_in_band read a key the route does not return (not measured).
+  AFTER S6 (the generator handed to the far tiers): battery G1 {} / {}, max apply 0.38 s; G2 12 / 12; G3 both ways; G4 20 / 0;
+     six projects boot switched (create_refused 0; VillageChat's Cork chunk as before); D3-scenes gold 512 / pond 0 / 512;
+     the packaged game boots (214 clusters). Suites: unit 4,424 / 1, integration 188 / 2 -- WaterCore-owned rows only.
